@@ -1413,6 +1413,11 @@ class MainActivity : AppCompatActivity() {
         refreshKeys()
     }
 
+    /** The stills taken but not yet on the drive; each 4K picture holds about 33 MB until it is written. */
+    private val stillWriter = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "still-png") }
+    private val stillsWaiting = java.util.concurrent.atomic.AtomicInteger()
+    private val MAX_STILLS_WAITING = 4
+
     /**
      * SNAP: the picture as a PNG, beside the takes.
      *
@@ -1429,17 +1434,22 @@ class MainActivity : AppCompatActivity() {
         val long = maxOf(bufferSize.width, bufferSize.height)
         val (w, h) = if (vw >= vh) long to (long.toLong() * vh / vw).toInt()
                      else (long.toLong() * vw / vh).toInt() to long
+        // Marko, 16.10.2026: "snaps in the RAM quickly ... and then slowly saves on SSD so I get the image
+        // momentarily." The picture is in memory once getBitmap returns; the key flashes for that moment only,
+        // and the PNG is written behind it, one at a time, so the next snap can be taken straight away.
+        if (stillsWaiting.get() >= MAX_STILLS_WAITING) { say("Still writing the last stills — a moment"); return }
+        val at = java.util.Date()
         val bitmap = runCatching { preview.getBitmap(w, h) }.getOrNull()
             ?: run { say("The picture could not be read"); return }
+        stillsWaiting.incrementAndGet()
         snapKey.state = RailButton.State.ARMED
-        Thread({
-            val where = Recordings.savePng(this, bitmap, folder = settings.recordFolder)
+        ui.postDelayed({ refreshKeys() }, 150)
+        stillWriter.execute {
+            val where = Recordings.savePng(this, bitmap, at = at, folder = settings.recordFolder)
             bitmap.recycle()
-            ui.post {
-                refreshKeys()
-                say(if (where != null) "Still → $where" else "The still was not written, see the trace")
-            }
-        }, "still-png").start()
+            stillsWaiting.decrementAndGet()
+            ui.post { say(if (where != null) "Still → $where" else "The still was not written, see the trace") }
+        }
         Trace.control("still", "${w}x$h", "PNG")
     }
 
