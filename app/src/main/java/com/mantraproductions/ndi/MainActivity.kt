@@ -519,7 +519,10 @@ class MainActivity : AppCompatActivity() {
             it.setOnClickListener { toggleRecording() }
             railRight.addView(it)
         }
-        playKey = newKey("PLAY") { playLastTake() }.also { railRight.addView(it) }
+        playKey = newKey("") { playLastTake() }.also {
+            it.glyph = RailButton.Glyph.PLAY
+            railRight.addView(it)
+        }
         // SNAP is the app's own icon (v88): the still is this camera's picture.
         snapKey = newKey("") { takeSnap() }.also {
             it.glyph = RailButton.Glyph.CAMERA
