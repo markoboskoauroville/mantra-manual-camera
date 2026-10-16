@@ -1414,18 +1414,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** The stills taken but not yet on the drive; each 4K picture holds about 33 MB until it is written. */
-    private val stillWriter = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "still-png") }
+    private val stillWriter = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "still-jpeg") }
     private val stillsWaiting = java.util.concurrent.atomic.AtomicInteger()
     private val MAX_STILLS_WAITING = 4
     private val keptStill = java.util.concurrent.atomic.AtomicReference<android.graphics.Bitmap?>()
 
     /**
-     * SNAP: the picture as a PNG, beside the takes.
+     * SNAP: the picture as a JPEG at quality 100, beside the takes.
      *
      * Taken from the preview at the camera's own resolution rather than the
      * screen's, the right way up, without the rails, the zones, the peaking
      * or the monitor LUT (those are on the View, not in the texture). The
-     * compression is off the main thread: a 4K PNG takes most of a second.
+     * compression is off the main thread.
      */
     private fun takeSnap() {
         if (!pipeline.isRunning || !preview.isAvailable) { say("The camera is not open"); return }
@@ -1438,7 +1438,7 @@ class MainActivity : AppCompatActivity() {
         // Marko, 16.10.2026: "snaps in the RAM quickly ... and then slowly saves on SSD so I get the image
         // momentarily." The tap answers on the frame it lands on: the picture blinks and the key lights. The
         // picture is read from the preview straight after that frame is drawn (reading first would hold the blink
-        // back behind the read), into a kept buffer rather than a new 33 MB one, and the PNG is written behind it,
+        // back behind the read), into a kept buffer rather than a new 33 MB one, and the JPEG is written behind it,
         // one at a time, so the next snap can be taken straight away.
         if (stillsWaiting.get() >= MAX_STILLS_WAITING) { say("Still writing the last stills — a moment"); return }
         val at = java.util.Date()
@@ -1460,9 +1460,11 @@ class MainActivity : AppCompatActivity() {
             say("The picture could not be read")
             return
         }
-        Trace.control("still", "${w}x$h", "PNG", "read in ${android.os.SystemClock.uptimeMillis() - t0} ms")
+        Trace.control("still", "${w}x$h", "JPEG", "read in ${android.os.SystemClock.uptimeMillis() - t0} ms")
         stillWriter.execute {
-            val where = Recordings.savePng(this, bitmap, at = at, folder = settings.recordFolder)
+            val t1 = android.os.SystemClock.uptimeMillis()
+            val where = Recordings.saveJpeg(this, bitmap, at = at, folder = settings.recordFolder)
+            Trace.state("still written in ${android.os.SystemClock.uptimeMillis() - t1} ms")
             // One buffer is kept for the next snap; the others go back, so idle memory stays at one picture.
             if (!keptStill.compareAndSet(null, bitmap)) bitmap.recycle()
             stillsWaiting.decrementAndGet()
