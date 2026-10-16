@@ -1417,6 +1417,7 @@ class MainActivity : AppCompatActivity() {
     private val stillWriter = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "still-png") }
     private val stillsWaiting = java.util.concurrent.atomic.AtomicInteger()
     private val MAX_STILLS_WAITING = 4
+    private val keptStill = java.util.concurrent.atomic.AtomicReference<android.graphics.Bitmap?>()
 
     /**
      * SNAP: the picture as a PNG, beside the takes.
@@ -1435,22 +1436,38 @@ class MainActivity : AppCompatActivity() {
         val (w, h) = if (vw >= vh) long to (long.toLong() * vh / vw).toInt()
                      else (long.toLong() * vw / vh).toInt() to long
         // Marko, 16.10.2026: "snaps in the RAM quickly ... and then slowly saves on SSD so I get the image
-        // momentarily." The picture is in memory once getBitmap returns; the key flashes for that moment only,
-        // and the PNG is written behind it, one at a time, so the next snap can be taken straight away.
+        // momentarily." The tap answers on the frame it lands on: the picture blinks and the key lights. The
+        // picture is read from the preview straight after that frame is drawn (reading first would hold the blink
+        // back behind the read), into a kept buffer rather than a new 33 MB one, and the PNG is written behind it,
+        // one at a time, so the next snap can be taken straight away.
         if (stillsWaiting.get() >= MAX_STILLS_WAITING) { say("Still writing the last stills — a moment"); return }
         val at = java.util.Date()
-        val bitmap = runCatching { preview.getBitmap(w, h) }.getOrNull()
-            ?: run { say("The picture could not be read"); return }
         stillsWaiting.incrementAndGet()
         snapKey.state = RailButton.State.ARMED
+        preview.animate().cancel()
+        preview.alpha = 0.2f
+        preview.animate().alpha(1f).setDuration(180).start()
         ui.postDelayed({ refreshKeys() }, 150)
+        android.view.Choreographer.getInstance().postFrameCallback { ui.post { grabStill(w, h, at) } }
+    }
+
+    private fun grabStill(w: Int, h: Int, at: java.util.Date) {
+        val t0 = android.os.SystemClock.uptimeMillis()
+        val kept = keptStill.getAndSet(null)?.takeIf { !it.isRecycled && it.width == w && it.height == h }
+        val bitmap = runCatching { if (kept != null) preview.getBitmap(kept) else preview.getBitmap(w, h) }.getOrNull()
+        if (bitmap == null) {
+            stillsWaiting.decrementAndGet()
+            say("The picture could not be read")
+            return
+        }
+        Trace.control("still", "${w}x$h", "PNG", "read in ${android.os.SystemClock.uptimeMillis() - t0} ms")
         stillWriter.execute {
             val where = Recordings.savePng(this, bitmap, at = at, folder = settings.recordFolder)
-            bitmap.recycle()
+            // One buffer is kept for the next snap; the others go back, so idle memory stays at one picture.
+            if (!keptStill.compareAndSet(null, bitmap)) bitmap.recycle()
             stillsWaiting.decrementAndGet()
             ui.post { say(if (where != null) "Still → $where" else "The still was not written, see the trace") }
         }
-        Trace.control("still", "${w}x$h", "PNG")
     }
 
     /** Curves a lens froze on, "lens/CURVE": stepped over from then on, and since v115 kept across starts. */
