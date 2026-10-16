@@ -51,6 +51,11 @@ std::mutex g_send_mutex;
 // Creating or destroying the sender takes BOTH locks, so neither side can ever use a sender being torn down.
 std::mutex g_meta_mutex;
 
+// v135: the sound has its own lock too. The SDK allows audio and video to be sent at the same time from different
+// threads, and an audio send waiting behind a video frame that waits on the network would starve the microphone's
+// reader. Creating or destroying the sender takes all three locks.
+std::mutex g_audio_mutex;
+
 // SPS/PPS (and VPS for H.265), attached to keyframes as the packet's extra
 // data. A receiver that joins mid-stream has no other way to learn the format.
 std::vector<uint8_t> g_video_extra;
@@ -60,6 +65,22 @@ int g_width = 1920;
 int g_height = 1080;
 int g_fps_n = 30;
 int g_fps_d = 1;
+
+// v136: one tightly packed 8-bit plane (w x h) turned t quarter turns clockwise into dst (h x w when t is odd).
+void rotatePlane(const uint8_t* src, int w, int h, uint8_t* dst, int t) {
+    for (int y = 0; y < h; ++y) {
+        const uint8_t* row = src + (size_t) y * w;
+        for (int x = 0; x < w; ++x) {
+            size_t i;
+            switch (t) {
+                case 1: i = (size_t) x * h + (h - 1 - y); break;            // dst w' = h
+                case 2: i = (size_t) (h - 1 - y) * w + (w - 1 - x); break;
+                default: i = (size_t) (w - 1 - x) * h + y; break;          // t == 3
+            }
+            dst[i] = row[x];
+        }
+    }
+}
 
 std::vector<uint8_t> toVector(JNIEnv* env, jbyteArray array) {
     if (array == nullptr) return {};
@@ -75,8 +96,10 @@ std::vector<uint8_t> toVector(JNIEnv* env, jbyteArray array) {
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_mantraproductions_ndi_NdiSender_nativeCreate(
-        JNIEnv* env, jobject, jstring sourceName) {
+        JNIEnv* env, jobject, jstring sourceName, jstring configJson) {
     const char* name = env->GetStringUTFChars(sourceName, nullptr);
+    // v135: the NDI JSON configuration for this one sender (which adapter it may use), or null for the SDK's own.
+    const char* config = configJson ? env->GetStringUTFChars(configJson, nullptr) : nullptr;
 
     NDIlib_send_create_t create_desc;
     create_desc.p_ndi_name = name;
@@ -96,11 +119,14 @@ Java_com_mantraproductions_ndi_NdiSender_nativeCreate(
     if (first_init && !NDIlib_initialize()) {
         LOGE("NDIlib_initialize failed");
         env->ReleaseStringUTFChars(sourceName, name);
+        if (config) env->ReleaseStringUTFChars(configJson, config);
         return JNI_FALSE;
     }
 
-    NDIlib_send_instance_t fresh = NDIlib_send_create(&create_desc);
+    NDIlib_send_instance_t fresh = NDIlib_send_create_v2(&create_desc, config);
+    if (config) LOGI("NDI sender config %s", config);
     env->ReleaseStringUTFChars(sourceName, name);
+    if (config) env->ReleaseStringUTFChars(configJson, config);
 
     if (!fresh) {
         LOGE("NDIlib_send_create failed");
@@ -108,7 +134,7 @@ Java_com_mantraproductions_ndi_NdiSender_nativeCreate(
     }
 
     {
-        std::scoped_lock lock(g_send_mutex, g_meta_mutex);
+        std::scoped_lock lock(g_send_mutex, g_meta_mutex, g_audio_mutex);
         NDIlib_send_instance_t old = g_send_instance;
         g_send_instance = fresh;
         if (old) NDIlib_send_destroy(old);
@@ -119,7 +145,7 @@ Java_com_mantraproductions_ndi_NdiSender_nativeCreate(
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_mantraproductions_ndi_NdiSender_nativeDestroy(JNIEnv*, jobject) {
-    std::scoped_lock lock(g_send_mutex, g_meta_mutex);
+    std::scoped_lock lock(g_send_mutex, g_meta_mutex, g_audio_mutex);
     if (g_send_instance) {
         NDIlib_send_destroy(g_send_instance);
         g_send_instance = nullptr;
@@ -285,7 +311,7 @@ Java_com_mantraproductions_ndi_NdiSender_nativeSendYuv420(
         jobject uBuf, jint uStride,
         jobject vBuf, jint vStride,
         jint uvPixelStride,
-        jint width, jint height, jlong ptsUs) {
+        jint width, jint height, jlong ptsUs, jint turns) {
 
     auto* y = static_cast<const uint8_t*>(env->GetDirectBufferAddress(yBuf));
     auto* u = static_cast<const uint8_t*>(env->GetDirectBufferAddress(uBuf));
@@ -332,16 +358,31 @@ Java_com_mantraproductions_ndi_NdiSender_nativeSendYuv420(
         }
     }
 
+    // v136: the frame turned to how the phone is held, plane by plane (the chroma planes at half size).
+    const int t = ((turns % 4) + 4) % 4;
+    uint8_t* out = packed.data();
+    int outW = width, outH = height;
+    if (t != 0) {
+        static std::vector<uint8_t> turned;
+        if (turned.size() < needed) turned.resize(needed);
+        if (t % 2 == 1) { outW = height; outH = width; }
+        rotatePlane(dstY, width, height, turned.data(), t);
+        uint8_t* tu = turned.data() + (size_t) width * height;
+        rotatePlane(dstU, cw, ch, tu, t);
+        rotatePlane(dstV, cw, ch, tu + (size_t) cw * ch, t);
+        out = turned.data();
+    }
+
     NDIlib_video_frame_v2_t frame = {};
     frame.FourCC = NDIlib_FourCC_video_type_I420;
-    frame.xres = width;
-    frame.yres = height;
-    frame.line_stride_in_bytes = width;
-    frame.p_data = packed.data();
+    frame.xres = outW;
+    frame.yres = outH;
+    frame.line_stride_in_bytes = outW;
+    frame.p_data = out;
     frame.frame_rate_N = g_fps_n;
     frame.frame_rate_D = g_fps_d;
     frame.frame_format_type = NDIlib_frame_format_type_progressive;
-    frame.picture_aspect_ratio = height > 0 ? (float) width / (float) height : 0.0f;
+    frame.picture_aspect_ratio = outH > 0 ? (float) outW / (float) outH : 0.0f;
     frame.timecode = static_cast<int64_t>(ptsUs) * 10;
 
     std::lock_guard<std::mutex> lock(g_send_mutex);
@@ -421,4 +462,40 @@ Java_com_mantraproductions_ndi_NdiSender_nativeSendMetadata(JNIEnv* env, jobject
     NDIlib_send_send_metadata(g_send_instance, &frame);
     env->ReleaseStringUTFChars(xml, data);
     return JNI_TRUE;
+}
+
+/**
+ * v135: the sound, inside the stream. 16-bit interleaved PCM straight from the microphone's reader, sent as an NDI
+ * audio frame beside the picture, in HX and in full NDI alike. Reference level 0 dB, which is what the SDK asks a
+ * sender to use ("most common applications produce audio at reference level"): full scale on the phone is full
+ * scale in OBS and vMix. The timecode is synthesised by the SDK from the sample count, so the sound runs on its own
+ * clock and never jumps when the picture is rebuilt.
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_mantraproductions_ndi_NdiSender_nativeSendAudio(
+        JNIEnv* env, jobject, jbyteArray pcm, jint bytes, jint channels, jint sampleRate) {
+    if (pcm == nullptr || bytes <= 0 || channels <= 0 || sampleRate <= 0) return JNI_FALSE;
+    const int samples = bytes / (2 * channels);
+    if (samples <= 0) return JNI_FALSE;
+    jbyte* data = env->GetByteArrayElements(pcm, nullptr);
+    if (!data) return JNI_FALSE;
+
+    NDIlib_audio_frame_interleaved_16s_t frame = {};
+    frame.sample_rate = sampleRate;
+    frame.no_channels = channels;
+    frame.no_samples = samples;
+    frame.timecode = NDIlib_send_timecode_synthesize;
+    frame.reference_level = 0;
+    frame.p_data = reinterpret_cast<int16_t*>(data);
+
+    jboolean sent = JNI_FALSE;
+    {
+        std::lock_guard<std::mutex> lock(g_audio_mutex);
+        if (g_send_instance) {
+            NDIlib_util_send_send_audio_interleaved_16s(g_send_instance, &frame);
+            sent = JNI_TRUE;
+        }
+    }
+    env->ReleaseByteArrayElements(pcm, data, JNI_ABORT);
+    return sent;
 }

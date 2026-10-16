@@ -239,6 +239,7 @@ class MainActivity : AppCompatActivity() {
         pipeline = CameraPipeline(this)
         slots = LutSlots(this)
         settings = Settings(this)
+        applyTestExtras(intent)
         manualQuarterTurns = settings.quarterTurns
         lenses = CameraCatalogue.lenses(this)
         Trace.state(
@@ -375,6 +376,8 @@ class MainActivity : AppCompatActivity() {
                     // v104: the light, switched in settings, is put on whenever the camera opens
                     if (settings.torch) pipeline.engine.setTorch(true)
                     restoreMode = CameraPipeline.Mode.OFF
+                    // v136: the stream stands the way the phone is held
+                    updateStreamTurns()
                     // v130: NDI runs whenever it is armed, from the moment the camera is up (item 47)
                     followNdiSwitch()
                     // A new session starts from the template, which is all
@@ -425,7 +428,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         preview.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(t: SurfaceTexture, w: Int, h: Int) = openCamera()
+            override fun onSurfaceTextureAvailable(t: SurfaceTexture, w: Int, h: Int) {
+                // v136: the stream ran on in the background; the camera is open, only the window comes back.
+                if (pipeline.isRunning && pipeline.usesGpuStage) {
+                    holdBufferSize()
+                    pipeline.attachPreview(Surface(t))
+                    applyPreviewTransform()
+                    updateStreamTurns()
+                    Trace.state("preview back on the running pipeline")
+                } else openCamera()
+            }
             override fun onSurfaceTextureSizeChanged(t: SurfaceTexture, w: Int, h: Int) {
                 // The view has just taken the buffer size for itself.
                 holdBufferSize()
@@ -452,7 +464,8 @@ class MainActivity : AppCompatActivity() {
              * gone, which is what made the picture come back frozen.
              */
             override fun onSurfaceTextureDestroyed(t: SurfaceTexture): Boolean {
-                pipeline.stop()
+                // v136: streaming on in the background: only the window goes.
+                if (keptRunning && pipeline.isRunning) pipeline.detachPreview() else pipeline.stop()
                 return true
             }
         }
@@ -519,7 +532,10 @@ class MainActivity : AppCompatActivity() {
             it.setOnClickListener { toggleRecording() }
             railRight.addView(it)
         }
-        playKey = newKey("PLAY") { playLastTake() }.also { railRight.addView(it) }
+        playKey = newKey("") { playLastTake() }.also {
+            it.glyph = RailButton.Glyph.PLAY
+            railRight.addView(it)
+        }
         // SNAP is the app's own icon (v88): the still is this camera's picture.
         snapKey = newKey("") { takeSnap() }.also {
             it.glyph = RailButton.Glyph.CAMERA
@@ -685,6 +701,7 @@ class MainActivity : AppCompatActivity() {
         override fun onDisplayRemoved(displayId: Int) = Unit
         override fun onDisplayChanged(displayId: Int) {
             if (preview.isAvailable) applyPreviewTransform()
+            updateStreamTurns()
         }
     }
 
@@ -766,6 +783,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (keptRunning) resumeKept()
         ui.removeCallbacks(logExposureTick)
         ui.post(logExposureTick)
         ui.removeCallbacks(remoteTick)
@@ -788,7 +806,9 @@ class MainActivity : AppCompatActivity() {
         refreshStorage()
         refreshKeys()
         startMeter()
+        ui.removeCallbacks(rateTick)
         ui.post(rateTick)
+        updateStreamTurns()
     }
 
     override fun onPause() {
@@ -799,15 +819,68 @@ class MainActivity : AppCompatActivity() {
         ui.removeCallbacks(logExposureTick)
         ui.removeCallbacks(remoteTick)
         focus.stop()
+        // v136: NDI GOES ON IN THE BACKGROUND. While it streams on the GPU path, leaving the app (home, another app,
+        // the screen off, settings) keeps the camera, the microphone and the sender running under the foreground
+        // service; only the preview window is let go. The ticks that watch the stream and the wire keep running.
+        if (pipeline.isRunning && pipeline.mode != CameraPipeline.Mode.OFF && pipeline.usesGpuStage) {
+            keptRunning = true
+            keptWith = snapshot()
+            if (!StreamService.running) StreamService.start(this, "Streaming NDI on " +
+                Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter))
+            ui.removeCallbacks(rateTick); ui.post(rateTick)
+            ui.removeCallbacks(remoteTick); ui.post(remoteTick)
+            Trace.state("background: NDI ${pipeline.mode} goes on, the preview is let go")
+            return
+        }
+        ui.removeCallbacks(rateTick)
+        ui.removeCallbacks(remoteTick)
         // The file is closed before the camera goes, not after: a take whose
         // encoder disappeared underneath it has no moov atom and opens nowhere.
         if (rolling) stopAll()
         pipeline.stop()
+        StreamService.stop(this)
         meter?.stop()
         meter = null
         vu.dead = true
         vu.reset()
         refreshKeys()
+    }
+
+    /** v136: the pipeline was kept running behind other apps (NDI in the background). */
+    private var keptRunning = false
+    private var keptWith: List<Any?> = emptyList()
+
+    /** v136: what, changed in settings while the stream ran on, needs the camera (or the meter) made again. */
+    private fun snapshot(): List<Any?> = listOf(
+        settings.captureWidth, settings.fps, settings.gpuStage, settings.wantTenBit, settings.bitRateMbps,
+        settings.streamMbps, settings.sourceName, settings.ndiKind, settings.ndiTransport, settings.armNdi,
+        settings.audioSource, settings.audioStereo, settings.ndiAudio
+    )
+
+    /**
+     * v136: back in front after the stream ran on. The preview comes back through the surface callback; here, what
+     * settings changed meanwhile is applied: the camera's own decisions need it made again, the wire and the kind
+     * need the sender made again, the sound needs the meter made again.
+     */
+    private fun resumeKept() {
+        keptRunning = false
+        val now = snapshot()
+        val was = keptWith
+        if (was.isEmpty() || now == was) return
+        val camera = (0..6).any { now[it] != was[it] }
+        val sound = (10..12).any { now[it] != was[it] }
+        Trace.state("back in front: settings changed (camera=$camera, sound=$sound)")
+        if (camera) {
+            pipeline.stop()
+            if (preview.isAvailable) openCamera()
+        } else {
+            NdiAudio.wanted = settings.ndiAudio
+            if ((7..9).any { now[it] != was[it] }) {
+                pipeline.setMode(CameraPipeline.Mode.OFF)
+                followNdiSwitch()
+            }
+        }
+        if (sound) { meter?.stop(); meter = null; startMeter() }
     }
 
     /**
@@ -841,7 +914,15 @@ class MainActivity : AppCompatActivity() {
             refreshKeys()
             return
         }
-        val m = AudioMeter { rms -> ui.post { vu.setLevel(rms) } }
+        // v135: the microphone settings name (AUTO, the phone's, or a USB-C / wired device), mono or stereo.
+        val m = AudioMeter(this, settings.audioSource, settings.audioStereo,
+            onLevel = { rms -> ui.post { vu.setLevel(rms) } },
+            onRoute = { label, asChosen ->
+                audioLabel = label
+                if (!asChosen) say("${Routing.choiceLabel(settings.audioSource)} is not plugged in — sound from $label")
+                else say("Sound: $label")
+                refreshTelemetry()
+            })
         if (m.start()) {
             meter = m
             vu.dead = false
@@ -857,6 +938,10 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             if (pipeline.isRunning) pipeline.sampleRate()
             if (++storageTicks % 5 == 0) refreshStorage()
+            if (storageTicks % 2 == 0) watchWire()
+            // v136: the stream watchdog, and the service that keeps the stream alive behind other apps
+            pipeline.watchStream()?.let { Trace.refused("stream watch", it) }
+            syncService()
             ui.postDelayed(this, 1000)
         }
     }
@@ -926,6 +1011,8 @@ class MainActivity : AppCompatActivity() {
      */
     private fun followNdiSwitch() {
         if (!pipeline.isRunning) return
+        pipeline.transport = settings.ndiTransport
+        NdiAudio.wanted = settings.ndiAudio
         if (!settings.armNdi) {
             if (pipeline.mode != CameraPipeline.Mode.OFF) pipeline.setMode(CameraPipeline.Mode.OFF)
             return
@@ -937,9 +1024,71 @@ class MainActivity : AppCompatActivity() {
             say("${if (want == CameraPipeline.Mode.FULL) "Full NDI" else "NDI HX"} is not possible on this lens")
             return
         }
-        pipeline.setMode(want)
+        // v135: no adapter for the chosen wire, no stream; the watch below starts it when the wire comes up.
+        if (pipeline.mode == CameraPipeline.Mode.OFF && pipeline.currentAdapter() == null) {
+            say("NDI waiting — " + Routing.wireLabel(settings.ndiTransport, null))
+            refreshTelemetry()
+            return
+        }
+        if (pipeline.setMode(want)) {
+            pipeline.boundAdapter?.let { say("NDI ${if (want == CameraPipeline.Mode.FULL) "FULL" else "HX"} on " + Routing.wireLabel(settings.ndiTransport, it)) }
+        }
         Trace.control("ndi", want.name, "armed in settings")
         refreshTelemetry()
+    }
+
+    /**
+     * v135: THE TEST HOOK. scripts/field_test.py starts the app with `am start -S ... --es ndi_transport USB` and so
+     * on, so every combination is set without tapping through settings (a tap by coordinates breaks with the next
+     * layout). Only in a debuggable build, which is what the releases are. Keys: ndi_arm, ndi_kind (1 HX, 2 FULL),
+     * ndi_transport (WIFI, USB), ndi_audio, audio_source (auto, phone, or a device key), audio_stereo, file_arm.
+     */
+    private fun applyTestExtras(i: android.content.Intent?) {
+        val x = i?.extras ?: return
+        if (!BuildConfig.DEBUG) return
+        fun bool(k: String) = x.getString(k)?.let { it == "1" || it.equals("true", true) || it.equals("on", true) }
+        bool("ndi_arm")?.let { settings.armNdi = it }
+        x.getString("ndi_kind")?.toIntOrNull()?.let { settings.ndiKind = it }
+        x.getString("ndi_transport")?.let { v -> runCatching { settings.ndiTransport = Routing.Transport.valueOf(v.uppercase()) } }
+        bool("ndi_audio")?.let { settings.ndiAudio = it }
+        x.getString("audio_source")?.let { settings.audioSource = it }
+        bool("audio_stereo")?.let { settings.audioStereo = it }
+        bool("file_arm")?.let { settings.armFile = it }
+        Trace.state("TEST settings: ndi=${settings.armNdi} kind=${settings.ndiKind} wire=${settings.ndiTransport} " +
+            "ndiSound=${settings.ndiAudio} source=${settings.audioSource} stereo=${settings.audioStereo} file=${settings.armFile}")
+    }
+
+    /**
+     * v135: THE WIRE WATCH, every two seconds. Marko asked for a ROBUST switch: the tether is plugged in after the
+     * app starts, pulled out mid-show, plugged back on a new subnet; Wi-Fi drops and returns. The sender is pinned to
+     * one address, so when the address the switch names changes, the sender is made again on the new one; when it
+     * goes, the stream stops and waits; when it comes, the stream starts. Lens changes keep the source as before.
+     */
+    private var wireTicks = 0
+
+    private fun watchWire() {
+        if (!pipeline.isRunning || !settings.armNdi) return
+        // Every ten seconds while streaming, one line the field test reads: the wire, and the sound that went out.
+        if (++wireTicks % 5 == 0 && pipeline.mode != CameraPipeline.Mode.OFF) {
+            Trace.state("NDI LIVE ${pipeline.mode} on ${pipeline.boundAdapter?.let { "${it.name} ${it.ip}" }} " +
+                "· video queued ${NdiVideo.queued} sent ${NdiVideo.sent} dropped ${NdiVideo.dropped} flushes ${NdiVideo.flushes} slowest ${NdiVideo.takeSlowest()} ms " +
+                "· turned ${pipeline.streamTurns * 90}° " +
+                "· sound ${if (NdiAudio.wanted) "on" else "off"} sent ${NdiAudio.sent} dropped ${NdiAudio.dropped}" +
+                " · from ${meter?.routed ?: "no meter"} ${meter?.channels ?: 0}ch · watching $lastWatching")
+        }
+        val now = pipeline.currentAdapter()
+        val bound = pipeline.boundAdapter
+        val streaming = pipeline.mode != CameraPipeline.Mode.OFF
+        when {
+            streaming && now?.ip != bound?.ip -> {
+                Trace.state("wire changed: ${bound?.let { "${it.name} ${it.ip}" } ?: "none"} → ${now?.let { "${it.name} ${it.ip}" } ?: "none"}")
+                pipeline.setMode(CameraPipeline.Mode.OFF)
+                if (now == null) say("NDI stopped — " + Routing.wireLabel(settings.ndiTransport, null) + ", waiting")
+                else followNdiSwitch()
+                refreshTelemetry()
+            }
+            !streaming && now != null -> followNdiSwitch()
+        }
     }
 
     private fun startRecording(): Boolean {
@@ -1645,9 +1794,23 @@ class MainActivity : AppCompatActivity() {
         return Mechanism.sensorToViewDegrees(e.sensorOrientation, displayDegrees(), e.isFrontFacing, manualQuarterTurns)
     }
 
+    /**
+     * v136: what is still left for a receiver to turn. The stream now carries the picture upright (the pipeline
+     * turns it by [streamDegrees]); a monitor that turned it again by the same angle would put it on its side.
+     * 0 whenever the stream is turned; the old angle on the direct path, which cannot turn.
+     */
+    private fun remoteDegrees(): Int = ((streamDegrees() - pipeline.streamTurns * 90) % 360 + 360) % 360
+
+    /** v136: the stream's orientation follows the phone (called on start, on every display turn, on resume). */
+    private fun updateStreamTurns() {
+        if (!::pipeline.isInitialized || !pipeline.isRunning) return
+        val turns = Mechanism.streamTurns(streamDegrees())
+        if (turns != pipeline.streamTurns) pipeline.setStreamTurns(turns)
+    }
+
     private fun streamToView(u: Float, v: Float): Pair<Float, Float>? {
         if (!pipeline.isRunning) return null
-        val p = Mechanism.viewRegionToSensor(u, v, u, v, (360 - streamDegrees()) % 360, false)
+        val p = Mechanism.viewRegionToSensor(u, v, u, v, (360 - remoteDegrees()) % 360, false)
         val x = if (previewMirrored) 1f - p[0] else p[0]
         return x to p[1]
     }
@@ -1681,7 +1844,7 @@ class MainActivity : AppCompatActivity() {
         val right = (0 until railRight.childCount).map { railRight.getChildAt(it) }
             .filterIsInstance<RailButton>().filter { it.visibility == View.VISIBLE }.map { keyLine(it) }
         val keys = (left + listOf("--") + right + listOf("REC~REC~~${if (rolling) "ARMED" else "OFF"}~")).joinToString("|")
-        val d = streamDegrees()
+        val d = remoteDegrees()
         fun mark(kind: Int, b: FloatArray, colour: Int, shown: Boolean): String {
             val s = Mechanism.viewRegionToSensor(b[0], b[1], b[2], b[3], d, previewMirrored)
             return String.format(java.util.Locale.ROOT, "%d,%.4f,%.4f,%.4f,%.4f,%d,%d", kind, s[0], s[1], s[2], s[3], colour, if (shown) 1 else 0)
@@ -3033,6 +3196,9 @@ class MainActivity : AppCompatActivity() {
     private var lastMbps = 0.0
     private var lastWatching = 0
 
+    /** v135: where the sound comes from now, as Android routed it. */
+    private var audioLabel = ""
+
     private fun showRate(fps: Double, mbps: Double, connections: Int) {
         lastMbps = mbps
         lastWatching = connections
@@ -3054,7 +3220,9 @@ class MainActivity : AppCompatActivity() {
         val parts = Mechanism.telemetry(
             settings.armFile, pipeline.isRecording, pipeline.videoBitRate / 1_000_000.0,
             settings.armNdi, settings.ndiKind, pipeline.mode != CameraPipeline.Mode.OFF,
-            lastMbps, lastWatching
+            lastMbps, lastWatching,
+            wire = Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter ?: pipeline.currentAdapter()),
+            sound = if (meter != null && settings.ndiAudio) audioLabel.ifEmpty { "MIC" } else ""
         )
         val text = android.text.SpannableStringBuilder()
         parts.forEachIndexed { i, p ->
@@ -3093,7 +3261,24 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        keptRunning = false
         pipeline.stop()
+        meter?.stop()
+        meter = null
+        StreamService.stop(this)
+    }
+
+    /**
+     * v136: the foreground service runs exactly while NDI streams. Started only while the app is in front (Android
+     * refuses a camera service started from behind); stopped as soon as the stream is off.
+     */
+    private fun syncService() {
+        val streaming = pipeline.isRunning && pipeline.mode != CameraPipeline.Mode.OFF
+        if (streaming && !StreamService.running && !keptRunning) {
+            StreamService.start(this, "Streaming NDI on " + Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter))
+        } else if (!streaming && StreamService.running) {
+            StreamService.stop(this)
+        }
     }
 }
 

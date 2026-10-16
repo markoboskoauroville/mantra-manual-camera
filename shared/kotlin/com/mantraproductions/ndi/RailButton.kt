@@ -39,7 +39,7 @@ class RailButton @JvmOverloads constructor(
      * out on a shoot — a missing glyph is a hollow box, and a hollow box in the
      * corner of a camera is indistinguishable from a bug.
      */
-    enum class Glyph { NONE, GEAR, UP, DOWN, CAMERA, SQUARE, CIRCLE, TRIANGLE }
+    enum class Glyph { NONE, GEAR, UP, DOWN, CAMERA, SQUARE, CIRCLE, TRIANGLE, PLAY }
 
     var glyph: Glyph = Glyph.NONE
         set(value) { field = value; describe(); invalidate() }
@@ -82,6 +82,7 @@ class RailButton @JvmOverloads constructor(
     private fun describe() {
         val what = when {
             glyph == Glyph.CAMERA -> "snap"
+            glyph == Glyph.PLAY -> "play"
             glyph == Glyph.SQUARE -> "focus square"
             glyph == Glyph.CIRCLE -> "exposure circle"
             glyph == Glyph.TRIANGLE -> "white balance triangle"
@@ -288,6 +289,17 @@ class RailButton @JvmOverloads constructor(
                 mark.strokeWidth = density(2.6f)
                 canvas.drawPath(markPath, mark)
                 mark.strokeWidth = density(1.8f)
+            }
+            Glyph.PLAY -> {
+                // PLAY: the player's own sign, a filled triangle pointing right, in place of the word
+                // (Marko, 16.10.2026: "instead of play button, I want to have play icon").
+                markPath.moveTo(cx - r * 0.8f, cy - r * 1.05f)
+                markPath.lineTo(cx + r * 1.0f, cy)
+                markPath.lineTo(cx - r * 0.8f, cy + r * 1.05f)
+                markPath.close()
+                mark.style = Paint.Style.FILL
+                canvas.drawPath(markPath, mark)
+                mark.style = Paint.Style.STROKE
             }
             Glyph.NONE -> Unit
         }

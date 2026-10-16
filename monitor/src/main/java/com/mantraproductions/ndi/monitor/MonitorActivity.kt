@@ -525,6 +525,7 @@ class MonitorActivity : Activity() {
                     glyph = when (name) {
                         "MARK0" -> RailButton.Glyph.SQUARE; "MARK1" -> RailButton.Glyph.CIRCLE; "MARK2" -> RailButton.Glyph.TRIANGLE
                         "gear" -> RailButton.Glyph.GEAR; "camera" -> RailButton.Glyph.CAMERA
+                        "play" -> RailButton.Glyph.PLAY
                         else -> RailButton.Glyph.NONE
                     }
                     marked = false
