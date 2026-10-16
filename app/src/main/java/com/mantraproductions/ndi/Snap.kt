@@ -41,6 +41,8 @@ class Snap(private val context: Context) {
     private var pendingResult: TotalCaptureResult? = null
     private var characteristics: CameraCharacteristics? = null
     private var orientation: Int = 0
+    private var folder: String? = null
+    private var at = java.util.Date()
     private var onDone: ((String?) -> Unit)? = null
     private val lock = Any()
 
@@ -114,11 +116,15 @@ class Snap(private val context: Context) {
      *   carries an orientation tag and opens the right way up in a developer
      *   rather than needing to be turned by hand every time.
      */
-    fun take(engine: CaptureEngine, deviceRotation: Int, onDone: (String?) -> Unit): Boolean {
+    fun take(
+        engine: CaptureEngine, deviceRotation: Int, folder: String?, onDone: (String?) -> Unit
+    ): Boolean {
         val target = reader?.surface ?: return false
         synchronized(lock) {
             this.onDone = onDone
             this.orientation = deviceRotation
+            this.folder = folder
+            this.at = java.util.Date()
             runCatching { pendingImage?.close() }
             pendingImage = null
             pendingResult = null
@@ -144,13 +150,13 @@ class Snap(private val context: Context) {
             pendingResult = null
         }
 
-        val now = System.currentTimeMillis()
-        val name = "snap-" + TraceFormat.fileStamp(now, Trace.offsetAt(now)) + ".dng"
+        val (where, name) = synchronized(lock) { folder to Recordings.stillName(at, StillFormat.DNG) }
         val path = try {
             DngCreator(chars, result).use { dng ->
                 dng.setOrientation(exifFor(orientation))
-                Downloads.writeStream(context, name, "image/x-adobe-dng") { out ->
+                Recordings.writeStill(context, name, StillFormat.DNG, where) { out ->
                     dng.writeImage(out, image)
+                    true
                 }
             }
         } catch (t: Throwable) {

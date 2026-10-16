@@ -210,6 +210,12 @@ class Settings(context: Context) {
         get() = prefs.getString(FOLDER, null)
         set(value) = prefs.edit().putString(FOLDER, value).apply()
 
+    /** What SNAP writes: JPEG, PNG or DNG, stepped by a long press on the key. PNG until he chooses. */
+    var stillFormat: StillFormat
+        get() = prefs.getString(STILL_FORMAT, null)
+            ?.let { name -> StillFormat.entries.firstOrNull { it.name == name } } ?: StillFormat.PNG
+        set(value) = prefs.edit().putString(STILL_FORMAT, value.name).apply()
+
     /** The last take, so PLAY can open it after a restart. */
     var lastTake: String?
         get() = prefs.getString(LAST_TAKE, null)
@@ -325,6 +331,7 @@ class Settings(context: Context) {
         const val WB_Y = "wbBoxY"
         const val SHOOT = "shootMode"
         const val FOLDER = "recordFolder"
+        const val STILL_FORMAT = "stillFormat"
         const val LAST_TAKE = "lastTake"
         const val ZEBRA = "zebraLevel"
         const val ARM_FILE = "armFile"

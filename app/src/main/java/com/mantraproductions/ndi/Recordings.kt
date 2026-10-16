@@ -137,48 +137,65 @@ object Recordings {
     /** Where a person should look, for showing on screen. */
     fun folder(): String = Environment.DIRECTORY_DCIM + "/" + FOLDER
 
+    /** The name a still is written under, the take's own naming so the two sort together. */
+    fun stillName(at: Date, format: StillFormat): String =
+        "mantra-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.UK).format(at) + "." + format.extension
+
     /**
-     * A still of the picture as a PNG, in the same folder as the takes.
+     * A still of the picture as a JPEG or a PNG, in the same folder as the takes.
      *
      * *"The file should be a PNG of the current screen inside the same folder
-     * where the video is."* The SNAP key wrote a DNG through the RAW target to
-     * a place nobody could find. It is the picture now, lossless, beside the
-     * takes, with the take's own naming so the two sort together.
+     * where the video is."* Marko, 16.10.2026, after a 2160x3840 PNG took 5.3 s
+     * to write on the Pixel 7: JPEG, PNG and DNG, chosen on the SNAP key. The
+     * JPEG is written at 100, the highest the phone's encoder offers.
      *
      * @return where it went, or null with the reason traced
      */
-    fun savePng(
-        context: Context, bitmap: android.graphics.Bitmap, at: Date = Date(), folder: String? = null
+    fun saveStill(
+        context: Context, bitmap: android.graphics.Bitmap, format: StillFormat,
+        at: Date = Date(), folder: String? = null
+    ): String? {
+        val compress = format.compress ?: return null
+        return writeStill(context, stillName(at, format), format, folder) {
+            bitmap.compress(compress, 100, it)
+        }
+    }
+
+    /**
+     * Writes one still beside the takes: into the folder he chose, or DCIM/Mantra Manual Camera. The DNG comes
+     * through here too since v139; before that it went to Downloads, where nobody looked for a picture.
+     *
+     * @param body writes the file and answers whether it did
+     * @return where it went, or null with the reason traced
+     */
+    fun writeStill(
+        context: Context, name: String, format: StillFormat, folder: String?,
+        body: (java.io.OutputStream) -> Boolean
     ): String? = try {
-        val name = "mantra-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.UK).format(at) + ".png"
         val tree = folder?.let { Uri.parse(it) }
         if (tree != null) {
             val resolver = context.contentResolver
             val parent = android.provider.DocumentsContract.buildDocumentUriUsingTree(
                 tree, android.provider.DocumentsContract.getTreeDocumentId(tree)
             )
-            val doc = android.provider.DocumentsContract.createDocument(resolver, parent, "image/png", name)
-            val ok = doc != null && resolver.openOutputStream(doc)?.use {
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
-            } == true
+            val doc = android.provider.DocumentsContract.createDocument(resolver, parent, format.mime, name)
+            val ok = doc != null && resolver.openOutputStream(doc)?.use { body(it) } == true
             if (ok) describe(context, tree) + "/" + name
-            else { Trace.refused("still", "the chosen folder would not take the PNG"); null }
+            else { Trace.refused("still", "the chosen folder would not take the ${format.name}"); null }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val resolver = context.contentResolver
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-                put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                put(MediaStore.MediaColumns.MIME_TYPE, format.mime)
                 put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/" + FOLDER)
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
             val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
                 ?: run { Trace.refused("still", "MediaStore would not make an entry"); return null }
-            val ok = resolver.openOutputStream(uri)?.use {
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
-            } == true
+            val ok = resolver.openOutputStream(uri)?.use { body(it) } == true
             if (!ok) {
                 runCatching { resolver.delete(uri, null, null) }
-                Trace.refused("still", "the PNG could not be written")
+                Trace.refused("still", "the ${format.name} could not be written")
                 null
             } else {
                 resolver.update(uri, ContentValues().apply {
@@ -191,9 +208,7 @@ object Recordings {
             val dir = File(
                 Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), FOLDER
             ).apply { mkdirs() }
-            File(dir, name).outputStream().use {
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
-            }
+            File(dir, name).outputStream().use { body(it) }
             Environment.DIRECTORY_DCIM + "/" + FOLDER + "/" + name
         }
     } catch (t: Throwable) {
@@ -273,4 +288,14 @@ object Recordings {
     } catch (t: Throwable) {
         null
     }
+}
+
+/** What SNAP writes, chosen on the key itself (a long press steps to the next). */
+enum class StillFormat(
+    val extension: String, val mime: String, val compress: android.graphics.Bitmap.CompressFormat?
+) {
+    JPEG("jpg", "image/jpeg", android.graphics.Bitmap.CompressFormat.JPEG),
+    PNG("png", "image/png", android.graphics.Bitmap.CompressFormat.PNG),
+    /** The sensor's own frame, through the RAW target ([Snap]); not read from the preview. */
+    DNG("dng", "image/x-adobe-dng", null);
 }
