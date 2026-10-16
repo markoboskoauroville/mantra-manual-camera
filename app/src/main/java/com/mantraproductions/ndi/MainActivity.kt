@@ -539,6 +539,9 @@ class MainActivity : AppCompatActivity() {
         // SNAP is the app's own icon (v88): the still is this camera's picture.
         snapKey = newKey("") { takeSnap() }.also {
             it.glyph = RailButton.Glyph.CAMERA
+            // Marko, 16.10.2026: "three buttons inside the one: JPEG, PNG, and then DNG." A tap snaps in the format
+            // written under the camera; a long press steps to the next one.
+            it.setOnLongClickListener { nextStillFormat(); true }
             railRight.addView(it)
         }
         shootKey = newKey("PORTRAIT") { nextShoot() }.also { railRight.addView(it) }
@@ -1414,13 +1417,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** The stills taken but not yet on the drive; each 4K picture holds about 33 MB until it is written. */
-    private val stillWriter = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "still-jpeg") }
+    private val stillWriter = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "still-writer") }
     private val stillsWaiting = java.util.concurrent.atomic.AtomicInteger()
     private val MAX_STILLS_WAITING = 4
     private val keptStill = java.util.concurrent.atomic.AtomicReference<android.graphics.Bitmap?>()
 
+    /** A long press on SNAP: JPEG → PNG → DNG → JPEG. */
+    private fun nextStillFormat() {
+        val all = StillFormat.entries
+        settings.stillFormat = all[(settings.stillFormat.ordinal + 1) % all.size]
+        Trace.control("still format", settings.stillFormat, settings.stillFormat)
+        say("SNAP writes ${settings.stillFormat.name}")
+        refreshKeys()
+    }
+
     /**
-     * SNAP: the picture as a JPEG at quality 100, beside the takes.
+     * SNAP: the picture as a JPEG (quality 100) or a PNG, beside the takes; DNG goes through [takeDng].
      *
      * Taken from the preview at the camera's own resolution rather than the
      * screen's, the right way up, without the rails, the zones, the peaking
@@ -1429,6 +1441,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun takeSnap() {
         if (!pipeline.isRunning || !preview.isAvailable) { say("The camera is not open"); return }
+        if (settings.stillFormat == StillFormat.DNG) { takeDng(); return }
         val vw = preview.width
         val vh = preview.height
         if (vw <= 0 || vh <= 0) return
@@ -1438,20 +1451,42 @@ class MainActivity : AppCompatActivity() {
         // Marko, 16.10.2026: "snaps in the RAM quickly ... and then slowly saves on SSD so I get the image
         // momentarily." The tap answers on the frame it lands on: the picture blinks and the key lights. The
         // picture is read from the preview straight after that frame is drawn (reading first would hold the blink
-        // back behind the read), into a kept buffer rather than a new 33 MB one, and the JPEG is written behind it,
+        // back behind the read), into a kept buffer rather than a new 33 MB one, and the file is written behind it,
         // one at a time, so the next snap can be taken straight away.
         if (stillsWaiting.get() >= MAX_STILLS_WAITING) { say("Still writing the last stills — a moment"); return }
         val at = java.util.Date()
+        val format = settings.stillFormat
         stillsWaiting.incrementAndGet()
         snapKey.state = RailButton.State.ARMED
         preview.animate().cancel()
         preview.alpha = 0.2f
         preview.animate().alpha(1f).setDuration(180).start()
         ui.postDelayed({ refreshKeys() }, 150)
-        android.view.Choreographer.getInstance().postFrameCallback { ui.post { grabStill(w, h, at) } }
+        android.view.Choreographer.getInstance().postFrameCallback { ui.post { grabStill(w, h, at, format) } }
     }
 
-    private fun grabStill(w: Int, h: Int, at: java.util.Date) {
+    /**
+     * DNG: the sensor's own frame through the RAW target, not the preview. The lens has to offer RAW and the session
+     * has to have taken the target; when it has not, it says so rather than writing nothing.
+     */
+    private fun takeDng() {
+        if (!pipeline.snapAvailable) { say("DNG is not available on this lens"); return }
+        snapKey.state = RailButton.State.ARMED
+        preview.animate().cancel()
+        preview.alpha = 0.2f
+        preview.animate().alpha(1f).setDuration(180).start()
+        ui.postDelayed({ refreshKeys() }, 150)
+        val rotation = Mechanism.recordingRotation(
+            pipeline.engine.sensorOrientation, displayDegrees(),
+            pipeline.engine.isFrontFacing, manualQuarterTurns
+        )
+        val started = pipeline.snap.take(pipeline.engine, rotation, settings.recordFolder) { where ->
+            ui.post { say(if (where != null) "Still → $where" else "The DNG was not written, see the trace") }
+        }
+        if (!started) say("The DNG could not be taken")
+    }
+
+    private fun grabStill(w: Int, h: Int, at: java.util.Date, format: StillFormat) {
         val t0 = android.os.SystemClock.uptimeMillis()
         val kept = keptStill.getAndSet(null)?.takeIf { !it.isRecycled && it.width == w && it.height == h }
         val bitmap = runCatching { if (kept != null) preview.getBitmap(kept) else preview.getBitmap(w, h) }.getOrNull()
@@ -1460,10 +1495,10 @@ class MainActivity : AppCompatActivity() {
             say("The picture could not be read")
             return
         }
-        Trace.control("still", "${w}x$h", "JPEG", "read in ${android.os.SystemClock.uptimeMillis() - t0} ms")
+        Trace.control("still", "${w}x$h", format.name, "read in ${android.os.SystemClock.uptimeMillis() - t0} ms")
         stillWriter.execute {
             val t1 = android.os.SystemClock.uptimeMillis()
-            val where = Recordings.saveJpeg(this, bitmap, at = at, folder = settings.recordFolder)
+            val where = Recordings.saveStill(this, bitmap, format, at = at, folder = settings.recordFolder)
             Trace.state("still written in ${android.os.SystemClock.uptimeMillis() - t1} ms")
             // One buffer is kept for the next snap; the others go back, so idle memory stays at one picture.
             if (!keptStill.compareAndSet(null, bitmap)) bitmap.recycle()
@@ -3138,6 +3173,7 @@ class MainActivity : AppCompatActivity() {
             if (focus.mode == FocusDirector.Mode.AUTO) RailButton.State.ON
             else RailButton.State.OFF
         peakKey.state = if (peaking) RailButton.State.ON else RailButton.State.OFF
+        snapKey.sub = settings.stillFormat.name
         snapKey.state =
             if (pipeline.isRunning) RailButton.State.OFF else RailButton.State.DEAD
         logKey.sub = curveLabel(LogCurves.Curve.entries[curveIndex]).take(5)

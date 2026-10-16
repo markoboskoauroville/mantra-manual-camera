@@ -81,7 +81,7 @@ class RailButton @JvmOverloads constructor(
      */
     private fun describe() {
         val what = when {
-            glyph == Glyph.CAMERA -> "snap"
+            glyph == Glyph.CAMERA -> "snap" + (sub?.let { " $it" } ?: "")
             glyph == Glyph.PLAY -> "play"
             glyph == Glyph.SQUARE -> "focus square"
             glyph == Glyph.CIRCLE -> "exposure circle"
