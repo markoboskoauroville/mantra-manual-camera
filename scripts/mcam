@@ -2,6 +2,7 @@
 """mcam: Mantra Camera driven from the Mac through adb (v139, Marko 22.10.2026).
 
     mcam state                     what is set, what the sensor took, how bright the picture is
+    mcam lens 2                    a lens by its number in the drawer (L1, L2 …); the stream is kept
     mcam torch on|off|toggle       the light
     mcam exposure auto             both ISO and shutter back to automatic
     mcam iso 400|auto              ISO by hand (shutter stays as it is: auto = ISO priority)

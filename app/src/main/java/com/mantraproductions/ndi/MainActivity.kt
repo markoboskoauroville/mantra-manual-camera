@@ -1900,6 +1900,14 @@ class MainActivity : AppCompatActivity() {
     private fun adbCommand(cmd: String, v: String): String {
         val engine = pipeline.engine
         if (cmd == "state") return "state"
+        // v141 (Marko: "Lens two is the best"): a lens by its number in the drawer, L1, L2 …, the stream kept
+        if (cmd == "lens") {
+            val n = v.removePrefix("l").toIntOrNull() ?: return "lens takes a number, 1 to ${lenses.size}"
+            if (n !in 1..lenses.size) return "there are ${lenses.size} lenses"
+            chooseLens(n - 1)
+            say("ADB: Lens $n")
+            return "Lens $n " + lenses[n - 1].label
+        }
         if (cmd != "key" && !pipeline.isRunning) return "the camera is not running"
         val said: String = when (cmd) {
             "torch", "light" -> {
@@ -1962,7 +1970,7 @@ class MainActivity : AppCompatActivity() {
             }
             // any key of the rails, by the name the link uses (REC, MARK0, a key's label)
             "key" -> { pressKey(v.uppercase()); return "key ${v.uppercase()}" }
-            else -> return "unknown command $cmd: state, torch, exposure, iso, shutter, ev, wb, focus, key"
+            else -> return "unknown command $cmd: state, lens, torch, exposure, iso, shutter, ev, wb, focus, key"
         }
         say("ADB: $said")
         refreshZones()
@@ -1984,7 +1992,8 @@ class MainActivity : AppCompatActivity() {
         val m = linkedMapOf<String, Any?>(
             "version" to BuildConfig.VERSION_NAME,
             "running" to running,
-            "lens" to e.cameraId,
+            "lens" to (activeLens + 1),
+            "lenses" to lenses.mapIndexed { i, l -> "L${i + 1}:" + l.label.replace(' ', '_') + (l.equivalentMm.takeIf { it > 0 }?.let { "_${it}mm" } ?: "") }.joinToString(","),
             "torch" to (if (e.hasFlash()) settings.torch else "none"),
             "exposure" to Mechanism.exposureMode(isoAuto, shutterAuto).name.lowercase(),
             "iso" to (if (isoAuto) "auto" else iso),
