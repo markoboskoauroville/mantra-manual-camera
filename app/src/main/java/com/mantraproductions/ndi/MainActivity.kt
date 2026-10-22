@@ -64,6 +64,9 @@ import androidx.core.view.WindowInsetsControllerCompat
  * Dark is a key this phone cannot honour, left in place rather than hidden so
  * the rail does not reshuffle itself between a Pixel 7 and a Pixel 7 Pro.
  */
+/** v139: the action of the adb control (MainActivity.adbControl, scripts/mcam). */
+private const val ADB_ACTION = "com.mantraproductions.ndi.ADB"
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var preview: TextureView
@@ -569,6 +572,7 @@ class MainActivity : AppCompatActivity() {
     /** v131, MANTRA LINK (LinkServer, Link.kt): the monitor sees this window and plays its touches into it. */
     private fun startLink() {
         LinkServer.start(application)
+        startAdbControl()
         LinkServer.onKey = { name -> pressKey(name) }
         LinkServer.onModeChanged = { refreshKeys() }
         LinkServer.stateProvider = {
@@ -1854,6 +1858,146 @@ class MainActivity : AppCompatActivity() {
                     ?: Trace.refused("remote", "no key called $name")
             }
         }
+    }
+
+    // ---------------------------------------------------------------- ADB CONTROL (v139)
+
+    /**
+     * The camera driven from the Mac through adb (Marko, 22.10.2026: "make it also available to fully control through
+     * ADB. So you can, for example, if its picture is too dark, you can turn on the light on my camera. If picture is in
+     * wrong exposure, you can adjust exposure parameters in the camera. If there is wrong white balance, you can adjust
+     * that.")
+     *
+     *     adb shell am broadcast -a com.mantraproductions.ndi.ADB -p com.mantraproductions.ndi --es cmd torch --es v on
+     *
+     * Every command goes through the same paths as the rail and the zones, so the screen shows what was set and says
+     * it on the status line. The answer, which `am broadcast` prints as its data, is what was done on the first line and
+     * the camera's state after it, one key=value a line. Only the shell may send: the sender must hold DUMP, which adb's
+     * shell has and no app is given. The Mac's side is scripts/mcam.
+     */
+    private var adbRegistered = false
+    private val adbControl = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: android.content.Context, intent: Intent) {
+            val cmd = intent.getStringExtra("cmd")?.lowercase() ?: "state"
+            val v = intent.getStringExtra("v")?.trim()?.lowercase().orEmpty()
+            val said = runCatching { adbCommand(cmd, v) }.getOrElse { Trace.fault("adb", it); "error: ${it.javaClass.simpleName}" }
+            Trace.control("adb", "$cmd $v", said)
+            resultData = said + "\n" + adbState()
+        }
+    }
+
+    private fun startAdbControl() {
+        if (adbRegistered) return
+        ContextCompat.registerReceiver(
+            this, adbControl, android.content.IntentFilter(ADB_ACTION), "android.permission.DUMP", null, ContextCompat.RECEIVER_EXPORTED
+        )
+        adbRegistered = true
+    }
+
+    /** One command; returns what was done, or why not. */
+    private fun adbCommand(cmd: String, v: String): String {
+        val engine = pipeline.engine
+        if (cmd == "state") return "state"
+        if (cmd != "key" && !pipeline.isRunning) return "the camera is not running"
+        val said: String = when (cmd) {
+            "torch", "light" -> {
+                if (!engine.hasFlash()) return "this lens has no lamp"
+                val on = when (v) { "on", "1" -> true; "off", "0" -> false; else -> !settings.torch }
+                settings.torch = on
+                engine.setTorch(on)
+                "Light " + if (on) "on" else "off"
+            }
+            "exposure" -> {
+                if (v != "auto") return "exposure takes auto (iso and shutter set it by hand)"
+                setParamAuto(0, true, quiet = true); setParamAuto(1, true, quiet = true)
+                "Exposure automatic"
+            }
+            "iso" -> if (v == "auto") { setParamAuto(0, true, quiet = true); "ISO automatic" } else {
+                val n = v.toIntOrNull() ?: return "iso takes a number or auto"
+                if (isoAuto) setParamAuto(0, false, quiet = true)
+                val r = engine.isoRange()
+                iso = if (r != null) n.coerceIn(r.lower, r.upper) else n
+                applyExposure()
+                "ISO $iso"
+            }
+            "shutter" -> if (v == "auto") { setParamAuto(1, true, quiet = true); "Shutter automatic" } else {
+                val ns = adbShutter(v) ?: return "shutter takes 1/50, 0.02 (seconds) or auto"
+                if (shutterAuto) setParamAuto(1, false, quiet = true)
+                val r = engine.exposureRange()
+                shutterNs = if (r != null) ns.coerceIn(r.lower, r.upper) else ns
+                applyExposure()
+                "Shutter " + Mechanism.formatShutter(shutterNs)
+            }
+            "ev" -> {
+                if (!(isoAuto && shutterAuto)) return "ev moves automatic exposure: exposure auto first"
+                val r = engine.aeCompensationRange() ?: return "this lens has no exposure compensation"
+                val stops = v.removePrefix("+").toDoubleOrNull() ?: return "ev takes stops, like +1 or -0.7"
+                val step = engine.aeCompensationStep()
+                val steps = kotlin.math.round(stops / step).toInt().coerceIn(r.lower, r.upper)
+                engine.setExposureCompensation(steps)
+                String.format(java.util.Locale.ROOT, "EV %+.1f", steps * step)
+            }
+            "wb" -> if (v == "auto") {
+                // the A on WB: the camera measures once and the number is kept (v90)
+                if (!wbAuto) probeWhiteBalance()
+                "White balance measuring"
+            } else {
+                val k = v.removeSuffix("k").toIntOrNull() ?: return "wb takes kelvin (2000 to 10000) or auto"
+                if (wbAuto) { probeTicket++; wbAuto = false }
+                wbKelvin = k.coerceIn(WhiteBalance.COOLEST_KELVIN, WhiteBalance.WARMEST_KELVIN)
+                engine.setWhiteBalanceKelvin(wbKelvin)
+                "White balance " + WhiteBalance.format(wbKelvin)
+            }
+            "focus" -> if (v == "auto") { setParamAuto(2, true, quiet = true); "Focus automatic" } else {
+                if (!engine.supportsManualFocus()) return "this lens has fixed focus"
+                val f = v.toFloatOrNull() ?: return "focus takes 0 (infinity) to 1 (closest) or auto"
+                focusFraction = f.coerceIn(0f, 1f)
+                stopTrack()
+                if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
+                engine.setManualFocus(focusFraction)
+                String.format(java.util.Locale.ROOT, "Focus %.2f", focusFraction)
+            }
+            // any key of the rails, by the name the link uses (REC, MARK0, a key's label)
+            "key" -> { pressKey(v.uppercase()); return "key ${v.uppercase()}" }
+            else -> return "unknown command $cmd: state, torch, exposure, iso, shutter, ev, wb, focus, key"
+        }
+        say("ADB: $said")
+        refreshZones()
+        refreshKeys()
+        return said
+    }
+
+    /** 1/50, 0.02 or 20ms as nanoseconds. */
+    private fun adbShutter(v: String): Long? = when {
+        v.startsWith("1/") -> v.removePrefix("1/").toDoubleOrNull()?.takeIf { it > 0 }?.let { (1e9 / it).toLong() }
+        v.endsWith("ms") -> v.removeSuffix("ms").toDoubleOrNull()?.let { (it * 1e6).toLong() }
+        else -> v.removeSuffix("s").toDoubleOrNull()?.let { (it * 1e9).toLong() }
+    }
+
+    /** The camera as the Mac needs it to judge the picture: what is set, what the sensor took, how bright it is. */
+    private fun adbState(): String {
+        val e = pipeline.engine
+        val running = pipeline.isRunning
+        val m = linkedMapOf<String, Any?>(
+            "version" to BuildConfig.VERSION_NAME,
+            "running" to running,
+            "lens" to e.cameraId,
+            "torch" to (if (e.hasFlash()) settings.torch else "none"),
+            "exposure" to Mechanism.exposureMode(isoAuto, shutterAuto).name.lowercase(),
+            "iso" to (if (isoAuto) "auto" else iso),
+            "shutter" to (if (shutterAuto) "auto" else Mechanism.formatShutter(shutterNs)),
+            "sensor_iso" to e.lastIso,
+            "sensor_shutter" to e.lastExposureNs?.let { Mechanism.formatShutter(it) },
+            "ev_steps" to e.aeCompensation,
+            "iso_range" to e.isoRange()?.let { "${it.lower}-${it.upper}" },
+            "wb" to (if (wbAuto) "auto" else wbKelvin),
+            "wb_measured" to (if (running) e.measuredKelvin() else null),
+            "focus" to (if (focus.mode == FocusDirector.Mode.AUTO) "auto" else String.format(java.util.Locale.ROOT, "%.2f", focusFraction)),
+            "brightness" to sampleBrightness()?.let { String.format(java.util.Locale.ROOT, "%.2f", it) },
+            "rec" to rolling,
+            "status" to lastSaid.replace('\n', ' ')
+        )
+        return m.entries.joinToString("\n") { "${it.key}=${it.value ?: "-"}" }
     }
 
     private fun keyName(k: RailButton): String = when (k.glyph) {
@@ -3288,6 +3432,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (adbRegistered) runCatching { unregisterReceiver(adbControl) }
         keptRunning = false
         pipeline.stop()
         meter?.stop()

@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""mcam: Mantra Camera driven from the Mac through adb (v139, Marko 22.10.2026).
+
+    mcam state                     what is set, what the sensor took, how bright the picture is
+    mcam torch on|off|toggle       the light
+    mcam exposure auto             both ISO and shutter back to automatic
+    mcam iso 400|auto              ISO by hand (shutter stays as it is: auto = ISO priority)
+    mcam shutter 1/50|0.02|auto    shutter by hand
+    mcam ev +1|-0.7                exposure compensation in stops (with automatic exposure)
+    mcam wb 4500|auto              white balance in kelvin; auto measures once and keeps the number
+    mcam focus 0..1|auto           0 is infinity, 1 the closest
+    mcam key NAME                  any rail key by its name (REC, MARK0, a label)
+    mcam fix                       look at the picture and correct it: light, exposure, white balance
+    mcam snap out.png              the phone's screen as a picture
+    mcam open                      bring Mantra Camera to the front
+
+The phone: $MCAM_SERIAL, or the Pixel 7 on the cable or over wireless debugging (found by mDNS and connected).
+The camera answers only the shell (its receiver asks for DUMP), so this works through adb and from nothing else.
+"""
+import os, re, subprocess, sys, time
+
+ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
+PKG = "com.mantraproductions.ndi"
+ACTION = PKG + ".ADB"
+PIXEL = "41241FDH2S10SJ"
+
+
+def run(*args, timeout=20):
+    return subprocess.run([ADB, *args], capture_output=True, text=True, timeout=timeout).stdout
+
+
+def device():
+    if os.environ.get("MCAM_SERIAL"):
+        return os.environ["MCAM_SERIAL"]
+    lines = [l.split() for l in run("devices", "-l").splitlines()[1:] if " device " in l + " "]
+    for l in lines:
+        if l[0] == PIXEL or "model:Pixel_7" in l:
+            return l[0]
+    # wireless debugging: the phone announces itself as adb-<serial>-… on _adb-tls-connect
+    for l in run("mdns", "services").splitlines():
+        if PIXEL in l and "_adb-tls-connect" in l:
+            addr = l.split()[-1]
+            run("connect", addr)
+            return addr
+    sys.exit("mcam: no Pixel 7 on adb (cable, or Wireless debugging on the phone)")
+
+
+def front(d):
+    top = run("-s", d, "shell", "dumpsys", "activity", "activities")
+    m = re.search(r"topResumedActivity=\S+ \S+ (\S+)/", top)
+    return m and m.group(1) == PKG
+
+
+def open_app(d):
+    if not front(d):
+        run("-s", d, "shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1")
+        time.sleep(2.5)
+
+
+def send(d, cmd, v=""):
+    args = ["-s", d, "shell", "am", "broadcast", "-a", ACTION, "-p", PKG, "--es", "cmd", cmd]
+    if v:
+        args += ["--es", "v", v]
+    out = run(*args)
+    m = re.search(r'data="(.*)"', out, re.S)
+    if not m:
+        sys.exit("mcam: the camera did not answer (is it v139 or later, and open?)\n" + out.strip())
+    return m.group(1)
+
+
+def parse(answer):
+    said, _, rest = answer.partition("\n")
+    return said, dict(l.split("=", 1) for l in rest.splitlines() if "=" in l)
+
+
+def fix(d):
+    """A first look: too dark → the light, then +EV; too bright → light off, then −EV; white balance measured."""
+    said, s = parse(send(d, "state"))
+    b = float(s.get("brightness", "nan")) if s.get("brightness", "-") != "-" else None
+    done = []
+    if b is not None and b < 0.30:
+        if s.get("torch") == "false":
+            done.append(parse(send(d, "torch", "on"))[0])
+        elif s.get("exposure") == "auto":
+            done.append(parse(send(d, "ev", "+1"))[0])
+    elif b is not None and b > 0.75:
+        if s.get("torch") == "true":
+            done.append(parse(send(d, "torch", "off"))[0])
+        elif s.get("exposure") == "auto":
+            done.append(parse(send(d, "ev", "-1"))[0])
+    done.append(parse(send(d, "wb", "auto"))[0])
+    time.sleep(3)
+    print(f"brightness was {b}; " + "; ".join(done))
+    print(send(d, "state"))
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip()); return
+    d = device()
+    cmd, v = argv[0], " ".join(argv[1:])
+    if cmd == "snap":
+        out = v or "mcam.png"
+        with open(out, "wb") as f:
+            f.write(subprocess.run([ADB, "-s", d, "exec-out", "screencap", "-p"], capture_output=True).stdout)
+        print(out); return
+    open_app(d)
+    if cmd == "open":
+        print("open"); return
+    if cmd == "fix":
+        fix(d); return
+    print(send(d, cmd, v))
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
