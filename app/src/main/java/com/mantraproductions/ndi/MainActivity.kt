@@ -1876,6 +1876,8 @@ class MainActivity : AppCompatActivity() {
      * shell has and no app is given. The Mac's side is scripts/mcam.
      */
     private var adbRegistered = false
+    /** The exposure compensation set over adb, kept by the log-exposure tick while no curve aims at a grey (v140). */
+    private var adbEvSteps = 0
     private val adbControl = object : android.content.BroadcastReceiver() {
         override fun onReceive(c: android.content.Context, intent: Intent) {
             val cmd = intent.getStringExtra("cmd")?.lowercase() ?: "state"
@@ -1934,6 +1936,7 @@ class MainActivity : AppCompatActivity() {
                 val stops = v.removePrefix("+").toDoubleOrNull() ?: return "ev takes stops, like +1 or -0.7"
                 val step = engine.aeCompensationStep()
                 val steps = kotlin.math.round(stops / step).toInt().coerceIn(r.lower, r.upper)
+                adbEvSteps = steps
                 engine.setExposureCompensation(steps)
                 String.format(java.util.Locale.ROOT, "EV %+.1f", steps * step)
             }
@@ -2457,7 +2460,8 @@ class MainActivity : AppCompatActivity() {
         val target = Mechanism.greyTarget(curve)
         if (target == null) {
             greyReadout = null
-            if (auto && engine.aeCompensation != 0) engine.setExposureCompensation(0)
+            // v140: the compensation adb asked for is the one kept (it was put back to 0 here twice a second)
+            if (auto && engine.aeCompensation != adbEvSteps) engine.setExposureCompensation(adbEvSteps)
             return
         }
         val measured = sampleGreyCard() ?: return
