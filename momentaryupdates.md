@@ -712,3 +712,9 @@ Needs the GPU stage (Settings → Picture path).
     MEASURED 11:18 on v135 with USB CABLE chosen: the sender says "ncm0 10.67.163.234 (USB CABLE)", but the NDI ports
     5960/5961 listen on 0.0.0.0 (reachable on 192.168.1.102 over Wi-Fi too) and Android.local is announced with both
     10.67.163.234 (Mac en19, the cable) and 192.168.1.102 (en0/en17), so a receiver may take the Wi-Fi path.
+
+## 22.10.2026 — the camera under adb control (session "shruti box development")
+
+> "we are working on Shruti app. Please see wireless debugging. There is Pixel phone 7 ready to test camera is also there active and it is pointed to MIDI controller. You can also use my mantra camera. You have all the data about it because we programmed it and now make it also available to fully control through ADB. So you can, for example, if its picture is too dark, you can turn on the light on my camera. If picture is in wrong exposure, you can adjust exposure parameters in the camera. If there is wrong white balance, you can adjust that. So make ADB controller for my mantra camera which is already installed and check if it's latest version. And then for Shruti box, you will see on the camera there is a MIDI controller through camera you can see what it is. Find the right model and make this MIDI controller control my Shruti box. Let's do that first" (Marko, 22.10.2026)
+
+53. An adb controller for Mantra Camera: from the Mac, the light (torch) on and off, exposure, white balance and the other picture settings, so a session can fix a dark or badly balanced picture by itself. — **Status:** asked; v138 on the Pixel 7 is the latest release.
