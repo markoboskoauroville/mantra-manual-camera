@@ -10,6 +10,7 @@
     mcam ev +1|-0.7                exposure compensation in stops (with automatic exposure)
     mcam wb 4500|auto              white balance in kelvin; auto measures once and keeps the number
     mcam focus 0..1|auto           0 is infinity, 1 the closest
+    mcam circle iso|wb|tap|+|-     the circle (v143): its mode, a tap on it, the shutter a stop faster or slower
     mcam key NAME                  any rail key by its name (REC, MARK0, a label)
     mcam fix                       look at the picture and correct it: light, exposure, white balance
     mcam snap out.png              the phone's screen as a picture

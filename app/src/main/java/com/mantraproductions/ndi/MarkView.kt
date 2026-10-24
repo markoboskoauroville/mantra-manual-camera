@@ -26,6 +26,10 @@ import android.view.View
  * red when it could not (nothing lit, or all clipped). Nothing tracks: a tap reads, probes, locks, stays.
  * A hold, or a long sweep, drags it. It claims only touches that land on it: everything else falls through to the focus
  * square and the picture underneath, exactly as before it existed.
+ *
+ * v143, ONE CIRCLE: the triangle is gone. Marko, 24.10.2026: *"we're going to have a square and one circle
+ * because this is the trick ... a long press on the circle, change its mode."* The circle carries its mode
+ * written small under it ([label]: ISO or WB), and a long press held still asks for the mode ([onLongPressed]).
  */
 class MarkView @JvmOverloads constructor(
     context: Context,
@@ -67,6 +71,12 @@ class MarkView @JvmOverloads constructor(
 
     /** A tap on the rectangle: balance on what is inside. */
     var onTapped: (() -> Unit)? = null
+    /** v143: a long press held still on the mark (a hold that moves is a drag). */
+    var onLongPressed: (() -> Unit)? = null
+
+    /** v143: written small under the mark, so it says what a tap does (ISO, WB). */
+    var label: String? = null
+        set(value) { field = value; invalidate() }
     /** It was dragged somewhere new (normalised centre), so it can be remembered. */
     var onMoved: ((Float, Float) -> Unit)? = null
 
@@ -76,6 +86,12 @@ class MarkView @JvmOverloads constructor(
         setShadowLayer(2f, 0f, 0f, Color.BLACK)
     }
     private val path = Path()
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = 11f * resources.displayMetrics.scaledDensity
+        isFakeBoldText = true
+        setShadowLayer(2f, 0f, 0f, Color.BLACK)
+    }
 
     /** Half the shape across and down, in pixels: an equilateral triangle, or a circle. */
     private fun halfW() = size * width / 2f
@@ -130,14 +146,30 @@ class MarkView @JvmOverloads constructor(
         line.color = colour()
         line.strokeWidth = 1.5f * density
         canvas.drawPath(path, line)
+        label?.let {
+            text.color = line.color
+            // under the mark, or over it when the mark sits on the bottom edge
+            val below = cy + halfH() + 4f * density - text.ascent()
+            val y = if (below - text.descent() <= height) below else cy - halfH() - 4f * density - text.descent()
+            canvas.drawText(it, cx, y, text)
+        }
     }
 
     private var grabbed = false
     private var dragging = false
+    private var moved = false
+    private var longPressed = false
     private var downX = 0f
     private var downY = 0f
 
     private val holdToDrag = Runnable { dragging = true }
+    private val longPress = Runnable {
+        if (!grabbed || moved) return@Runnable
+        longPressed = true
+        dragging = false
+        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        onLongPressed?.invoke()
+    }
 
     /** Where the last tap landed, normalised: the other marks under the same finger take it too (v125). */
     var tapX = 0.5f
@@ -166,19 +198,27 @@ class MarkView @JvmOverloads constructor(
                 if (!inside) return false
                 grabbed = true
                 dragging = false
+                moved = false
+                longPressed = false
                 downX = event.x; downY = event.y
                 postDelayed(holdToDrag, HOLD_TO_DRAG_MS)
+                if (onLongPressed != null) postDelayed(longPress, LONG_PRESS_MS)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 return true
             }
             MotionEvent.ACTION_POINTER_DOWN -> return grabbed
             MotionEvent.ACTION_MOVE -> {
                 if (!grabbed) return false
+                if (longPressed) return true
+                if (!moved && (Math.abs(event.x - downX) > STILL_SLOP * density || Math.abs(event.y - downY) > STILL_SLOP * density)) {
+                    moved = true
+                    removeCallbacks(longPress)
+                }
                 if (!dragging && (Math.abs(event.x - downX) > FAR_SLOP * density || Math.abs(event.y - downY) > FAR_SLOP * density)) {
                     removeCallbacks(holdToDrag)
                     dragging = true
                 }
-                if (dragging) {
+                if (dragging && moved) {
                     moveTo(event.x / width, event.y / height)
                     state = State.IDLE
                 }
@@ -187,11 +227,14 @@ class MarkView @JvmOverloads constructor(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 parent?.requestDisallowInterceptTouchEvent(false)
                 removeCallbacks(holdToDrag)
+                removeCallbacks(longPress)
                 val was = grabbed
-                val wasDragging = dragging
+                val wasDragging = dragging && moved
+                val wasLong = longPressed
+                longPressed = false
                 grabbed = false
                 dragging = false
-                if (event.actionMasked == MotionEvent.ACTION_UP && was) {
+                if (event.actionMasked == MotionEvent.ACTION_UP && was && !wasLong) {
                     if (wasDragging) onMoved?.invoke(centreX, centreY) else {
                         tapX = (event.x / width).coerceIn(0f, 1f); tapY = (event.y / height).coerceIn(0f, 1f)
                         onTapped?.invoke()
@@ -207,5 +250,7 @@ class MarkView @JvmOverloads constructor(
         const val HOLD_TO_DRAG_MS = 260L
         const val FAR_SLOP = 44f
         const val REACH_DP = 14f
+        const val LONG_PRESS_MS = 550L
+        const val STILL_SLOP = 8f
     }
 }

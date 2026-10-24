@@ -160,6 +160,23 @@ object Mechanism {
         else -> "1/${shutterDenominator(ns)}"
     }
 
+    /**
+     * v143: the shutters the circle's − and + step through, the ones a video camera offers: the 180 degree
+     * shutters of 24, 25 and 30 fps, mains-safe 1/50, 1/60, 1/100, 1/120, then doubling to 1/8000.
+     */
+    val SHUTTER_STOPS = intArrayOf(24, 25, 30, 48, 50, 60, 100, 120, 125, 250, 500, 1000, 2000, 4000, 8000)
+
+    /**
+     * The next shutter from [ns] in [direction] (+1 faster, −1 slower) on [SHUTTER_STOPS], inside
+     * [minNs]..[maxNs]; a shutter between two stops goes to the next one in that direction. Null when there is
+     * none left that way.
+     */
+    fun shutterStep(ns: Long, direction: Int, minNs: Long, maxNs: Long): Long? {
+        val stops = SHUTTER_STOPS.map { 1_000_000_000L / it }.filter { it in minNs..maxNs }
+        return if (direction > 0) stops.firstOrNull { it < ns * 0.98 }
+        else stops.lastOrNull { it > ns * 1.02 }
+    }
+
     /** The film-standard 180 degree shutter for a frame rate. */
     fun shutter180Ns(fps: Int): Long = if (fps <= 0) 0 else 1_000_000_000L / (fps * 2L)
 

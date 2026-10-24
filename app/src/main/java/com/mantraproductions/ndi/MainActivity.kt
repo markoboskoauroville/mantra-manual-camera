@@ -71,7 +71,6 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var preview: TextureView
     private lateinit var focusSquare: FocusSquareView
-    private lateinit var wbBox: MarkView
     private lateinit var exposureCircle: MarkView
     private lateinit var zones: ControlZones
     private lateinit var fullScreenCatcher: View
@@ -225,7 +224,6 @@ class MainActivity : AppCompatActivity() {
 
         preview = findViewById(R.id.preview)
         focusSquare = findViewById(R.id.focusSquare)
-        wbBox = findViewById(R.id.wbBox)
         exposureCircle = findViewById(R.id.exposureCircle)
         zones = findViewById(R.id.zones)
         fullScreenCatcher = findViewById(R.id.fullScreenCatcher)
@@ -291,23 +289,19 @@ class MainActivity : AppCompatActivity() {
         }
         pipeline.trackListener = GpuStage.TrackListener { x, y, score -> ui.post { onTracked(x, y, score) } }
         focusSquare.onTapped = { focus.focusHereAndHold(); alsoUnder(focusSquare.tapX, focusSquare.tapY, 0) }
-        // v101: the white balance triangle. A tap balances on what is inside; where it is dragged is kept.
-        wbBox.kind = MarkView.Kind.TRIANGLE
-        wbBox.size = settings.wbSize
-        wbBox.post { wbBox.moveTo(settings.wbBoxX, settings.wbBoxY) }
-        // v103: the exposure circle. A tap meters there and locks; where it is dragged is kept.
+        // v103: the circle. A tap reads there and locks; where it is dragged is kept. v143: the one circle does
+        // ISO or white balance (its mode, written under it); a long press chooses, and sets the shutter.
         exposureCircle.kind = MarkView.Kind.CIRCLE
         exposureCircle.size = settings.circleSize
+        exposureCircle.label = circleLabel()
         exposureCircle.post { exposureCircle.moveTo(settings.circleX, settings.circleY) }
         exposureCircle.onMoved = { x, y -> settings.circleX = x; settings.circleY = y; exposureCircle.state = MarkView.State.IDLE }
-        exposureCircle.onTapped = { meterExposure(); alsoUnder(exposureCircle.tapX, exposureCircle.tapY, 1) }
+        exposureCircle.onTapped = { fireCircle(); alsoUnder(exposureCircle.tapX, exposureCircle.tapY, 1) }
+        exposureCircle.onLongPressed = { openCircleMenu() }
         focusSquare.onStateChanged = { refreshKeys() }
         exposureCircle.onStateChanged = { refreshKeys() }
-        wbBox.onStateChanged = { refreshKeys() }
         focusSquare.onTapFor = { x, y -> tapAt(x, y) }
         refreshMarks()
-        wbBox.onMoved = { x, y -> settings.wbBoxX = x; settings.wbBoxY = y }
-        wbBox.onTapped = { spotWhiteBalance(); alsoUnder(wbBox.tapX, wbBox.tapY, 2) }
 
         onBackPressedDispatcher.addCallback(this, leaveFullScreen)
         // The clean feed's only control: two taps anywhere on the glass. One
@@ -504,9 +498,10 @@ class MainActivity : AppCompatActivity() {
             lensKeys.add(key)
             railLeft.addView(key)
         }
-        // v103: the three marks' keys, drawn as their marks. Grey = not on the picture, white = on it,
+        // v103: the marks' keys, drawn as their marks. Grey = not on the picture, white = on it,
         // orange = the one a pinch resizes (only one). A tap steps grey → white → orange → grey.
-        markKeys = listOf(RailButton.Glyph.SQUARE, RailButton.Glyph.CIRCLE, RailButton.Glyph.TRIANGLE).mapIndexed { i, g ->
+        // v143: the square and the circle; the triangle went into the circle's WB mode.
+        markKeys = listOf(RailButton.Glyph.SQUARE, RailButton.Glyph.CIRCLE).mapIndexed { i, g ->
             newKey("") { stepMark(i) }.also { it.glyph = g; railLeft.addView(it) }
         }
         focusKey = newKey("AF") { toggleAutoFocus() }.also { railLeft.addView(it) }
@@ -803,7 +798,6 @@ class MainActivity : AppCompatActivity() {
         // v104: back from settings — the marks take their sizes from there, and the light follows its switch
         focusSquare.size = settings.focusBoxSize
         exposureCircle.size = settings.circleSize
-        wbBox.size = settings.wbSize
         if (pipeline.isRunning && pipeline.engine.hasFlash()) pipeline.engine.setTorch(settings.torch)
         // Settings may have removed the LUT that was on.
         if (activeSlot > 0 && !slots.slot(activeSlot).loaded) { activeSlot = 0; applyLook() }
@@ -1628,7 +1622,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun applyExposure() {
         val engine = pipeline.engine
-        releaseCircle(backToAuto = false)
+        releaseCircle()
         ui.removeCallbacks(priorityLoop)
         loopNative = false
         when (Mechanism.exposureMode(isoAuto, shutterAuto)) {
@@ -1970,7 +1964,15 @@ class MainActivity : AppCompatActivity() {
             }
             // any key of the rails, by the name the link uses (REC, MARK0, a key's label)
             "key" -> { pressKey(v.uppercase()); return "key ${v.uppercase()}" }
-            else -> return "unknown command $cmd: state, lens, torch, exposure, iso, shutter, ev, wb, focus, key"
+            // v143: the circle's mode, a tap on it, the shutter a stop either way
+            "circle" -> when (v) {
+                "iso" -> { setCircleMode(CIRCLE_ISO); return "Circle ISO" }
+                "wb" -> { setCircleMode(CIRCLE_WB); return "Circle WB" }
+                "", "tap" -> { fireCircle(); return "Circle " + circleLabel() + " tapped" }
+                "+", "-" -> { stepShutter(if (v == "+") 1 else -1); return lastSaid }
+                else -> return "circle takes iso, wb, tap, + or -"
+            }
+            else -> return "unknown command $cmd: state, lens, torch, exposure, iso, shutter, ev, wb, focus, circle, key"
         }
         say("ADB: $said")
         refreshZones()
@@ -2003,6 +2005,7 @@ class MainActivity : AppCompatActivity() {
             "ev_steps" to e.aeCompensation,
             "iso_range" to e.isoRange()?.let { "${it.lower}-${it.upper}" },
             "wb" to (if (wbAuto) "auto" else wbKelvin),
+            "circle" to circleLabel().lowercase(),
             "wb_measured" to (if (running) e.measuredKelvin() else null),
             "focus" to (if (focus.mode == FocusDirector.Mode.AUTO) "auto" else String.format(java.util.Locale.ROOT, "%.2f", focusFraction)),
             "brightness" to sampleBrightness()?.let { String.format(java.util.Locale.ROOT, "%.2f", it) },
@@ -2034,8 +2037,7 @@ class MainActivity : AppCompatActivity() {
         }
         val marks = listOf(
             mark(0, focusSquare.normalisedBounds(), focusSquare.colour(), settings.marksShown and 1 != 0),
-            mark(1, exposureCircle.normalisedBounds(), exposureCircle.colour(), settings.marksShown and 2 != 0),
-            mark(2, wbBox.normalisedBounds(), wbBox.colour(), settings.marksShown and 4 != 0)
+            mark(1, exposureCircle.normalisedBounds(), exposureCircle.colour(), settings.marksShown and 2 != 0)
         ).joinToString("|")
         return CameraState(
             recording = rolling, cameraName = settings.sourceName, status = status.text.toString(),
@@ -2044,9 +2046,9 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    // --- the three marks (v103) ------------------------------------------------
+    // --- the marks (v103; v143 the square and one circle) ---------------------------
 
-    /** Grey → white → orange → grey, for the square (0), the circle (1), the triangle (2). */
+    /** Grey → white → orange → grey, for the square (0) and the circle (1). */
     private fun stepMark(i: Int) {
         val bit = 1 shl i
         val shown = settings.marksShown and bit != 0
@@ -2056,8 +2058,8 @@ class MainActivity : AppCompatActivity() {
             else -> {
                 settings.marksShown = settings.marksShown and bit.inv()
                 // the orange goes to the next mark still on the picture, or stays (a pinch with none is nothing)
-                (0..2).firstOrNull { settings.marksShown and (1 shl it) != 0 }?.let { settings.pinchTarget = it }
-                if (i == 1 && pipeline.isRunning) { releaseCircle(backToAuto = true); exposureCircle.state = MarkView.State.IDLE }
+                (0..1).firstOrNull { settings.marksShown and (1 shl it) != 0 }?.let { settings.pinchTarget = it }
+                if (i == 1) { releaseCircle(); exposureCircle.state = MarkView.State.IDLE }
             }
         }
         Trace.control("marks", "shown ${settings.marksShown}, pinch ${settings.pinchTarget}", "key ${i}")
@@ -2074,20 +2076,19 @@ class MainActivity : AppCompatActivity() {
         focusSquare.visibility = if (canShow) View.VISIBLE else View.GONE
         focusSquare.drawn = shown and 1 != 0
         exposureCircle.visibility = if (canShow && shown and 2 != 0) View.VISIBLE else View.GONE
-        wbBox.visibility = if (canShow && shown and 4 != 0) View.VISIBLE else View.GONE
         focusSquare.pinchResizesMe = settings.pinchTarget == 0
         focusSquare.tapMovesMe = settings.pinchTarget == 0
     }
 
     /**
      * v105: a tap on the picture serves the ARMED shape (the orange key): it moves there, corrects, locks.
-     * Square: focus there. Circle: exposure read there. Triangle: white balance from there.
+     * Square: focus there. Circle: ISO or white balance read there (its mode, v143).
      */
     private fun tapAt(x: Float, y: Float) {
         // v125: a tap on one or more marks sets every one of them where they are (the monitor's taps too)
         // The armed mark still goes where the finger is, unless it is already there.
         val under = marksUnder(x, y)
-        if (settings.pinchTarget.coerceIn(0, 2) in under) {
+        if (settings.pinchTarget.coerceIn(0, 1) in under) {
             Trace.control("tap", String.format("%.2f,%.2f", x, y), "on marks " + under.joinToString())
             under.forEach { fireMark(it) }
             return
@@ -2100,14 +2101,8 @@ class MainActivity : AppCompatActivity() {
             1 -> {
                 exposureCircle.moveTo(x, y)
                 settings.circleX = exposureCircle.centreX; settings.circleY = exposureCircle.centreY
-                Trace.control("tap", String.format("%.2f,%.2f", x, y), "exposure circle")
-                meterExposure()
-            }
-            2 -> {
-                wbBox.moveTo(x, y)
-                settings.wbBoxX = wbBox.centreX; settings.wbBoxY = wbBox.centreY
-                Trace.control("tap", String.format("%.2f,%.2f", x, y), "white balance triangle")
-                spotWhiteBalance()
+                Trace.control("tap", String.format("%.2f,%.2f", x, y), "circle " + circleLabel())
+                fireCircle()
             }
             else -> focusAt(x, y)
         }
@@ -2115,19 +2110,17 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * v125, OVERLAP: *"If they're overlapping and the user clicks basically on all three at the same time,
-     * all three are doing their thing."* Which marks (0 square, 1 circle, 2 triangle) are under the point,
+     * all three are doing their thing."* Which marks (0 square, 1 circle) are under the point,
      * on them or within a finger's reach. A grey (hidden) mark is not under anything.
      */
     private fun marksUnder(x: Float, y: Float): List<Int> = buildList {
         if (focusSquare.hits(x, y)) add(0)
         if (exposureCircle.hits(x, y)) add(1)
-        if (wbBox.hits(x, y)) add(2)
     }
 
     private fun fireMark(i: Int) = when (i) {
         0 -> focus.focusHereAndHold()
-        1 -> meterExposure()
-        else -> spotWhiteBalance()
+        else -> fireCircle()
     }
 
     /** The mark that took the touch has fired; the others under the same finger fire with it. */
@@ -2138,20 +2131,18 @@ class MainActivity : AppCompatActivity() {
         others.forEach { fireMark(it) }
     }
 
-    /** A pinch anywhere resizes the orange mark, when that is the circle or the triangle. */
+    /** A pinch anywhere resizes the orange mark, when that is the circle. */
     private val markPinch by lazy {
         android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
                 when (settings.pinchTarget) {
                     1 -> exposureCircle.size *= d.scaleFactor
-                    2 -> wbBox.size *= d.scaleFactor
                 }
                 return true
             }
             override fun onScaleEnd(d: android.view.ScaleGestureDetector) {
                 when (settings.pinchTarget) {
                     1 -> settings.circleSize = exposureCircle.size
-                    2 -> settings.wbSize = wbBox.size
                 }
                 Trace.control("mark size", settings.pinchTarget, "pinched")
             }
@@ -2173,9 +2164,8 @@ class MainActivity : AppCompatActivity() {
         return Mechanism.streamRegionToArray(onStream, bufferSize.width, bufferSize.height, array.width(), array.height())
     }
 
-    /** v125: the circle's ramps; true while automatic exposure is held by the circle at the ramped values. */
+    /** v125: the circle's ramp. */
     private val exposureRamp by lazy { Ramp(ui) }
-    private var circleHolds = false
     private var circleTicket = 0
     /**
      * v126: how many stops the picture moves for a stop of exposure, per curve, learnt round to round. The
@@ -2186,41 +2176,147 @@ class MainActivity : AppCompatActivity() {
     private var circleLastLinear = 0.0
     private var circleLastStops = 0.0
 
-    /** A tap on the circle: exposure is read there and locks. Orange while it reads, green when locked. */
-    private fun meterExposure() {
-        if (!pipeline.isRunning) { say("The camera is not open"); return }
-        val engine = pipeline.engine
-        // v125, THE RAMP: on automatic exposure the circle is read off the picture (which changes nothing)
-        // and the exposure walks there, eased in and out, instead of the camera's own jump
-        if (Mechanism.exposureMode(isoAuto, shutterAuto) == Mechanism.Exposure.AUTO && settings.focusRackMs > 0 &&
-            engine.lastIso != null && engine.lastExposureNs != null && engine.isoRange() != null
-        ) {
-            exposureCircle.state = MarkView.State.MEASURING
-            exposureLockedAt = null
-            say("Exposure: reading the circle…")
-            exposureRound(1, ++circleTicket)
-            return
-        }
-        if (engine.manualExposure) {
-            exposureCircle.state = MarkView.State.NEUTRAL
-            say("Manual exposure: the circle is where the grey card is read")
-            return
-        }
-        engine.exposureRegion = sensorRegionOf(exposureCircle.normalisedBounds())
-        exposureCircle.state = MarkView.State.MEASURING
-        exposureLockedAt = null
-        say("Exposure: reading the circle…")
-        val started = engine.meterExposureHere { settled ->
-            ui.post {
-                exposureCircle.state = if (settled) MarkView.State.NEUTRAL else MarkView.State.FAILED
-                exposureLockedAt = exposureLockText()
-                say(if (settled) "Exposure locked on the circle" else "Exposure locked where it was (the camera did not settle)")
+    // --- the circle's mode (v143) ---------------------------------------------------
+
+    /*
+     * Marko, 24.10.2026: *"we're going to have a square and one circle because this is the trick. So circle, a long
+     * press on the circle, change its mode ... One mode is to tap to adjust exposure with ISO only ... It's a white
+     * balance. And the third option, which is not the mode, which is just to set in the shutter. So idea in manual
+     * camera is that what is fixed in the video mode is always shutter speed and aperture ... with this round thing,
+     * what I expect to change manually with plus and minus buttons — shutter speed ... Under the circle, you need to
+     * write in small letters ISO or WB."*
+     */
+
+    private fun circleLabel(): String = if (settings.circleMode == CIRCLE_WB) "WB" else "ISO"
+
+    /** A tap on the circle, from the finger, the picture, the monitor or adb: what its mode does. */
+    private fun fireCircle() {
+        if (settings.circleMode == CIRCLE_WB) spotWhiteBalance() else meterIso()
+    }
+
+    private fun setCircleMode(mode: Int) {
+        releaseCircle()
+        spotTicket++
+        settings.circleMode = mode
+        exposureCircle.label = circleLabel()
+        exposureCircle.state = MarkView.State.IDLE
+        Trace.control("circle mode", circleLabel(), "long press")
+        say(if (mode == CIRCLE_WB) "Circle: WB — a tap balances white on what is inside"
+            else "Circle: ISO — a tap sets ISO on what is inside, the shutter stays")
+        refreshKeys()
+    }
+
+    /**
+     * The long press on the circle: its two modes, ISO and WB, and the shutter with − and +, which is not a mode
+     * but the one number the circle never moves.
+     */
+    private fun openCircleMenu() {
+        val dp = resources.displayMetrics.density
+        val green = android.graphics.Color.parseColor("#33D17A")
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((8 * dp).toInt(), (6 * dp).toInt(), (8 * dp).toInt(), (6 * dp).toInt())
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xE6101010.toInt()); cornerRadius = 10 * dp; setStroke((1 * dp).toInt(), 0x55FFFFFF)
             }
         }
-        if (!started) {
-            exposureCircle.state = MarkView.State.FAILED
-            say("The camera would not meter on the circle")
+        val popup = android.widget.PopupWindow(box, android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT, true).apply { isOutsideTouchable = true; elevation = 8 * dp }
+        fun chip(text: String, on: Boolean, click: () -> Unit) = TextView(this).apply {
+            this.text = text
+            textSize = 15f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(if (on) green else android.graphics.Color.WHITE)
+            gravity = android.view.Gravity.CENTER
+            minWidth = (52 * dp).toInt()
+            setPadding((12 * dp).toInt(), (10 * dp).toInt(), (12 * dp).toInt(), (10 * dp).toInt())
+            setOnClickListener { click() }
         }
+        val modes = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setGravity(android.view.Gravity.CENTER) }
+        modes.addView(chip("ISO", settings.circleMode == CIRCLE_ISO) { setCircleMode(CIRCLE_ISO); popup.dismiss() })
+        modes.addView(chip("WB", settings.circleMode == CIRCLE_WB) { setCircleMode(CIRCLE_WB); popup.dismiss() })
+        box.addView(modes)
+        val shutter = TextView(this).apply {
+            textSize = 12f
+            setTextColor(android.graphics.Color.WHITE)
+            gravity = android.view.Gravity.CENTER
+            minWidth = (64 * dp).toInt()
+        }
+        fun showShutter() {
+            val ns = if (shutterAuto) pipeline.engine.lastExposureNs ?: shutterNs else shutterNs
+            shutter.text = "SHUTTER\n" + Mechanism.formatShutter(ns) + if (shutterAuto) " A" else ""
+        }
+        showShutter()
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setGravity(android.view.Gravity.CENTER) }
+        row.addView(chip("−", false) { stepShutter(-1); showShutter() })
+        row.addView(shutter)
+        row.addView(chip("+", false) { stepShutter(+1); showShutter() })
+        box.addView(row)
+        // above the circle, or below it when there is no room above; inside the screen either way
+        box.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val at = IntArray(2)
+        exposureCircle.getLocationOnScreen(at)
+        val b = exposureCircle.normalisedBounds()
+        val cx = at[0] + exposureCircle.width * exposureCircle.centreX
+        val top = at[1] + exposureCircle.height * b[1]
+        val bottom = at[1] + exposureCircle.height * b[3]
+        val screen = resources.displayMetrics
+        val x = (cx - box.measuredWidth / 2f).toInt().coerceIn(0, (screen.widthPixels - box.measuredWidth).coerceAtLeast(0))
+        val above = (top - box.measuredHeight - 8 * dp).toInt()
+        val y = (if (above >= 0) above else (bottom + 22 * dp).toInt())
+            .coerceIn(0, (screen.heightPixels - box.measuredHeight).coerceAtLeast(0))
+        popup.showAtLocation(exposureCircle, android.view.Gravity.NO_GRAVITY, x, y)
+    }
+
+    /**
+     * The shutter one video stop faster (+1) or slower (−1), by hand from then on: the circle never moves it.
+     * On automatic it starts from where the camera had it.
+     */
+    private fun stepShutter(direction: Int) {
+        if (!pipeline.isRunning) { say("The camera is not open"); return }
+        val (low, high) = shutterBounds() ?: run { say("This lens has no manual shutter"); return }
+        val from = if (shutterAuto) pipeline.engine.lastExposureNs ?: shutterNs else shutterNs
+        val next = Mechanism.shutterStep(from, direction, low, high)
+        if (next == null) {
+            say("Shutter " + Mechanism.formatShutter(from) +
+                if (direction > 0) ": the fastest there is" else ": the slowest this frame rate holds")
+            return
+        }
+        if (shutterAuto) setParamAuto(1, false, quiet = true)
+        shutterNs = next
+        shutterPosition = Mechanism.positionOfValue(shutterNs.toDouble(), low.toDouble(), high.toDouble())
+        applyExposure()
+        Trace.control("shutter", Mechanism.formatShutter(shutterNs), "circle " + if (direction > 0) "+" else "−")
+        say("Shutter " + Mechanism.formatShutter(shutterNs) + if (isoAuto) " · ISO automatic" else " · ISO $iso")
+        refreshZones()
+        refreshKeys()
+    }
+
+    /**
+     * v143, THE CIRCLE ON ISO: a tap reads the circle and walks ISO alone until it lands on 18% grey; the shutter
+     * stays where it is. From the tap on both are the operator's numbers, the ones the faders show: a shutter on
+     * automatic is held where the camera had it.
+     */
+    private fun meterIso() {
+        if (!pipeline.isRunning) { say("The camera is not open"); return }
+        val engine = pipeline.engine
+        val iso0 = if (isoAuto) engine.lastIso else iso
+        val shutter0 = if (shutterAuto) engine.lastExposureNs else shutterNs
+        if (engine.isoRange() == null || iso0 == null || shutter0 == null) {
+            exposureCircle.state = MarkView.State.FAILED
+            say("ISO: this lens does not report its exposure")
+            return
+        }
+        iso = iso0
+        shutterNs = shutter0
+        isoAuto = false
+        shutterAuto = false
+        applyExposure()
+        exposureCircle.state = MarkView.State.MEASURING
+        exposureLockedAt = null
+        say("ISO: reading the circle…")
+        refreshKeys()
+        isoRound(1, ++circleTicket)
     }
 
     /** The circle's mean scene light, linear 0..1 (luma of the decoded channels), or null with no picture. */
@@ -2247,17 +2343,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * One round of the circle (v125): read it, and if it is more than a fifth of a stop off 18% grey, walk
-     * ISO (then shutter, for what ISO cannot reach) there over the ramp time, eased in and out; read again.
-     * Held where it lands — the lock — until the circle is put away or exposure is changed.
+     * One round of the circle on ISO: read it, and if it is more than a fifth of a stop off 18% grey, walk ISO
+     * there over the ramp time, eased in and out; read again. The shutter is not touched.
      */
-    private fun exposureRound(round: Int, ticket: Int) {
+    private fun isoRound(round: Int, ticket: Int) {
         if (circleTicket != ticket || !pipeline.isRunning) return
         val engine = pipeline.engine
         val linear = sampleCircleLinear()
-        if (linear == null) {
+        val range = engine.isoRange()
+        if (linear == null || range == null) {
             exposureCircle.state = MarkView.State.FAILED
-            say("Exposure: the circle could not be read")
+            say("ISO: the circle could not be read")
             return
         }
         val error = Mechanism.circleExposureError(linear)
@@ -2266,60 +2362,55 @@ class MainActivity : AppCompatActivity() {
             exposureResponse[curveIndex] = (answered / circleLastStops).coerceIn(0.3, 1.5)
         }
         val response = exposureResponse[curveIndex] ?: 1.0
-        val iso0 = engine.lastIso ?: return
-        val shutter0 = engine.lastExposureNs ?: return
-        val isoRange = engine.isoRange() ?: return
-        val (shMin, shMax) = shutterBounds() ?: (shutter0 to shutter0)
-        val (iso1, shutter1) = Mechanism.splitExposure((error / response).coerceIn(-4.0, 4.0),
-            iso0, shutter0, isoRange.lower, isoRange.upper, shMin, shMax)
+        val iso0 = iso
+        // the shutter's bounds are the shutter itself: every stop goes to ISO
+        val (iso1, _) = Mechanism.splitExposure((error / response).coerceIn(-4.0, 4.0),
+            iso0, shutterNs, range.lower, range.upper, shutterNs, shutterNs)
         circleLastLinear = linear
-        circleLastStops = kotlin.math.ln(iso1.toDouble() / iso0 * shutter1.toDouble() / shutter0) / kotlin.math.ln(2.0)
+        circleLastStops = kotlin.math.ln(iso1.toDouble() / iso0.coerceAtLeast(1)) / kotlin.math.ln(2.0)
         Trace.state(String.format(java.util.Locale.ROOT,
-            "exposure circle: round %d, light %.3f, %+.2f stops (response %.2f), ISO %d → %d, %s → %s", round, linear, error, response,
-            iso0, iso1, Mechanism.formatShutter(shutter0), Mechanism.formatShutter(shutter1)))
-        val nothingToMove = iso1 == iso0 && shutter1 == shutter0
-        if (kotlin.math.abs(error) < CIRCLE_TOLERANCE_STOPS || round > CIRCLE_ROUNDS || nothingToMove) {
-            // held here: from the camera's auto exposure to these same values, which changes nothing on the picture
-            if (!circleHolds) { circleHolds = true; engine.setManualExposure(iso0, shutter0) }
-            val there = kotlin.math.abs(error) < CIRCLE_TOLERANCE_STOPS
+            "circle ISO: round %d, light %.3f, %+.2f stops (response %.2f), ISO %d → %d, shutter %s held",
+            round, linear, error, response, iso0, iso1, Mechanism.formatShutter(shutterNs)))
+        val there = kotlin.math.abs(error) < CIRCLE_TOLERANCE_STOPS
+        if (there || round > CIRCLE_ROUNDS || iso1 == iso0) {
             exposureCircle.state = if (there) MarkView.State.NEUTRAL else MarkView.State.FAILED
-            exposureLockedAt = exposureLockText()
-            say(if (there) "Exposure locked on the circle"
-                else String.format(java.util.Locale.ROOT, "Exposure: as close as it goes (%+.1f stops)", error))
+            exposureLockedAt = "locked ISO $iso · " + Mechanism.formatShutter(shutterNs)
+            isoPosition = Mechanism.positionOfValue(iso.toDouble(), range.lower.toDouble(), range.upper.toDouble())
+            say(when {
+                there -> "ISO $iso on the circle · shutter " + Mechanism.formatShutter(shutterNs) + " held"
+                error > 0 && iso >= range.upper -> "ISO at its top ($iso): a slower shutter (long press the circle) or more light"
+                error < 0 && iso <= range.lower -> "ISO at its floor ($iso): a faster shutter (long press the circle) or less light"
+                else -> String.format(java.util.Locale.ROOT, "ISO %d: as close as it goes (%+.1f stops)", iso, error)
+            })
             refreshZones()
+            refreshKeys()
             return
         }
-        circleHolds = true
         val ms = if (round == 1) settings.focusRackMs else (settings.focusRackMs / 2).coerceAtLeast(300L)
-        exposureRamp.run(ms,
+        exposureRamp.run(if (settings.focusRackMs > 0) ms else 0L,
             step = { p ->
-                circleTicket == ticket && engine.setManualExposure(
-                    Math.round(Mechanism.rampLog(iso0.toDouble(), iso1.toDouble(), p)).toInt(),
-                    Mechanism.rampLog(shutter0.toDouble(), shutter1.toDouble(), p).toLong(),
-                    trace = p >= 1f)
+                circleTicket == ticket && run {
+                    iso = Math.round(Mechanism.rampLog(iso0.toDouble(), iso1.toDouble(), p)).toInt()
+                    engine.setManualExposure(iso, shutterNs, trace = p >= 1f)
+                }
             },
-            done = { ui.postDelayed({ exposureRound(round + 1, ticket) }, CIRCLE_SETTLE_MS) },
+            done = { ui.postDelayed({ isoRound(round + 1, ticket) }, CIRCLE_SETTLE_MS) },
             failed = {
                 if (circleTicket == ticket) {
                     exposureCircle.state = MarkView.State.FAILED
-                    say("Exposure: the camera refused the ramp")
+                    say("ISO: the camera refused the ramp")
                 }
             })
     }
 
-    /** The circle is put away or exposure changed: the ramp stops and the hold is let go. */
-    private fun releaseCircle(backToAuto: Boolean) {
+    /** The circle is put away, its mode changed, or exposure set another way: its ramp stops. */
+    private fun releaseCircle() {
         circleTicket++
         exposureRamp.cancel()
-        val held = circleHolds
-        circleHolds = false
-        if (backToAuto && pipeline.isRunning) {
-            if (held) pipeline.engine.setAutoExposure() else pipeline.engine.releaseExposureLock()
-        }
     }
 
     /**
-     * THE SPOT (v101): the white balance triangle's lit pixels, in LINEAR light.
+     * THE SPOT (v101): the white balance mark's lit pixels, in LINEAR light. v143: the circle on WB, was the triangle.
      *
      * Round 1 chooses the pixels — lit (not the black around a key) and not clipped — and every later round
      * reads exactly those, because v100 let the population change from round to round (a red key crossing
@@ -2336,7 +2427,7 @@ class MainActivity : AppCompatActivity() {
         val w = (preview.width / 2).coerceAtLeast(64)
         val h = (preview.height / 2).coerceAtLeast(64)
         val bmp = runCatching { preview.getBitmap(w, h) }.getOrNull() ?: return null
-        val bd = wbBox.normalisedBounds()
+        val bd = exposureCircle.normalisedBounds()
         val x0 = (bd[0] * w).toInt().coerceIn(0, w - 1)
         val x1 = (bd[2] * w).toInt().coerceIn(x0 + 1, w)
         val y0 = (bd[1] * h).toInt().coerceIn(0, h - 1)
@@ -2352,7 +2443,7 @@ class MainActivity : AppCompatActivity() {
             val c = bmp.getPixel(x, y)
             val r = android.graphics.Color.red(c); val g = android.graphics.Color.green(c); val bl = android.graphics.Color.blue(c)
             if (choose) mask[i] = maxOf(r, g, bl) >= SPOT_DARK && maxOf(r, g, bl) <= SPOT_CLIPPED &&
-                wbBox.contains((x + 0.5f) / w, (y + 0.5f) / h)
+                exposureCircle.contains((x + 0.5f) / w, (y + 0.5f) / h)
             if (mask[i]) {
                 sum[0] += LogCurves.decode(curve, r / 255.0)
                 sum[1] += LogCurves.decode(curve, g / 255.0)
@@ -2371,7 +2462,7 @@ class MainActivity : AppCompatActivity() {
     private val wbRamp by lazy { Ramp(ui) }
     private var spotLearn: WhiteBalance.SpotLearn? = null
 
-    /** A tap on the white balance rectangle. */
+    /** A tap on the circle on WB. */
     private fun spotWhiteBalance() {
         if (!pipeline.isRunning) { say("The camera is not open"); return }
         val ticket = ++spotTicket
@@ -2379,9 +2470,9 @@ class MainActivity : AppCompatActivity() {
         // v126: from what the last tap on this curve learnt, or cautious (a first step that falls short)
         spotLearn = WhiteBalance.SpotLearn(spotResponse[curveIndex]
             ?: doubleArrayOf(WhiteBalance.CAUTIOUS_RESPONSE, WhiteBalance.CAUTIOUS_RESPONSE))
-        wbBox.state = MarkView.State.MEASURING
+        exposureCircle.state = MarkView.State.MEASURING
         wbLockedAt = null
-        say("White balance: reading the triangle…")
+        say("White balance: reading the circle…")
         spotRound(1, ticket)
     }
 
@@ -2397,21 +2488,21 @@ class MainActivity : AppCompatActivity() {
         val gains = engine.currentGains()
         val learn = spotLearn ?: return
         if (rgb == null || gains == null) {
-            wbBox.state = MarkView.State.FAILED
-            say(if (round == 1) "Nothing lit in the triangle (all dark or clipped) — point it at something white or grey"
-                else "White balance: the triangle went dark or clipped at round $round")
-            Trace.refused("white balance spot", "round $round: nothing in the triangle between dark and clipped")
+            exposureCircle.state = MarkView.State.FAILED
+            say(if (round == 1) "Nothing lit in the circle (all dark or clipped) — point it at something white or grey"
+                else "White balance: the circle went dark or clipped at round $round")
+            Trace.refused("white balance spot", "round $round: nothing in the circle between dark and clipped")
             return
         }
         Trace.state(String.format(java.util.Locale.ROOT,
-            "white balance spot: round %d, triangle linear r/g %.3f b/g %.3f", round, rgb[0] / rgb[1], rgb[2] / rgb[1]))
+            "white balance spot: round %d, circle linear r/g %.3f b/g %.3f", round, rgb[0] / rgb[1], rgb[2] / rgb[1]))
         val neutral = WhiteBalance.spotNeutral(rgb, SPOT_TOLERANCE)
         if (neutral || round > WhiteBalance.SPOT_ROUNDS) {
             if (round > 2) spotResponse[curveIndex] = learn.p.copyOf()
             val k = engine.adoptSpotAsAnchor()
             if (k != null) wbKelvin = k
             wbAuto = false
-            wbBox.state = if (neutral) MarkView.State.NEUTRAL else MarkView.State.FAILED
+            exposureCircle.state = if (neutral) MarkView.State.NEUTRAL else MarkView.State.FAILED
             wbLockedAt = wbLockText()
             say(if (neutral) "White balance locked: neutral after ${round - 1} step${if (round == 2) "" else "s"}"
                 else String.format(java.util.Locale.ROOT, "White balance: closest after %d steps (r/g %.2f, b/g %.2f)",
@@ -2432,7 +2523,7 @@ class MainActivity : AppCompatActivity() {
             done = { ui.postDelayed({ spotRound(round + 1, ticket) }, SPOT_SETTLE_MS) },
             failed = {
                 if (spotTicket == ticket) {
-                    wbBox.state = MarkView.State.FAILED
+                    exposureCircle.state = MarkView.State.FAILED
                     say("White balance: the camera refused the gains")
                 }
             })
@@ -2464,8 +2555,7 @@ class MainActivity : AppCompatActivity() {
     private fun stepLogExposure() {
         val engine = pipeline.engine
         val curve = LogCurves.Curve.entries[curveIndex]
-        // v125: not while the circle holds the exposure, or the compensation would creep while nothing answers
-        val auto = isoAuto && shutterAuto && !circleHolds
+        val auto = isoAuto && shutterAuto
         val target = Mechanism.greyTarget(curve)
         if (target == null) {
             greyReadout = null
@@ -3271,7 +3361,7 @@ class MainActivity : AppCompatActivity() {
         markKeys.forEachIndexed { i, key ->
             val on = settings.marksShown and (1 shl i) != 0
             key.state = if (on) RailButton.State.SHOWN else RailButton.State.OFF
-            key.tint = if (!on) null else when (i) { 0 -> focusSquare.colour(); 1 -> exposureCircle.colour(); else -> wbBox.colour() }
+            key.tint = if (!on) null else if (i == 0) focusSquare.colour() else exposureCircle.colour()
             key.marked = on && settings.pinchTarget == i
             key.invalidate()
         }
@@ -3354,21 +3444,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun markStatus(): String = when (settings.pinchTarget) {
-        1 -> "EXPOSURE CIRCLE" + (exposureLockedAt?.let { " $it" } ?: "") + "  ·  "
-        2 -> "WHITE BALANCE TRIANGLE" + (wbLockedAt?.let { " $it" } ?: "") + "  ·  "
+        1 -> if (settings.circleMode == CIRCLE_WB) "WB CIRCLE" + (wbLockedAt?.let { " $it" } ?: "") + "  ·  "
+            else "ISO CIRCLE" + (exposureLockedAt?.let { " $it" } ?: "") + "  ·  "
         else -> "FOCUSING SQUARE" + (focusLockedAt?.let { " $it" } ?: "") + "  ·  "
     }
 
     private fun focusLockText(): String? {
         val d = pipeline.engine.lastFocusDistance ?: return null
         return if (d <= 0.001f) "locked at ∞" else String.format(java.util.Locale.ROOT, "locked at %.2f m (%.2f dpt)", 1f / d, d)
-    }
-
-    private fun exposureLockText(): String {
-        val e = pipeline.engine
-        val ev = e.aeCompensation * e.aeCompensationStep()
-        return "locked ISO ${e.lastIso ?: "?"} · " + (e.lastExposureNs?.let { Mechanism.formatShutter(it) } ?: "?") +
-            String.format(java.util.Locale.ROOT, " · EV %+.1f", ev)
     }
 
     private fun wbLockText(): String {
@@ -3481,4 +3564,7 @@ private const val SPRING_OMEGA = 5.0
 private const val CIRCLE_TOLERANCE_STOPS = 0.2
 private const val CIRCLE_ROUNDS = 3
 private const val CIRCLE_SETTLE_MS = 300L
+/** v143: the circle's modes (Settings.circleMode). */
+private const val CIRCLE_ISO = 0
+private const val CIRCLE_WB = 1
 private const val SPOT_TOLERANCE = 0.03

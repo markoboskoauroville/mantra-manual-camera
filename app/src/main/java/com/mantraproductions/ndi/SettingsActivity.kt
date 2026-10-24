@@ -250,7 +250,6 @@ class SettingsActivity : AppCompatActivity() {
         }
         size(R.id.sizeSquare, R.id.iconSquare, RailButton.Glyph.SQUARE, settings.focusBoxSize, Mechanism.BOX_MIN, 1f) { settings.focusBoxSize = it }
         size(R.id.sizeCircle, R.id.iconCircle, RailButton.Glyph.CIRCLE, settings.circleSize, 0.06f, 0.5f) { settings.circleSize = it }
-        size(R.id.sizeTriangle, R.id.iconTriangle, RailButton.Glyph.TRIANGLE, settings.wbSize, 0.06f, 0.5f) { settings.wbSize = it }
 
         // v111: THE TABS instead of one long scroll. The last one chosen comes back.
         val tabs = listOf(R.id.tabCamera to R.id.pageCamera, R.id.tabOutputs to R.id.pageOutputs,
