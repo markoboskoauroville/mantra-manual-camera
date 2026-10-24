@@ -722,3 +722,11 @@ Needs the GPU stage (Settings → Picture path).
 > "Try also changing the lens on the camera, because the second lens gives much better picture and it can zoom in a little bit. That's better. Lens two is the best." (Marko, 22.10.2026)
 
 54. The adb control chooses the lens: `mcam lens 2`; lens 2 is Marko's choice for the picture. — **Status:** v141 asked; v139 has torch, ISO, shutter, white balance proven on the Pixel 7 over wireless adb (07:36–07:38), EV kept from v140.
+
+## 24.10.2026 — the name: Mantra Manual Camera
+
+> "Mantra NDI's camera repository. First, we need to rename this camera, not in this confusing name. Name the project and repository Mantra Manual Camera." (Marko, 24.10.2026)
+
+> "there is no problem in making new app, please rename it it can be as new app, old one will be uninstalled" (Marko, 24.10.2026)
+
+55. The project and the repository are Mantra Manual Camera (`markoboskoauroville/mantra-manual-camera`), and the app id is `com.mantraproductions.manualcamera`: a new app beside the old `com.mantraproductions.ndi`, which is uninstalled by hand; its settings do not carry over. The adb action is `com.mantraproductions.manualcamera.ADB`, `scripts/mcam` follows. The Kotlin package and Mantra Monitor keep their names. — **Status:** v142 asked; the repo renamed by Marko.
