@@ -32,7 +32,7 @@ class SettingsActivity : AppCompatActivity() {
         const val EXTRA_LENS = "lens"
         const val EXTRA_LENS_NAME = "lensName"
         /** The newest signed APK lives here (CI publishes every version as a release). */
-        const val LATEST_RELEASE = "https://github.com/markoboskoauroville/mantra-ndi/releases/latest"
+        const val LATEST_RELEASE = "https://github.com/markoboskoauroville/mantra-manual-camera/releases/latest"
     }
 
     /** The system's folder picker: any drive, a USB SSD included. */

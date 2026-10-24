@@ -705,7 +705,7 @@ class CameraPipeline(private val context: Context) {
             multicast = runCatching {
                 val wifi = context.applicationContext
                     .getSystemService(Context.WIFI_SERVICE) as WifiManager
-                wifi.createMulticastLock("mantra-ndi").apply {
+                wifi.createMulticastLock("mantra-manual-camera").apply {
                     setReferenceCounted(false)
                     acquire()
                 }
@@ -717,7 +717,7 @@ class CameraPipeline(private val context: Context) {
                 val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
                 @Suppress("DEPRECATION")
                 val mode = if (android.os.Build.VERSION.SDK_INT >= 29) WifiManager.WIFI_MODE_FULL_LOW_LATENCY else WifiManager.WIFI_MODE_FULL_HIGH_PERF
-                wifi.createWifiLock(mode, "mantra-ndi-stream").apply { setReferenceCounted(false); acquire() }
+                wifi.createWifiLock(mode, "mantra-manual-camera-stream").apply { setReferenceCounted(false); acquire() }
             }.onFailure { Trace.fault("wifi lock", it) }.getOrNull()
             Trace.state("wifi low-latency lock " + if (wifiLock?.isHeld == true) "held" else "NOT held")
         }

@@ -17,7 +17,7 @@ import android.os.Build
  */
 class Settings(context: Context) {
 
-    private val prefs = context.getSharedPreferences("mantra-ndi", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences("mantra-manual-camera", Context.MODE_PRIVATE)
 
     /**
      * What a receiver sees in its source list.

@@ -65,7 +65,7 @@ import androidx.core.view.WindowInsetsControllerCompat
  * the rail does not reshuffle itself between a Pixel 7 and a Pixel 7 Pro.
  */
 /** v139: the action of the adb control (MainActivity.adbControl, scripts/mcam). */
-private const val ADB_ACTION = "com.mantraproductions.ndi.ADB"
+private const val ADB_ACTION = "com.mantraproductions.manualcamera.ADB"
 
 class MainActivity : AppCompatActivity() {
 
@@ -1868,7 +1868,7 @@ class MainActivity : AppCompatActivity() {
      * wrong exposure, you can adjust exposure parameters in the camera. If there is wrong white balance, you can adjust
      * that.")
      *
-     *     adb shell am broadcast -a com.mantraproductions.ndi.ADB -p com.mantraproductions.ndi --es cmd torch --es v on
+     *     adb shell am broadcast -a com.mantraproductions.manualcamera.ADB -p com.mantraproductions.manualcamera --es cmd torch --es v on
      *
      * Every command goes through the same paths as the rail and the zones, so the screen shows what was set and says
      * it on the status line. The answer, which `am broadcast` prints as its data, is what was done on the first line and

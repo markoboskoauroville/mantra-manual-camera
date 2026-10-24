@@ -2,7 +2,7 @@
 
 For any Claude session starting a new NDI app for Baba, or picking up one of
 the existing ones. Everything here was read out of working code in
-`mantra-ndi` and `mantra-ndi-screen-share-android`, or measured on the phone.
+`mantra-manual-camera` (formerly `mantra-ndi`) and `mantra-ndi-screen-share-android`, or measured on the phone.
 Where something is not verified, it says so.
 
 Baba is a broadcast professional and a beginner programmer. Explain in plain
@@ -79,7 +79,7 @@ a deploy key that leaks costs read access to the SDK and nothing else.
 The reference is `mantra-ndi-screen-share-android`, `.github/workflows/build.yml`,
 step "Fetch the NDI SDK". It also pins GitHub's host keys from
 `api.github.com/meta` rather than trusting `ssh-keyscan`, which is the better
-way. `mantra-ndi` itself still uses the older `NDI_SDK_TOKEN` and should move
+way. `mantra-manual-camera` itself still uses the older `NDI_SDK_TOKEN` and should move
 to a deploy key when it reaches phase 3.
 
 After the clone, the files go here, and nowhere else:
@@ -125,7 +125,7 @@ SDK problem and is a path problem.
 
 Toolchain as used: NDK `27.0.12077973`, CMake `3.22.1`, ABI `arm64-v8a` only.
 
-`CMakeLists.txt`, as in `mantra-ndi`:
+`CMakeLists.txt`, as in `mantra-manual-camera`:
 
     add_library(ndi_bridge SHARED ndi_bridge.cpp ndi_recv_bridge.cpp)
     target_include_directories(ndi_bridge PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ndi/include)
@@ -161,7 +161,7 @@ The details that are easy to get wrong, all written against the SDK's own
 - `clock_video = false`. The encoder's timestamps pace the stream.
 
 The working bridges are `ndi_bridge.cpp` (send, tally, metadata) and
-`ndi_recv_bridge.cpp` (receive) in `mantra-ndi`. Copy them, then rename the
+`ndi_recv_bridge.cpp` (receive) in `mantra-manual-camera`. Copy them, then rename the
 JNI function names to the new app's package.
 
 ## 7. Android rules that fail silently
@@ -190,7 +190,7 @@ JNI function names to the new app's package.
 ## 8. Build logging first
 
 Before any camera or capture code, copy the phase-zero logging from
-`mantra-ndi`: `TraceFormat.kt`, `Trace.kt`, `CrashLog.kt`, `Downloads.kt`,
+`mantra-manual-camera`: `TraceFormat.kt`, `Trace.kt`, `CrashLog.kt`, `Downloads.kt`,
 `MantraApp.kt`, and their tests. The screen-share app already did.
 
 What it gives: a trace file written as things happen, under
@@ -237,7 +237,7 @@ Google Pixel 7, Android 16, API 36. Measured:
 | The thirty-minute restart | screen-share | `ScreenShareService.kt`, `refresh` |
 | Deploy key fetch, pinned host keys | screen-share | `.github/workflows/build.yml` |
 | Screen capture to encoder | screen-share | `Pipelines.kt` |
-| Send and receive bridges | mantra-ndi | `app/src/main/cpp/` |
-| Logging | mantra-ndi | `Trace.kt`, `CrashLog.kt`, `Downloads.kt` |
-| CI gates | mantra-ndi | `scripts/verify.py`, `.github/workflows/build.yml` |
+| Send and receive bridges | mantra-manual-camera | `app/src/main/cpp/` |
+| Logging | mantra-manual-camera | `Trace.kt`, `CrashLog.kt`, `Downloads.kt` |
+| CI gates | mantra-manual-camera | `scripts/verify.py`, `.github/workflows/build.yml` |
 | How Baba wants software built | MANTRA_MANIFEST | `START_HERE.md` |

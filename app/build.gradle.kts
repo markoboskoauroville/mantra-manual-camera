@@ -78,7 +78,7 @@ android {
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
-        applicationId = "com.mantraproductions.ndi"
+        applicationId = "com.mantraproductions.manualcamera"
         minSdk = 26
         targetSdk = 35
         versionCode = appVersion

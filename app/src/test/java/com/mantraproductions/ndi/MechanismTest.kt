@@ -81,7 +81,7 @@ class MechanismTest {
         assertEquals("Mantra_Cam", Mechanism.fileSafeName("///"))
         // Only a name that survives sanitising and then strips to nothing
         // reaches the last resort.
-        assertEquals("MantraNDI", Mechanism.fileSafeName("..."))
+        assertEquals("MantraManualCamera", Mechanism.fileSafeName("..."))
         assertTrue(Mechanism.fileSafeName("---").isNotEmpty())
     }
 

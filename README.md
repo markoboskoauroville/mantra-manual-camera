@@ -1,4 +1,4 @@
-### [Download the latest build](https://github.com/markoboskoauroville/mantra-ndi/releases/latest)
+### [Download the latest build](https://github.com/markoboskoauroville/mantra-manual-camera/releases/latest)
 
 # Mantra Manual Camera
 

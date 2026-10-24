@@ -23,7 +23,7 @@ import java.util.TimeZone
  *
  * The file goes in getExternalFilesDir. That needs no permission, cannot be
  * refused by the person or the system, and lands somewhere reachable in any
- * file manager under Android/data/com.mantraproductions.ndi/files.
+ * file manager under Android/data/com.mantraproductions.manualcamera/files.
  *
  * Nothing is buffered. A BufferedWriter holds the last few kilobytes in memory
  * and those are exactly the lines that say what the app was doing when it

@@ -64,7 +64,7 @@ object Mechanism {
             .replace(' ', '_')
             .replace(Regex("[^A-Za-z0-9._-]"), "")
             .trim('_', '.', '-')
-        return cleaned.ifEmpty { "MantraNDI" }
+        return cleaned.ifEmpty { "MantraManualCamera" }
     }
 
     // --- exposure -----------------------------------------------------------

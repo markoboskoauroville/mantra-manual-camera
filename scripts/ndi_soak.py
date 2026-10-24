@@ -31,7 +31,7 @@ a = ap.parse_args()
 
 ADB_BIN = shutil.which("adb") or os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
 ADB = [ADB_BIN, "-s", a.phone]
-PKG = "com.mantraproductions.ndi"
+PKG = "com.mantraproductions.manualcamera"
 FILES = f"/sdcard/Android/data/{PKG}/files/"
 OUT = os.path.join("field-tests", datetime.datetime.now().strftime("%Y-%m-%d-%H%M") + "-soak")
 os.makedirs(OUT, exist_ok=True)
