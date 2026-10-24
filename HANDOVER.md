@@ -5,7 +5,54 @@ decided and what is not tested.
 
 ## State
 
-**v99, 27.9.2026 (evening). Mantra Manual Camera.** Start with `momentaryupdates.md` (his requests of
+**v143, 24.10.2026 (evening). Start here.** Session "Mantra Manual Camera rename" (cloud).
+
+Done and released (both merged to `main`, CI green, releases published):
+
+- **v142 — the name.** Repo renamed by Marko to `markoboskoauroville/mantra-manual-camera` (old
+  `mantra-ndi` links redirect). App id is now `com.mantraproductions.manualcamera`, a NEW app beside
+  the old `com.mantraproductions.ndi` (uninstall the old one by hand; settings do not carry over).
+  adb action `com.mantraproductions.manualcamera.ADB`; `scripts/mcam` and the test scripts follow.
+  Kept on purpose: the Kotlin package `com.mantraproductions.ndi`, Mantra Monitor's id
+  `com.mantraproductions.ndi.monitor`, the signing key path `signing/mantra-ndi.p12`, the
+  `mantra-ndi-sdk` repo. PR #4.
+- **v143 — one circle.** The triangle is gone. Square = focus (unchanged). The circle has a mode
+  written small under it, **ISO** or **WB** (`Settings.circleMode`). ISO: a tap walks ISO alone to
+  18% grey on the circle, the shutter held (an automatic shutter locks where the camera had it; both
+  stay manual afterwards). WB: the old triangle's spot balance, read on the circle. A **long press**
+  held still opens a menu: ISO / WB, and SHUTTER − / + through video shutters
+  (`Mechanism.SHUTTER_STOPS`, `shutterStep`, never longer than a frame). adb:
+  `mcam circle iso|wb|tap|+|-`, state shows `circle=`. PR #5. Request word for word:
+  `momentaryupdates.md` item 56.
+
+**NOT TESTED on any device.** v143 compiled, unit tests and CI gates pass; nobody has touched the
+circle yet. First job next time: on the Pixel 7 (or an accelerated emulator) check the label under the
+circle, no triangle, the long-press menu, ISO tap moves ISO only, WB tap balances, shutter − / +.
+
+**Testing bench — where it stands.**
+
+- The cloud sandbox has no KVM. An Android 14 x86_64 emulator (it has ARM translation, so the
+  arm64-only APK runs) booted in ~31 min, installed and opened v143 and the camera, then the system
+  server kept restarting under software emulation. Not usable for testing.
+- Proposed, not built: a GitHub Actions job (runners have KVM) that boots an emulator, installs the
+  build, runs the circle script over adb and keeps screenshots as artefacts. The script draft is the
+  adb sequence above (state, circle wb/iso, + + −, tap in each mode, long press).
+- **Oracle VM `teacher-vm`** (found in Marko's earlier sessions; record in
+  `ABLETON_TEACHER/lessons/oracle-vm.md`): Oracle Cloud account `markoboskoauroville`, Frankfurt,
+  Always Free, VM.Standard.A1.Flex 2 OCPU / 12 GB, Ubuntu 24.04 arm64, 130.61.181.83
+  (`130-61-181-83.sslip.io`), SSH user `ubuntu`, key `~/.ssh/oracle_vm` on the Mac, Caddy door key in
+  `~/.oci/teacher-door.json`, start/stop-only OCI user `machine-switch` (`~/.oci/machine-switch.pem`).
+  No KVM there either: Redroid (Android in Docker on ARM) would run the app natively but has no camera.
+- A cloud session cannot SSH out (only HTTPS). The route is Claude Code with Remote Control on the VM.
+  Marko started a local session "oracle" (Remote Control) on his Mac to fetch the details, but a cloud
+  session may not message a session on his own computer until he allows it on a trusted device
+  (`confirm_repository_trust` card). Nothing was sent to it. Next time: either he allows it, or he asks
+  the local session himself to (1) confirm teacher-vm in the Oracle console, (2) put into the cloud
+  environment settings — never into chat — the allowed domain `130-61-181-83.sslip.io`,
+  `ORACLE_DOOR_KEY`, `ORACLE_VM_HOST`/`ORACLE_VM_USER`/`ORACLE_VM_SSH_KEY`, and the machine-switch
+  `OCI_*` values with `OCI_INSTANCE_ID`, (3) set up Claude Code Remote Control on teacher-vm.
+
+**Older state (27.9.2026).** v99. Start with `momentaryupdates.md` (his requests of
 27.9.2026, word for word, each with its status), then the phase document's *Tomorrow starts here*.
 (v88 crashed on launch; never install it.) (renamed from Mantra NDI at v83; package id unchanged).
 Read `v81 version bumps upgrades prompts for phase development of professional application for
