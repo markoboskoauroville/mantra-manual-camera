@@ -78,7 +78,7 @@ class MechanismTest {
         assertEquals(1_000_000_000L / 60, Mechanism.shutterStep(1_000_000_000L / 50, +1, min, max))
         assertEquals(1_000_000_000L / 48, Mechanism.shutterStep(1_000_000_000L / 50, -1, min, max))
         // between two stops: the next one in that direction, not back to where it was
-        assertEquals(1_000_000_000L / 50, Mechanism.shutterStep(1_000_000_000L / 37, +1, min, max))
+        assertEquals(1_000_000_000L / 48, Mechanism.shutterStep(1_000_000_000L / 37, +1, min, max))
         assertEquals(1_000_000_000L / 30, Mechanism.shutterStep(1_000_000_000L / 37, -1, min, max))
         // never past the frame interval or 1/8000
         assertEquals(null, Mechanism.shutterStep(1_000_000_000L / 30, -1, min, max))
