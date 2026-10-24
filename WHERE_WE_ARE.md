@@ -231,8 +231,9 @@ the Pixel is the priority; the webcam becomes a Mac companion because there is n
 - **The log freeze.** A camera may accept a tone curve it cannot run and simply stop sending frames.
   After a curve change the frames are counted; none within a second puts back the previous request
   and says "not supported on this lens", and LOG skips that curve on that lens afterwards.
-- **The name.** Launcher, folders, release file and notes. The package id stays
-  `com.mantraproductions.ndi`: changing it makes a different app to Android and to Google Play.
+- **The name.** Launcher, folders, release file and notes. The package id stayed
+  `com.mantraproductions.ndi` until the repo became Mantra Manual Camera (24.10.2026); the app id is
+  now `com.mantraproductions.manualcamera`, a new app to Android. The old one is uninstalled.
 - **Research**: `NDI_LICENSING_AND_WEBCAM.md`. NDI HX needs a paid Advanced SDK contract with a
   License ID and volume pricing (no published per-copy price); even the free SDK's license excludes
   Android without a commercial agreement. The webcam: OBS's signed camera extension accepts frames from

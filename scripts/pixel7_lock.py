@@ -35,7 +35,7 @@ def give(adb):
     global _held
     if not _held:
         return
-    for args in (["shell", "am", "force-stop", "com.mantraproductions.ndi"],
+    for args in (["shell", "am", "force-stop", "com.mantraproductions.manualcamera"],
                  ["shell", "settings", "put", "system", "accelerometer_rotation", "1"],
                  ["shell", "input", "keyevent", "KEYCODE_WAKEUP"],
                  ["shell", "input", "keyevent", "KEYCODE_HOME"]):

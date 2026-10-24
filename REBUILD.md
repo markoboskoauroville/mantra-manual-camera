@@ -18,7 +18,7 @@ Four jobs, in this order of importance:
 3. **Stream** — NDI out over Wi-Fi
 4. **Remote and monitor** — drive another phone's camera, or watch one
 
-Package `com.mantraproductions.ndi` (kept from the old name, so installs update in place). Repo `markoboskoauroville/mantra-manual-camera`
+App id `com.mantraproductions.manualcamera` (since the rename; the old `com.mantraproductions.ndi` app is uninstalled, not updated). Kotlin package `com.mantraproductions.ndi`. Repo `markoboskoauroville/mantra-manual-camera`
 (public).
 
 ## 2. The NDI SDK
@@ -62,7 +62,7 @@ without it and every one of those versions was a guess.
 - A trace file written **as things happen**, not buffered, to
   `context.getExternalFilesDir(null)`. No permission, cannot be refused,
   reachable in any file manager under
-  `Android/data/com.mantraproductions.ndi/files/`
+  `Android/data/com.mantraproductions.manualcamera/files/`
 - A line for every step of startup, every control change with its values, and
   every camera request that is refused, with the reason
 - Crash reports to **Downloads via MediaStore**. A raw `File` path into DCIM or

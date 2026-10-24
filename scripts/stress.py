@@ -11,7 +11,7 @@ import pixel7_lock
 
 SERIAL = sys.argv[1] if len(sys.argv) > 1 else "0005534BC000140"
 ADB = [shutil.which("adb") or "/Users/markobosko/Library/Android/sdk/platform-tools/adb", "-s", SERIAL]
-FILES = "/sdcard/Android/data/com.mantraproductions.ndi/files/"
+FILES = "/sdcard/Android/data/com.mantraproductions.manualcamera/files/"
 
 
 def sh(*a, timeout=30):

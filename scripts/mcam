@@ -21,7 +21,7 @@ The camera answers only the shell (its receiver asks for DUMP), so this works th
 import os, re, subprocess, sys, time
 
 ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
-PKG = "com.mantraproductions.ndi"
+PKG = "com.mantraproductions.manualcamera"
 ACTION = PKG + ".ADB"
 PIXEL = "41241FDH2S10SJ"
 
