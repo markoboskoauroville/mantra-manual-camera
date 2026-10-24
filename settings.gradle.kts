@@ -13,7 +13,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "mantra-ndi"
+rootProject.name = "mantra-manual-camera"
 include(":app")
 
 // v113: the sister app, the NDI monitor that drives this camera

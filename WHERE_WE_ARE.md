@@ -1,4 +1,4 @@
-# Where we are — Mantra NDI
+# Where we are — Mantra Manual Camera
 
 Written as we go, so an interrupted session can be picked up cold. Newest at
 the top. The long-form history is in the hub's `HANDOVER.md`; this is the

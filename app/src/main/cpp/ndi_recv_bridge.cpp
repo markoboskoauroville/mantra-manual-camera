@@ -133,7 +133,7 @@ Java_com_mantraproductions_ndi_NdiReceiver_nativeConnect(
     desc.color_format = (NDIlib_recv_color_format_e) NDIlib_recv_color_format_ex_compressed_v4;
     desc.bandwidth = NDIlib_recv_bandwidth_highest;
     desc.allow_video_fields = false;
-    desc.p_ndi_recv_name = "Mantra NDI Monitor";
+    desc.p_ndi_recv_name = "Mantra Monitor";
 
     NDIlib_recv_instance_t fresh = NDIlib_recv_create_v3(&desc);
     env->ReleaseStringUTFChars(sourceName, name);

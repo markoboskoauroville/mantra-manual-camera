@@ -1,4 +1,4 @@
-# Mantra NDI — rebuild from scratch
+# Mantra Manual Camera — rebuild from scratch
 
 This file is the brief for starting the app again. The old code is in git
 history if anything is ever wanted from it; nothing in it should be trusted or
@@ -18,7 +18,7 @@ Four jobs, in this order of importance:
 3. **Stream** — NDI out over Wi-Fi
 4. **Remote and monitor** — drive another phone's camera, or watch one
 
-Package `com.mantraproductions.ndi`. Repo `markoboskoauroville/mantra-ndi`
+Package `com.mantraproductions.ndi` (kept from the old name, so installs update in place). Repo `markoboskoauroville/mantra-manual-camera`
 (public).
 
 ## 2. The NDI SDK
@@ -44,7 +44,7 @@ There is no local Android SDK. **Every build is GitHub Actions.**
 1. Edit, commit, push
 2. The workflow builds, runs the gates, signs, and publishes a release
 3. About four and a half minutes later the APK is at
-   `https://github.com/markoboskoauroville/mantra-ndi/releases/download/vN/N-mantra-ndi-vN.apk`
+   `https://github.com/markoboskoauroville/mantra-manual-camera/releases/download/vN/N-mantra-manual-camera-vN.apk`
 
 `appVersion` in `gradle.properties` must be **one higher than the last
 released version**, or the build is refused. Read the releases API first; do

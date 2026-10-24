@@ -28,7 +28,7 @@ object Downloads {
     private const val FOLDER = "Mantra Manual Camera"
 
     /**
-     * Writes text into Downloads/Mantra NDI and answers where it went, or null
+     * Writes text into Downloads/Mantra Manual Camera and answers where it went, or null
      * if it could not be written.
      *
      * IS_PENDING is deliberately not used. It is the tidy way to publish a

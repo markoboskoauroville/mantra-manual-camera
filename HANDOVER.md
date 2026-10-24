@@ -1,4 +1,4 @@
-# Mantra NDI — handover
+# Mantra Manual Camera — handover
 
 Read [REBUILD.md](REBUILD.md) first. This file is what the current session
 decided and what is not tested.
