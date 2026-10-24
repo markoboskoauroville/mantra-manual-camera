@@ -145,14 +145,6 @@ class Settings(context: Context) {
         get() = prefs.getFloat(BOX, 0.18f)
         set(value) = prefs.edit().putFloat(BOX, value.coerceIn(Mechanism.BOX_MIN, 4f)).apply()
 
-    /** Where the white balance rectangle was left (v101), as fractions of the picture. */
-    var wbBoxX: Float
-        get() = prefs.getFloat(WB_X, 0.78f)
-        set(value) = prefs.edit().putFloat(WB_X, value.coerceIn(0f, 1f)).apply()
-    var wbBoxY: Float
-        get() = prefs.getFloat(WB_Y, 0.5f)
-        set(value) = prefs.edit().putFloat(WB_Y, value.coerceIn(0f, 1f)).apply()
-
     /**
      * v115: the curves that crashed a lens's camera ("lens/CURVE"), kept across starts so they are never sent again.
      * MEASURED 2.10.2026 on the Nothing Phone 2a: S-Log3 → no frame for 1.2 s → "Camera error 4" (fatal device error).
@@ -171,7 +163,7 @@ class Settings(context: Context) {
         get() = prefs.getBoolean(TORCH, false)
         set(value) = prefs.edit().putBoolean(TORCH, value).apply()
 
-    /** Where the exposure circle was left (v103), and the sizes of the circle and the triangle. */
+    /** Where the circle was left (v103), and its size. */
     var circleX: Float
         get() = prefs.getFloat(CIRCLE_X, 0.3f)
         set(value) = prefs.edit().putFloat(CIRCLE_X, value.coerceIn(0f, 1f)).apply()
@@ -181,21 +173,23 @@ class Settings(context: Context) {
     var circleSize: Float
         get() = prefs.getFloat(CIRCLE_SIZE, 0.16f)
         set(value) = prefs.edit().putFloat(CIRCLE_SIZE, value.coerceIn(0.06f, 0.5f)).apply()
-    var wbSize: Float
-        get() = prefs.getFloat(WB_SIZE, 0.16f)
-        set(value) = prefs.edit().putFloat(WB_SIZE, value.coerceIn(0.06f, 0.5f)).apply()
+
+    /** v143: what a tap on the circle does: 0 exposure by ISO alone, 1 white balance. A long press changes it. */
+    var circleMode: Int
+        get() = prefs.getInt(CIRCLE_MODE, 0)
+        set(value) = prefs.edit().putInt(CIRCLE_MODE, value.coerceIn(0, 1)).apply()
 
     /**
-     * Which of the three shapes are on the picture (bit 0 square, 1 circle, 2 triangle) and which one a pinch
-     * resizes (0 square, 1 circle, 2 triangle). Marko, 2.10.2026: grey = not on the picture, white = on it,
-     * orange = the one the pinch changes, only one at a time.
+     * Which of the shapes are on the picture (bit 0 square, 1 circle) and which one a pinch resizes (0 square,
+     * 1 circle). Marko, 2.10.2026: grey = not on the picture, white = on it, orange = the one the pinch changes,
+     * only one at a time. v143: the triangle (bit 2, target 2) is gone.
      */
     var marksShown: Int
-        get() = prefs.getInt(MARKS, 0b111)
-        set(value) = prefs.edit().putInt(MARKS, value and 0b111).apply()
+        get() = prefs.getInt(MARKS, 0b11) and 0b11
+        set(value) = prefs.edit().putInt(MARKS, value and 0b11).apply()
     var pinchTarget: Int
-        get() = prefs.getInt(PINCH, 0)
-        set(value) = prefs.edit().putInt(PINCH, value.coerceIn(0, 2)).apply()
+        get() = prefs.getInt(PINCH, 0).coerceIn(0, 1)
+        set(value) = prefs.edit().putInt(PINCH, value.coerceIn(0, 1)).apply()
 
     /** SHOOT: 0 follows the phone's own rotation, 1 landscape, 2 portrait. */
     var shootMode: Int
@@ -312,17 +306,15 @@ class Settings(context: Context) {
         const val VERBOSE = "verboseSettings"
         const val FPS = "framesPerSecond"
         const val BOX = "focusBoxSize"
-        const val WB_X = "wbBoxX"
         const val TORCH = "torch"
         const val SHOW_OUTPUTS = "showOutputs"
         const val REFUSED_CURVES = "refusedCurves"
         const val CIRCLE_X = "circleX"
         const val CIRCLE_Y = "circleY"
         const val CIRCLE_SIZE = "circleSize"
-        const val WB_SIZE = "wbSize"
+        const val CIRCLE_MODE = "circleMode"
         const val MARKS = "marksShown"
         const val PINCH = "pinchTarget"
-        const val WB_Y = "wbBoxY"
         const val SHOOT = "shootMode"
         const val FOLDER = "recordFolder"
         const val LAST_TAKE = "lastTake"

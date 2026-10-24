@@ -141,15 +141,6 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content" />
-            <com.mantraproductions.ndi.RailButton
-                android:id="@+id/iconTriangle"
-                android:layout_width="40dp"
-                android:layout_height="40dp" />
-            <Spinner
-                android:id="@+id/sizeTriangle"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content" />
     </LinearLayout>
 
     <LinearLayout
