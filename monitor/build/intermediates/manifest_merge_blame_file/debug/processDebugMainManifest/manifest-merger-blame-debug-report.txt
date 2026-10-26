@@ -48,8 +48,8 @@
 31        android:extractNativeLibs="false"
 32        android:icon="@mipmap/ic_monitor"
 32-->/Users/markobosko/Developer/MANTRA_NDI/monitor/src/main/AndroidManifest.xml:13:9-42
-33        android:label="Mantra Monitor"
-33-->/Users/markobosko/Developer/MANTRA_NDI/monitor/src/main/AndroidManifest.xml:12:9-39
+33        android:label="Camera Remote"
+33-->/Users/markobosko/Developer/MANTRA_NDI/monitor/src/main/AndroidManifest.xml:12:9-38
 34        android:theme="@style/Theme.MantraMonitor" >
 34-->/Users/markobosko/Developer/MANTRA_NDI/monitor/src/main/AndroidManifest.xml:14:9-51
 35        <activity

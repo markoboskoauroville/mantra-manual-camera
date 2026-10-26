@@ -88,7 +88,7 @@ MERGED from [org.conscrypt:conscrypt-android:2.5.3] /Users/markobosko/.gradle/ca
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.13.1] /Users/markobosko/.gradle/caches/8.14.2/transforms/381ee265ec7548c23263fea15567fa21/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
 	android:label
-		ADDED from /Users/markobosko/Developer/MANTRA_NDI/monitor/src/main/AndroidManifest.xml:12:9-39
+		ADDED from /Users/markobosko/Developer/MANTRA_NDI/monitor/src/main/AndroidManifest.xml:12:9-38
 	android:icon
 		ADDED from /Users/markobosko/Developer/MANTRA_NDI/monitor/src/main/AndroidManifest.xml:13:9-42
 	android:theme

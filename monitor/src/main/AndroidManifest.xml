@@ -9,7 +9,7 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <application
-        android:label="Mantra Monitor"
+        android:label="Camera Remote"
         android:icon="@mipmap/ic_monitor"
         android:theme="@style/Theme.MantraMonitor">
         <activity

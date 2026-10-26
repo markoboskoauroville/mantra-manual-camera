@@ -30,7 +30,7 @@
         android:debuggable="true"
         android:extractNativeLibs="false"
         android:icon="@mipmap/ic_monitor"
-        android:label="Mantra Monitor"
+        android:label="Camera Remote"
         android:theme="@style/Theme.MantraMonitor" >
         <activity
             android:name="com.mantraproductions.ndi.monitor.MonitorActivity"

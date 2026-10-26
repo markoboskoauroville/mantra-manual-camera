@@ -87,6 +87,7 @@ class MonitorActivity : Activity() {
     // disable it, it works through any protocol you decide to use without ADB"), the phones wireless debugging
     // announces ("ADB name" -> host:port), and the link while one is watched
     private var adb: AdbLink? = null
+    private lateinit var adbRail: LinearLayout
     /**
      * v154 (measured 26.10.2026): inside the tunnel the link survives Wi-Fi -> 4G without a break, so the picture kept
      * Wi-Fi's 8 Mbit/s on the SIM. When the way out changes between Wi-Fi and mobile data, the ADB picture is started
@@ -112,11 +113,7 @@ class MonitorActivity : Activity() {
             setTextColor(Color.parseColor("#E6E8EA")); textSize = 11f
             typeface = Typeface.MONOSPACE; gravity = Gravity.CENTER
             setBackgroundColor(Color.parseColor("#66000000")); setPadding(dp(6), dp(3), dp(6), dp(3))
-            // v154: while a camera is watched over ADB, a tap on this line steps the picture's scale
-            setOnClickListener { if (adb != null) stepAdbScale() }
-            // v154 (Marko: "add the black and white screen, same as we have in our remote app"): a long press turns
-            // the picture black and white on this phone (scrcpy's H.264 stays colour: the look, not the data)
-            setOnLongClickListener { prefs.edit().putBoolean("bw", !prefs.getBoolean("bw", false)).apply(); applyBw(); true }
+
         }
         overlay = MarksOverlay(this)
         root.addView(overlay, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
@@ -126,6 +123,9 @@ class MonitorActivity : Activity() {
         railBottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(Color.BLACK); visibility = View.GONE }
         root.addView(railTop, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(56), Gravity.TOP).apply { topMargin = dp(24) })
         root.addView(railBottom, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(56), Gravity.BOTTOM).apply { bottomMargin = dp(48) })
+        // v154: the Camera Remote's quality keys, as in the Computer Remote (Mantra Remote)
+        adbRail = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(Color.parseColor("#CC000000")); visibility = View.GONE }
+        root.addView(adbRail, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(56), Gravity.BOTTOM).apply { bottomMargin = dp(48) })
         stats = word("", Color.parseColor("#E6E8EA"), 12f, null).apply { setPadding(dp(12), dp(6), dp(12), dp(6)) }
         rateWord = word("", Color.parseColor("#F2DDB4"), 14f, null).apply { setPadding(dp(6), dp(6), dp(6), dp(6)) }
         info = LinearLayout(this).apply {
@@ -207,8 +207,8 @@ class MonitorActivity : Activity() {
                 intent?.getStringExtra("adb")?.let { w -> adbHosts["ADB ${w.substringBefore(':')}"] = w; current = "ADB ${w.substringBefore(':')}" }
                 // v154: `--ez bw true` black and white (tests from the Mac)
                 if (intent?.hasExtra("bw") == true) { prefs.edit().putBoolean("bw", intent!!.getBooleanExtra("bw", false)).apply(); applyBw() }
-                // v154: `--ef scale 0.7` sets the ADB picture's scale (tests from the Mac)
-                if (intent?.hasExtra("scale") == true) prefs.edit().putFloat("adbScale", intent!!.getFloatExtra("scale", 1f)).apply()
+                // v154: `--ef scale 0.7` sets this network's ADB picture scale (tests from the Mac)
+                if (intent?.hasExtra("scale") == true) prefs.edit().putFloat("q_${net()}_scale", intent!!.getFloatExtra("scale", 1f)).apply()
                 // v154: `--es tunnel 100.x.y.z:5555` stores the camera's tunnel address (tests from the Mac)
                 intent?.getStringExtra("tunnel")?.let { t -> prefs.edit().putString("adbTunnel", t).apply() }
                 intent?.getStringExtra("pair")?.split(':')?.takeIf { it.size == 3 }?.let { (h, p, c) ->
@@ -357,9 +357,11 @@ class MonitorActivity : Activity() {
             // v150: the ADB status line, with what arrives over it
             adb?.let { a ->
                 val t = a.frames.get() to a.bytes.get()
-                if (a.connected && a.width > 0) status.text = String.format(java.util.Locale.ROOT, "ADB ENABLED · %s · %s:%d · %d fps · %.1f Mbit/s · SCALE %.1f%s",
-                    a.device.ifEmpty { "camera" }, a.host, a.port, t.first - adbLast.first, (t.second - adbLast.second) * 8 / 1e6, adbScale(),
-                    if (prefs.getBoolean("bw", false)) " · B/W" else "")
+                if (a.connected && a.width > 0) { val q = adbQuality(); status.text = String.format(java.util.Locale.ROOT,
+                    "ADB · %s · %s · %.1f MB · %d kbit/s · %d fps of %d · SCALE %.1f · %s MBIT%s",
+                    a.device.ifEmpty { "camera" }, if (net() == "4g") "4G" else "WI-FI", t.second / 1e6,
+                    ((t.second - adbLast.second) * 8 / 1000).toInt(), t.first - adbLast.first, q.fps, q.scale, num(q.mbit),
+                    if (prefs.getBoolean("bw", false)) " · B/W" else "") }
                 adbLast = t
                 return
             }
@@ -490,6 +492,7 @@ class MonitorActivity : Activity() {
         engine?.stop(); engine = null
         link?.stop(); link = null; linkClean = false; cleanBar.visibility = View.GONE; status.visibility = View.VISIBLE
         adb?.stop(); adb = null
+        adbRail.visibility = View.GONE
         if (source.startsWith("ADB ")) { watchAdb(source); return }
         // v150: with ADB on, a camera found over the link is reached through wireless debugging when it announces it
         if (source.startsWith("LINK ") && adbOn) {
@@ -509,6 +512,7 @@ class MonitorActivity : Activity() {
         prefs.edit().putString("source", source).apply()
         say("Connecting…")
         val out = output ?: run { say("No picture surface yet"); return }
+        fillAdbRail(); adbRail.visibility = View.VISIBLE
         val e = MonitorEngine(out,
             onStatus = { msg -> ui.post { say(msg) } },
             onCameraState = { st -> ui.post { onCamera(st) } })
@@ -573,13 +577,7 @@ class MonitorActivity : Activity() {
             onStatus = { msg -> ui.post { status.visibility = View.VISIBLE; status.text = msg } },
             onSize = { w, h -> ui.post { followCamera(w, h); fit() } },
             onPairingNeeded = { ui.post { pairDialog(host) } },
-            quality = {
-                // v154 (Marko: "resolution scaling, in fractions of 0.9, 0.8, 0.7, 0.6 and 0.5. It saves bandwidth"):
-                // the longest side times the scale (a multiple of 8, as the encoder wants), the bit rate times its square
-                val (bits, size, fps) = if (onMobileData()) Triple(2_000_000, 1280, 24) else Triple(8_000_000, 1600, 30)
-                val k = adbScale()
-                Triple((bits * k * k).toInt(), ((size * k).toInt() / 8) * 8, fps)
-            })
+            quality = { val q = adbQuality(); Triple((q.mbit * 1_000_000).toInt(), ((1600 * q.scale).toInt() / 8) * 8, q.fps) })
         adb = a
         a.start()
     }
@@ -593,15 +591,58 @@ class MonitorActivity : Activity() {
         } else surface.setLayerType(View.LAYER_TYPE_NONE, null)
     }
 
-    /** v154: the ADB picture's scale, 1.0 down to 0.5 in tenths; a tap on the status line steps it. */
-    private fun adbScale(): Float = prefs.getFloat("adbScale", 1f).coerceIn(0.5f, 1f)
+    /**
+     * v154 (Marko, 26.10.2026: "The remote camera quality must be set in the remote camera application ... Just copy
+     * this app I'm in right now ... synchronize the quality features to make this usable on slow networks"): the
+     * Computer Remote's keys in the Camera Remote. FPS and SCALE as there; the Mac's colour depth has no meaning for
+     * scrcpy's H.264, whose cost is its bit rate, so MBIT stands where the colours stand; B/W is the same grey look.
+     * Wi-Fi and mobile data each keep their own choice (4G starts light), so walking out changes the weight by itself.
+     */
+    private data class Quality(val fps: Int, val scale: Float, val mbit: Float)
+    private val FPS_LIST = listOf(30, 24, 15, 10, 5, 2, 1)
+    private val SCALE_LIST = listOf(1f, 0.9f, 0.8f, 0.7f, 0.6f, 0.5f)
+    private val MBIT_LIST = listOf(8f, 4f, 2f, 1f, 0.5f, 0.25f)
 
-    private fun stepAdbScale() {
-        val now = Math.round(adbScale() * 10)
-        val next = if (now <= 5) 10 else now - 1
-        prefs.edit().putFloat("adbScale", next / 10f).apply()
-        status.text = String.format(java.util.Locale.ROOT, "SCALE %.1f: the picture again", next / 10f)
+    private fun net() = if (onMobileData()) "4g" else "wifi"
+    private fun adbQuality(): Quality {
+        val n = net(); val mobile = n == "4g"
+        return Quality(prefs.getInt("q_${n}_fps", if (mobile) 15 else 30),
+            prefs.getFloat("q_${n}_scale", if (mobile) 0.7f else 1f), prefs.getFloat("q_${n}_mbit", if (mobile) 1f else 8f))
+    }
+    private fun setQuality(key: String, v: Any) {
+        val e = prefs.edit(); val k = "q_${net()}_$key"
+        when (v) { is Int -> e.putInt(k, v); is Float -> e.putFloat(k, v) }
+        e.apply(); fillAdbRail()
         current?.let { if (it.startsWith("ADB ")) watch(it) }
+    }
+    private fun num(f: Float) = if (f == f.toInt().toFloat()) f.toInt().toString() else f.toString()
+
+    private fun fillAdbRail() {
+        adbRail.removeAllViews()
+        val q = adbQuality(); val bw = prefs.getBoolean("bw", false)
+        fun key(name: String, value: String, on: Boolean, tap: () -> Unit, list: (() -> Unit)?) {
+            val t = TextView(this).apply {
+                text = "$name\n$value"; gravity = Gravity.CENTER; textSize = 12f
+                typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                setTextColor(if (on) Color.parseColor("#33D17A") else Color.parseColor("#F2DDB4"))
+                setOnClickListener { tap() }
+                list?.let { l -> setOnLongClickListener { l(); true } }
+            }
+            adbRail.addView(t, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
+        }
+        fun <T> pick(title: String, items: List<T>, label: (T) -> String, chosen: (T) -> Unit) {
+            android.app.AlertDialog.Builder(this).setTitle(title)
+                .setItems(items.map(label).toTypedArray()) { _, i -> chosen(items[i]) }.show()
+        }
+        key(if (net() == "4g") "4G" else "WI-FI", "", false, {}, null)
+        key("FPS", "${q.fps}", false, { setQuality("fps", FPS_LIST[(FPS_LIST.indexOf(q.fps) + 1) % FPS_LIST.size]) },
+            { pick("FPS", FPS_LIST, { "$it FPS" }) { setQuality("fps", it) } })
+        key("SCALE", String.format(java.util.Locale.ROOT, "%.1f", q.scale), false,
+            { setQuality("scale", SCALE_LIST[(SCALE_LIST.indexOfFirst { Math.abs(it - q.scale) < 0.01f } + 1) % SCALE_LIST.size]) },
+            { pick("SCALE", SCALE_LIST, { String.format(java.util.Locale.ROOT, "%.1f  (%d px)", it, ((1600 * it).toInt() / 8) * 8) }) { setQuality("scale", it) } })
+        key("MBIT", num(q.mbit), false, { setQuality("mbit", MBIT_LIST[(MBIT_LIST.indexOf(q.mbit) + 1) % MBIT_LIST.size]) },
+            { pick("MBIT", MBIT_LIST, { "${num(it)} Mbit/s" }) { setQuality("mbit", it) } })
+        key("B/W", if (bw) "ON" else "OFF", bw, { prefs.edit().putBoolean("bw", !bw).apply(); applyBw(); fillAdbRail() }, null)
     }
 
     /** v154: is this phone's VPN (the tunnel) up? */
