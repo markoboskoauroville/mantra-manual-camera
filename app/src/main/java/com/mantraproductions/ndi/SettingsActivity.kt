@@ -459,6 +459,17 @@ class SettingsActivity : AppCompatActivity() {
                 Trace.control("version", "tapped", "opens $LATEST_RELEASE")
             }
         }
+        // v144: UPDATE in the row of F and E, the same as a tap on the version but asked of GitHub here, and the
+        // newest camera APK handed to Android to download and install.
+        findViewById<Button>(R.id.updateApp).setOnClickListener {
+            Trace.control("update", "tapped", "asks GitHub")
+            Updater.check(this) { said -> Toast.makeText(this, said, Toast.LENGTH_LONG).show() }
+        }
+        // v144: the adb door, on by default
+        findViewById<android.widget.Switch>(R.id.adbControl).apply {
+            isChecked = settings.adbControl
+            setOnCheckedChangeListener { _, on -> settings.adbControl = on; Trace.control("adb control", if (on) "on" else "off", "settings") }
+        }
         findViewById<TextView>(R.id.version).text =
             if (NdiSender.available) "NDI SDK present" else "built without the NDI SDK"
     }

@@ -2,6 +2,11 @@
 """mcam: Mantra Camera driven from the Mac through adb (v139, Marko 22.10.2026).
 
     mcam state                     what is set, what the sensor took, how bright the picture is
+    mcam settings                  v144: every setting of the settings screen, name=value
+    mcam set NAME VALUE            v144: one of them (mcam set fps 25, set armNdi on, set ndiTransport USB_CABLE);
+                                   what the camera is built with makes it again, the stream kept
+    mcam restart                   v144: the camera made again
+    mcam update                    v144: the newest release from GitHub, downloaded by Android to install
     mcam lens 2                    a lens by its number in the drawer (L1, L2 …); the stream is kept
     mcam torch on|off|toggle       the light
     mcam exposure auto             both ISO and shutter back to automatic
@@ -17,9 +22,10 @@
     mcam open                      bring Mantra Camera to the front
 
 The phone: $MCAM_SERIAL, or the Pixel 7 on the cable or over wireless debugging (found by mDNS and connected).
-The camera answers only the shell (its receiver asks for DUMP), so this works through adb and from nothing else.
+The camera answers only the shell (its receiver asks for DUMP), so this works through adb and from nothing else,
+and only while Settings → MORE → ADB CONTROL is on (on by default, v144).
 """
-import os, re, subprocess, sys, time
+import os, re, shlex, subprocess, sys, time
 
 ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
 PKG = "com.mantraproductions.manualcamera"
@@ -62,7 +68,7 @@ def open_app(d):
 def send(d, cmd, v=""):
     args = ["-s", d, "shell", "am", "broadcast", "-a", ACTION, "-p", PKG, "--es", "cmd", cmd]
     if v:
-        args += ["--es", "v", v]
+        args += ["--es", "v", shlex.quote(v)]     # the phone's shell splits on spaces: "fps 25" stays one value
     out = run(*args)
     m = re.search(r'data="(.*)"', out, re.S)
     if not m:

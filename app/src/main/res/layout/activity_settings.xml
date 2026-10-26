@@ -123,24 +123,41 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingTop="4dp">
+            <!-- v144: F and E pressed together to their own width, UPDATE at the end of the same row (Marko,
+                 26.10.2026: "You need to compress this and add an update button in that same row") -->
             <com.mantraproductions.ndi.RailButton
                 android:id="@+id/iconSquare"
-                android:layout_width="40dp"
-                android:layout_height="40dp" />
+                android:layout_width="36dp"
+                android:layout_height="36dp" />
             <Spinner
                 android:id="@+id/sizeSquare"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
             <com.mantraproductions.ndi.RailButton
                 android:id="@+id/iconCircle"
-                android:layout_width="40dp"
-                android:layout_height="40dp" />
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp" />
             <Spinner
                 android:id="@+id/sizeCircle"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
+            <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+            <Button
+                android:id="@+id/updateApp"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="UPDATE"
+                android:textAllCaps="false"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/amber"
+                android:fontFamily="monospace" />
     </LinearLayout>
 
     <LinearLayout
@@ -597,6 +614,18 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
+        <!-- v144: the adb door (Marko, 26.10.2026: "add a switch ADB control, which is on by default") -->
+        <Switch
+            android:id="@+id/adbControl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:textColor="@color/sand"
+            android:text="ADB CONTROL" />
+        <TextView android:tag="hint" style="@style/MantraHint"
+            android:text="On, a Mac on the cable or on wireless debugging drives every key and every setting of this camera through adb (scripts/mcam). Only adb's shell can, no app on the phone." />
         <!-- The trace -->
         <TextView style="@style/MantraLabel" android:text="@string/trace" />
         <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/trace_hint" />

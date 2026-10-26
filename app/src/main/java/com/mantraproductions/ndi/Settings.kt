@@ -293,7 +293,55 @@ class Settings(context: Context) {
         get() = prefs.getInt("trackFollow", 60)
         set(value) = prefs.edit().putInt("trackFollow", value.coerceIn(10, 100)).apply()
 
+    /**
+     * v144: the adb door open or shut (Marko, 26.10.2026: "you need to add a switch ADB control, which is on by
+     * default"). Shut, the camera answers adb only with "ADB control is off". adb itself cannot open or shut it.
+     */
+    var adbControl: Boolean
+        get() = prefs.getBoolean("adbControl", true)
+        set(value) = prefs.edit().putBoolean("adbControl", value).apply()
+
+    /**
+     * v144: every setting by its name, for adb (`mcam settings`, `mcam set fps 25`). Read and written through the
+     * getters and setters above, so a value set over adb is held to the same limits as the screen's.
+     */
+    fun all(): Map<String, String> = javaClass.methods
+        .filter { it.name.startsWith("get") && it.parameterCount == 0 && it.declaringClass == Settings::class.java }
+        .map { it.name.removePrefix("get").replaceFirstChar { c -> c.lowercase() } to it }
+        .filter { (name, _) -> name !in ADB_HIDDEN }
+        .sortedBy { it.first }
+        .associate { (name, getter) -> name to (getter.invoke(this)?.let { if (it is Set<*>) it.joinToString(",") else it.toString() } ?: "-") }
+
+    /** v144: one setting by its name; returns what it is now, or why not. */
+    fun set(name: String, value: String): String {
+        if (name in ADB_HIDDEN) return "$name is not set over adb"
+        val setter = javaClass.methods.firstOrNull {
+            it.name.equals("set$name", ignoreCase = true) && it.parameterCount == 1 && it.declaringClass == Settings::class.java
+        } ?: return "no setting $name: mcam settings lists them"
+        val type = setter.parameterTypes[0]
+        val v = value.trim()
+        val arg: Any? = when {
+            type == Int::class.javaPrimitiveType -> v.toIntOrNull()
+            type == Long::class.javaPrimitiveType -> v.toLongOrNull()
+            type == Float::class.javaPrimitiveType -> v.toFloatOrNull()
+            type == Boolean::class.javaPrimitiveType -> when (v.lowercase()) { "on", "true", "1" -> true; "off", "false", "0" -> false; else -> null }
+            type == String::class.java -> if (v == "-" || v.isEmpty()) null else v
+            type.isEnum -> type.enumConstants?.firstOrNull { (it as Enum<*>).name.equals(v, ignoreCase = true) }
+            Set::class.java.isAssignableFrom(type) -> v.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            else -> return "$name cannot be set over adb"
+        }
+        if (arg == null && type != String::class.java) {
+            val choices = if (type.isEnum) ": " + type.enumConstants!!.joinToString(" ") { (it as Enum<*>).name } else ""
+            return "$name does not take \"$v\"$choices"
+        }
+        setter.invoke(this, arg)
+        val canonical = setter.name.removePrefix("set").replaceFirstChar { it.lowercase() }
+        return "$canonical=" + (all()[canonical] ?: "-")
+    }
+
     private companion object {
+        /** The door itself, and the wiring behind the screen, stay with the phone's owner. */
+        val ADB_HIDDEN = setOf("adbControl", "prefs")
         const val SOURCE = "sourceName"
         const val HOLD = "focusHoldMs"
         const val RACK = "focusRackMs"

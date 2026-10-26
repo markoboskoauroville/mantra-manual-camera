@@ -862,8 +862,12 @@ class MainActivity : AppCompatActivity() {
      */
     private fun resumeKept() {
         keptRunning = false
+        applyChanged(keptWith)
+    }
+
+    /** v144 (out of resumeKept): what changed in the settings since [was] is applied to the running camera. */
+    private fun applyChanged(was: List<Any?>) {
         val now = snapshot()
-        val was = keptWith
         if (was.isEmpty() || now == was) return
         val camera = (0..6).any { now[it] != was[it] }
         val sound = (10..12).any { now[it] != was[it] }
@@ -1875,7 +1879,15 @@ class MainActivity : AppCompatActivity() {
     private val adbControl = object : android.content.BroadcastReceiver() {
         override fun onReceive(c: android.content.Context, intent: Intent) {
             val cmd = intent.getStringExtra("cmd")?.lowercase() ?: "state"
-            val v = intent.getStringExtra("v")?.trim()?.lowercase().orEmpty()
+            // v144: the switch in the settings (MORE → ADB CONTROL); shut, nothing is done and nothing is told
+            if (!settings.adbControl) {
+                Trace.refused("adb", "$cmd: ADB CONTROL is off in the settings")
+                resultData = "ADB control is off (Settings → MORE → ADB CONTROL)"
+                return
+            }
+            // v144: a setting's value keeps its case (a source name, a folder)
+            val raw = intent.getStringExtra("v")?.trim().orEmpty()
+            val v = if (cmd == "set") raw else raw.lowercase()
             val said = runCatching { adbCommand(cmd, v) }.getOrElse { Trace.fault("adb", it); "error: ${it.javaClass.simpleName}" }
             Trace.control("adb", "$cmd $v", said)
             resultData = said + "\n" + adbState()
@@ -1894,6 +1906,38 @@ class MainActivity : AppCompatActivity() {
     private fun adbCommand(cmd: String, v: String): String {
         val engine = pipeline.engine
         if (cmd == "state") return "state"
+        // v144 (Marko, 26.10.2026: "remotely adjust any parameters of this camera, any settings"): every setting of
+        // the settings screen by its name. What the camera decides when it is built (size, rate, depth, path, the
+        // outputs, the sound) makes it again, the stream kept, as coming back from the settings screen does.
+        if (cmd == "settings") return "settings\n" + settings.all().entries.joinToString("\n") { "${it.key}=${it.value}" }
+        if (cmd == "set") {
+            val name = v.substringBefore(' ').trim()
+            if (name.isEmpty()) return "set takes a name and a value: set fps 25 (mcam settings lists them)"
+            val was = snapshot()
+            val said = settings.set(name, v.substringAfter(' ', "").trim())
+            if (!said.contains('=')) return said
+            restoreMode = pipeline.mode
+            applyChanged(was)
+            focusSquare.size = settings.focusBoxSize
+            exposureCircle.size = settings.circleSize
+            if (pipeline.isRunning && pipeline.engine.hasFlash()) pipeline.engine.setTorch(settings.torch)
+            telemetry.visibility = if (!fullScreen && settings.showOutputs) View.VISIBLE else View.GONE
+            say("ADB: $said")
+            refreshZones()
+            refreshKeys()
+            return said
+        }
+        if (cmd == "restart") {
+            restoreMode = pipeline.mode
+            pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
+            if (preview.isAvailable) openCamera()
+            return "Camera made again"
+        }
+        // v144: what the UPDATE key in the settings does — the newest release, downloaded by Android
+        if (cmd == "update") {
+            Updater.check(this) { said -> say(said) }
+            return "Asking GitHub for the newest release"
+        }
         // v141 (Marko: "Lens two is the best"): a lens by its number in the drawer, L1, L2 …, the stream kept
         if (cmd == "lens") {
             val n = v.removePrefix("l").toIntOrNull() ?: return "lens takes a number, 1 to ${lenses.size}"
@@ -1972,7 +2016,7 @@ class MainActivity : AppCompatActivity() {
                 "+", "-" -> { stepShutter(if (v == "+") 1 else -1); return lastSaid }
                 else -> return "circle takes iso, wb, tap, + or -"
             }
-            else -> return "unknown command $cmd: state, lens, torch, exposure, iso, shutter, ev, wb, focus, circle, key"
+            else -> return "unknown command $cmd: state, settings, set, restart, update, lens, torch, exposure, iso, shutter, ev, wb, focus, circle, key"
         }
         say("ADB: $said")
         refreshZones()
