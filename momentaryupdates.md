@@ -869,3 +869,7 @@ Needs the GPU stage (Settings → Picture path).
 > "actually, Cancel looks like a button because it has a different color. Add Keyframe can be the same style" (Marko, 26.10.2026)
 
 84. (Replaces 83's look.) ADD KEYFRAME and DELETE KEYFRAME are the pop-up's own buttons, in the same colour and style as CANCEL. — **Status:** v151.
+
+> "we need to have Add Keyframe and Remove Keyframe, both options. It's the keyframe column, and then two yellow buttons: Add or Remove" (Marko, 26.10.2026)
+
+85. (Replaces 83 and 84.) The pop-up reads "KEYFRAME:" with the distance, and always two yellow buttons, ADD and REMOVE. ADD puts a keyframe where the lens is; REMOVE takes away the keyframe pressed (a key point's circle) or the one where the lens stands (the white circle), dimmed when there is none. A tap outside closes it. — **Status:** v151.
