@@ -861,3 +861,7 @@ Needs the GPU stage (Settings → Picture path).
 > "long press on the focusing pulling interface should last two seconds" (Marko, 26.10.2026)
 
 82. On the focus puller's meter a long press is two seconds (the white circle's ADD / DELETE KEYFRAME, a key point's DELETE). — **Status:** v151.
+
+> "add a keyframe in the pop-up menu. It should be some kind of button so people understand that they need to press the button. Now it looks like normal text, not like an action button" (Marko, 26.10.2026)
+
+83. In the meter's pop-up, ADD KEYFRAME and DELETE KEYFRAME are buttons that look pressable (the app's outlined key style), not lines of text. — **Status:** v151.
