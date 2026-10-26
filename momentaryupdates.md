@@ -843,3 +843,9 @@ Needs the GPU stage (Settings → Picture path).
 > "by the way, please release the next version with the icon in the same style as the ttt advanced keyboard icon" (Marko, 26.10.2026)
 
 78. The next version's icon in the style of the TTT Advanced Keyboard's icon. — **Status:** v151 asked.
+
+> "the app is open. Remote controller for camera on my Note phone. You can access it through wireless debugging" (Marko, 26.10.2026)
+>
+> "please open both phones in two views on the screen copy on my Mac" (Marko, 26.10.2026)
+
+79. On the real remote, the Nothing Phone 2a (A142, Android 16, Mantra Monitor v150): PROVEN 26.10.2026 06:57 — paired with the Pixel by code (205942, port 33821) through the Mac's wireless adb, then "ADB ENABLED · Pixel 7 · 192.168.1.101:43917 · 30 fps · 0.7 Mbit/s", the camera's whole screen with its meter. Both phones open in scrcpy on the Mac ("PIXEL 7 · CAMERA", "NOTHING · REMOTE"). Found: the Nothing had kept "LINK 192.168.1.102", its own address, as its source, and kept retrying it.
