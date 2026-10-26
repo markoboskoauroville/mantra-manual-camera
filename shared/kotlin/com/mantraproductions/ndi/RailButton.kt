@@ -39,9 +39,13 @@ class RailButton @JvmOverloads constructor(
      * out on a shoot — a missing glyph is a hollow box, and a hollow box in the
      * corner of a camera is indistinguishable from a bug.
      */
-    enum class Glyph { NONE, GEAR, UP, DOWN, CAMERA, SQUARE, CIRCLE, TRIANGLE, PLAY }
+    enum class Glyph { NONE, GEAR, UP, DOWN, CAMERA, SQUARE, CIRCLE, TRIANGLE, PLAY, ROTATE, ZEBRA, PEAKING, FALSECOLOUR }
 
     var glyph: Glyph = Glyph.NONE
+        set(value) { field = value; describe(); invalidate() }
+
+    /** v155: the ROTATE glyph's phone lies across (landscape) instead of standing (portrait). */
+    var across: Boolean = false
         set(value) { field = value; describe(); invalidate() }
 
     /** v107: a colour that overrides the state's, for the mark keys that wear their shape's colour. */
@@ -83,6 +87,10 @@ class RailButton @JvmOverloads constructor(
         val what = when {
             glyph == Glyph.CAMERA -> "snap"
             glyph == Glyph.PLAY -> "play"
+            glyph == Glyph.ROTATE -> if (across) "landscape" else "portrait"
+            glyph == Glyph.ZEBRA -> "zebra"
+            glyph == Glyph.PEAKING -> "peaking"
+            glyph == Glyph.FALSECOLOUR -> "false colour"
             glyph == Glyph.SQUARE -> "focus square"
             glyph == Glyph.CIRCLE -> "exposure circle"
             glyph == Glyph.TRIANGLE -> "white balance triangle"
@@ -300,6 +308,61 @@ class RailButton @JvmOverloads constructor(
                 mark.style = Paint.Style.FILL
                 canvas.drawPath(markPath, mark)
                 mark.style = Paint.Style.STROKE
+            }
+            Glyph.ROTATE -> {
+                // v155 (Marko, 26.10.2026: "just two squares, one vertical, one horizontal, overlapping. Forget the
+                // phone ... Not square rectangle"): an upright and a lying rectangle crossing at the centre; the one
+                // the camera shoots now is bold, the other faint
+                val long = r * 1.2f; val short = r * 0.68f
+                val faint = Paint(mark).apply { strokeWidth = density(1.2f); alpha = 110 }
+                val bold = Paint(mark).apply { strokeWidth = density(2.0f) }
+                canvas.drawRoundRect(cx - short, cy - long, cx + short, cy + long, density(1.5f), density(1.5f), if (across) faint else bold)
+                canvas.drawRoundRect(cx - long, cy - short, cx + long, cy + short, density(1.5f), density(1.5f), if (across) bold else faint)
+            }
+            Glyph.ZEBRA -> {
+                // v155 (Marko: "one square and inside lines in some kind of angle. It can be like zebra")
+                val h = r * 1.05f
+                mark.strokeWidth = density(1.8f)
+                canvas.drawRect(cx - h, cy - h, cx + h, cy + h, mark)
+                canvas.save()
+                canvas.clipRect(cx - h, cy - h, cx + h, cy + h)
+                mark.strokeWidth = density(2.2f)
+                var x = -2 * h
+                while (x <= 2 * h) { canvas.drawLine(cx + x - h, cy + h, cx + x + h, cy - h, mark); x += h * 0.55f }
+                canvas.restore()
+            }
+            Glyph.PEAKING -> {
+                // v155 (Marko: "Peaking will be the red square with random dots"): the square in the key's colour, the
+                // dots red as peaking lights edges red; fixed places, so the key does not flicker
+                val h = r * 1.05f
+                mark.strokeWidth = density(1.8f)
+                canvas.drawRect(cx - h, cy - h, cx + h, cy + h, mark)
+                val dots = floatArrayOf(-0.55f, -0.6f, 0.2f, -0.45f, 0.6f, -0.1f, -0.2f, 0.05f, 0.35f, 0.5f, -0.6f, 0.45f, 0.05f, 0.62f, -0.05f, -0.25f, 0.62f, 0.3f)
+                val red = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = if (state == State.DEAD) DEAD else Color.parseColor("#FF3B30") }
+                for (i in dots.indices step 2) canvas.drawCircle(cx + dots[i] * h, cy + dots[i + 1] * h, density(1.5f), red)
+            }
+            Glyph.FALSECOLOUR -> {
+                // v155 (Marko, 26.10.2026: "false color are patches of the same color"): a square of flat patches in
+                // the false-colour scale, purple shadows to red clipping, the outline in the key's colour
+                val h = r * 1.05f
+                val x0 = cx - h; val y0 = cy - h; val s2 = 2 * h
+                fun p(vararg pts: Float, colour: String) {
+                    val path = android.graphics.Path()
+                    path.moveTo(x0 + pts[0] * s2, y0 + pts[1] * s2)
+                    for (k in 2 until pts.size step 2) path.lineTo(x0 + pts[k] * s2, y0 + pts[k + 1] * s2)
+                    path.close()
+                    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.FILL; color = if (state == State.DEAD) DEAD else Color.parseColor(colour)
+                    })
+                }
+                p(0f, 1f, 0f, 0.55f, 0.3f, 0.62f, 0.42f, 1f, colour = "#7B3FE4")              // purple: crushed
+                p(0f, 0.55f, 0f, 0.2f, 0.35f, 0.3f, 0.3f, 0.62f, colour = "#2F7CF6")          // blue: dark
+                p(0.42f, 1f, 0.3f, 0.62f, 0.35f, 0.3f, 0.62f, 0.45f, 0.7f, 1f, colour = "#2FBF5B")   // green: middle grey
+                p(0.7f, 1f, 0.62f, 0.45f, 1f, 0.55f, 1f, 1f, colour = "#F26FB0")              // pink: skin
+                p(0f, 0.2f, 0f, 0f, 0.55f, 0f, 0.62f, 0.45f, 0.35f, 0.3f, colour = "#F5D90A") // yellow: bright
+                p(0.55f, 0f, 1f, 0f, 1f, 0.55f, 0.62f, 0.45f, colour = "#E5484D")             // red: clipping
+                mark.strokeWidth = density(1.8f)
+                canvas.drawRect(cx - h, cy - h, cx + h, cy + h, mark)
             }
             Glyph.NONE -> Unit
         }

@@ -73,8 +73,13 @@ private const val THUMB_PX = 192
 private val STORAGE_YELLOW = android.graphics.Color.parseColor("#F5D90A")
 /** v155: the POWER MONITOR's readout, blue beside the drive's yellow. */
 private val POWER_BLUE = android.graphics.Color.parseColor("#4DB8FF")
+private val POWER_GREEN = android.graphics.Color.parseColor("#33D17A")
+/** v155 (Marko, 26.10.2026: "make the color of the camera ... orange"): the photo key. */
+private val SNAP_ORANGE = android.graphics.Color.parseColor("#FF9500")
 /** v155: how long a finger stays on a key before its help opens. */
 private const val HELP_MS = 2000L
+/** v155: the power readout is written this often (the measuring goes on every second). */
+private const val POWER_SHOW_MS = 5000L
 
 class MainActivity : AppCompatActivity() {
 
@@ -601,15 +606,16 @@ class MainActivity : AppCompatActivity() {
         // SNAP is the app's own icon (v88): the still is this camera's picture.
         snapKey = newKey("") { takeSnap() }.also {
             it.glyph = RailButton.Glyph.CAMERA
+            it.tint = SNAP_ORANGE
             railRight.addView(it)
         }
-        shootKey = newKey("POR") { nextShoot() }.also { railRight.addView(it) }
+        shootKey = newKey("POR") { nextShoot() }.also { it.glyph = RailButton.Glyph.ROTATE; railRight.addView(it) }
         railRight.addView(recKey)
-        peakKey = newKey("PEA") { togglePeaking() }.also { railRight.addView(it) }
-        falseKey = newKey("FAL") { falseColour = !falseColour; applyLook(); refreshKeys() }
-            .also { railRight.addView(it) }
+        peakKey = newKey("PEA") { togglePeaking() }.also { it.glyph = RailButton.Glyph.PEAKING; railRight.addView(it) }
+        falseKey = newKey("FC") { falseColour = !falseColour; applyLook(); refreshKeys() }
+            .also { it.glyph = RailButton.Glyph.FALSECOLOUR; railRight.addView(it) }
         zebraKey = newKey("ZEB") { zebra = !zebra; applyLook(); refreshKeys() }
-            .also { railRight.addView(it) }
+            .also { it.glyph = RailButton.Glyph.ZEBRA; railRight.addView(it) }
         // v145: no gear (Marko, 26.10.2026: "remove this settings icon, and clicking on the free space will open the
         // settings. That's why you need to color this free space thing in yellow"). The readout is the way in.
         storageKey = newKey("—") { openSettings() }.also { it.tint = STORAGE_YELLOW; railRight.addView(it) }
@@ -694,6 +700,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showHelp(name: String) {
+        if (name == "FC") { showFalseColourLegend(); return }
         val (title, text) = Help.forKey(name, lastPower)
         android.app.AlertDialog.Builder(this).setTitle(title).setMessage(text).setPositiveButton("OK", null).show()
     }
@@ -1039,7 +1046,7 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             if (pipeline.isRunning) pipeline.sampleRate()
             if (++storageTicks % 5 == 0) refreshStorage()
-            runCatching { powerMonitor.read() }.getOrNull()?.let { lastPower = it; refreshPower(it) }
+            runCatching { powerMonitor.read() }.getOrNull()?.let { refreshPower(it) }
             if (storageTicks % 2 == 0) watchWire()
             // v136: the stream watchdog, and the service that keeps the stream alive behind other apps
             pipeline.watchStream()?.let { Trace.refused("stream watch", it) }
@@ -1975,7 +1982,7 @@ class MainActivity : AppCompatActivity() {
                 val all = (0 until railLeft.childCount).map { railLeft.getChildAt(it) } +
                     (0 until railRight.childCount).map { railRight.getChildAt(it) }
                 // v155: the keys are three letters now; their old names still reach them (mcam key FALSE …)
-                val n = mapOf("PORTRAIT" to "POR", "LANDSCAPE" to "LAN", "PEAK" to "PEA", "FALSE" to "FAL", "ZEBRA" to "ZEB")[name] ?: name
+                val n = mapOf("PORTRAIT" to "POR", "LANDSCAPE" to "LAN", "PEAK" to "PEA", "FALSE" to "FC", "FAL" to "FC", "ZEBRA" to "ZEB")[name] ?: name
                 all.filterIsInstance<RailButton>().firstOrNull { keyName(it) == n || (n == "POR" && keyName(it) == "LAN") || (n == "LAN" && keyName(it) == "POR") }?.performClick()
                     ?: Trace.refused("remote", "no key called $name")
             }
@@ -2255,20 +2262,72 @@ class MainActivity : AppCompatActivity() {
      * battery above (level and ▲ charging, ▼ discharging, = balanced), the time under it (to empty, or to full);
      * red under 20 % or 20 minutes, as the drive's readout goes red under ten.
      */
-    private fun refreshPower(r: PowerMonitor.Reading) {
+    // v155 (Marko, 26.10.2026: "the numbers of discharging and charging are changing too rapidly. You need to average
+    // the value ... make it less fast"): the time shown follows the readings over about a minute, the readout is
+    // written every POWER_SHOW_MS, at once only when the flow turns (plugged in, unplugged, full)
+    private var shownSeconds: Double? = null
+    private var shownFlow: PowerMonitor.Flow? = null
+    private var shownAt = 0L
+
+    private fun refreshPower(raw: PowerMonitor.Reading) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (raw.flow != shownFlow) { shownSeconds = null; shownAt = 0L }
+        raw.seconds?.let { s -> shownSeconds = shownSeconds?.let { it + (s - it) * 0.06 } ?: s.toDouble() }
+        if (raw.flow == shownFlow && now - shownAt < POWER_SHOW_MS) return
+        shownFlow = raw.flow; shownAt = now
+        val r = raw.copy(seconds = shownSeconds?.toLong() ?: raw.seconds)
+        lastPower = r
         val arrow = when (r.flow) {
             PowerMonitor.Flow.CHARGING -> "▲"; PowerMonitor.Flow.DISCHARGING -> "▼"
             PowerMonitor.Flow.BALANCED -> "="; PowerMonitor.Flow.FULL -> ""
         }
         powerKey.label = "${r.level}%$arrow"
-        powerKey.sub = when (r.flow) {
-            PowerMonitor.Flow.FULL -> "FULL"; PowerMonitor.Flow.BALANCED -> "BAL"
+        powerKey.sub = when {
+            r.flow == PowerMonitor.Flow.FULL -> "FULL"
+            r.seconds == null -> if (r.flow == PowerMonitor.Flow.BALANCED) "BAL" else "--:--"
             else -> PowerMonitor.Calc.format(r.seconds) + " h"
         }
+        // v155 (Marko, 26.10.2026): ▲ charging green, ▼ discharging yellow, = balanced white; red only when it is
+        // critical (discharging under 20 % or under 20 minutes)
         val low = r.flow == PowerMonitor.Flow.DISCHARGING && (r.level < 20 || (r.seconds ?: Long.MAX_VALUE) < 20 * 60)
         powerKey.state = if (low) RailButton.State.ARMED else RailButton.State.SHOWN
-        powerKey.tint = if (low) null else POWER_BLUE
+        powerKey.tint = when {
+            low -> null
+            r.flow == PowerMonitor.Flow.CHARGING || r.flow == PowerMonitor.Flow.FULL -> POWER_GREEN
+            r.flow == PowerMonitor.Flow.DISCHARGING -> STORAGE_YELLOW
+            else -> null                                               // SHOWN without a tint: white
+        }
         powerKey.contentDescription = PowerMonitor.Calc.describe(r)
+    }
+
+    /**
+     * v155 (Marko, 26.10.2026: "On the long press on the False colors, please make legend what each color means in
+     * exposure values"): the bands of PreviewEffects' false colour, as the shader draws them (the picture's level as
+     * recorded, before the LUT), with their place in stops from middle grey.
+     */
+    private fun showFalseColourLegend() {
+        val rows = listOf(
+            Triple(0xFF8000CC.toInt(), "PURPLE   under 2.5 %", "crushed black, no detail (≈ −6 EV and below)"),
+            Triple(0xFF1A4DFF.toInt(), "BLUE     2.5 – 10 %", "near black, shadow detail (≈ −4 EV)"),
+            Triple(0xFF26D940.toInt(), "GREEN    38 – 42 %", "middle grey, 18 % grey card (0 EV)"),
+            Triple(0xFFFF73B3.toInt(), "PINK     52 – 56 %", "one stop over: light skin (+1 EV)"),
+            Triple(0xFFFFE61A.toInt(), "YELLOW   97 – 99 %", "nearly clipped, last highlight detail (≈ +4 EV)"),
+            Triple(0xFFFF1A1A.toInt(), "RED      over 99 %", "clipped: white, no detail"),
+            Triple(0xFF8A8A8A.toInt(), "GREY     elsewhere", "the picture's own brightness, so the bands stand out"),
+        )
+        val sb = android.text.SpannableStringBuilder()
+        for ((colour, band, meaning) in rows) {
+            val at = sb.length
+            sb.append("■ ")
+            sb.setSpan(android.text.style.ForegroundColorSpan(colour), at, at + 1, 0)
+            sb.setSpan(android.text.style.RelativeSizeSpan(1.4f), at, at + 1, 0)
+            val b = sb.length
+            sb.append(band)
+            sb.setSpan(android.text.style.TypefaceSpan("monospace"), b, sb.length, 0)
+            sb.append("\n    $meaning\n")
+        }
+        sb.append("\nLevels are the picture as recorded, before a LUT. The stops are for HLG and REC.709; on a log curve middle grey sits lower, so set exposure by the green band. Monitor only: the recording is untouched.")
+        android.app.AlertDialog.Builder(this).setTitle("FC · FALSE COLOUR").setMessage(sb).setPositiveButton("OK", null).show()
     }
 
     /** v155: the POWER MONITOR's numbers, in words, as a V-mount's menu shows them. */
@@ -2364,7 +2423,7 @@ class MainActivity : AppCompatActivity() {
         RailButton.Glyph.SQUARE -> "MARK0"
         RailButton.Glyph.CIRCLE -> "MARK1"
         RailButton.Glyph.TRIANGLE -> "MARK2"
-        RailButton.Glyph.NONE -> k.label
+        RailButton.Glyph.NONE, RailButton.Glyph.ROTATE, RailButton.Glyph.ZEBRA, RailButton.Glyph.PEAKING, RailButton.Glyph.FALSECOLOUR -> k.label
         else -> k.glyph.name.lowercase()
     }
 
@@ -3763,7 +3822,7 @@ class MainActivity : AppCompatActivity() {
             else RailButton.State.OFF
         peakKey.state = if (peaking) RailButton.State.ON else RailButton.State.OFF
         snapKey.state =
-            if (pipeline.isRunning) RailButton.State.OFF else RailButton.State.DEAD
+            if (pipeline.isRunning) RailButton.State.SHOWN else RailButton.State.DEAD   // SHOWN: its orange (v155)
         logKey.sub = curveLabel(LogCurves.Curve.entries[curveIndex]).take(5)
         logKey.state =
             if (LogCurves.Curve.entries[curveIndex] == LogCurves.Curve.REC709)
@@ -3782,7 +3841,8 @@ class MainActivity : AppCompatActivity() {
         falseKey.state = if (falseColour) RailButton.State.ON else RailButton.State.OFF
         zebraKey.state = if (zebra) RailButton.State.ON else RailButton.State.OFF
         zebraKey.sub = if (zebra) "${settings.zebraLevel}%" else null
-        shootKey.label = if (settings.shootMode == 1) "LAN" else "POR"   // v155: three letters (Marko, 26.10.2026)
+        shootKey.label = if (settings.shootMode == 1) "LAN" else "POR"   // v155: three letters (Marko, 26.10.2026), the name
+        shootKey.across = settings.shootMode == 1                     // v155: and the icon lies across in landscape
         shootKey.state = RailButton.State.OFF
         playKey.state = if (lastTakeUri() != null) RailButton.State.OFF else RailButton.State.DEAD
 

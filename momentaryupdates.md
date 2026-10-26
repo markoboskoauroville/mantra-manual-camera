@@ -940,8 +940,28 @@ Needs the GPU stage (Settings → Picture path).
 
 > "for false color, not VEL. Make it FC" (Marko, 26.10.2026)
 
-102. The false-colour key reads FC (not FAL). — **Status:** in work.
+102. The false-colour key reads FC (not FAL). — **Status:** v155, then an icon (104).
 
 > "instead of POR, make a standard SVG icon, same as the camera there, just change the orientation, kind of thing. What symbolizes the change of orientation of the screen should be there" / "also, zebra can be simple. You make one square and inside lines in some kind of angle. It can be like zebra" (Marko, 26.10.2026)
 
-103. POR/LAN as an icon in the camera icon's line style: a phone with a turning arrow, upright or lying across; ZEB as a square of slanted lines. — **Status:** in work.
+103. POR/LAN as an icon in the camera icon's line style: a phone with a turning arrow, upright or lying across; ZEB as a square of slanted lines. — **Status:** v155: ROTATE (redrawn in 106), ZEBRA (a square of slanted lines) as RailButton glyphs; the keys keep their names (POR/LAN, ZEB) for mcam and the remote.
+
+> "Peaking will be the red square with random dots" / "false color are patches of the same color. In false color, it usually looks like patches" (Marko, 26.10.2026)
+
+104. PEA: a square with red dots; FC: a square of false-colour patches. — **Status:** v155 on the Pixel; outlines grey off, green on.
+
+> "now the numbers of discharging and charging are changing too rapidly. You need to average the value and don't and just make it less fast" (Marko, 26.10.2026)
+
+105. The POWER MONITOR steadier: averaged, refreshed less often. — **Status:** v155: the current smoothed 3× slower (α 0.05), the time shown follows over about a minute, the readout written every 5 s (at once when the flow turns); while charging the time is made of the cell's measured net charge once there (Android's estimate assumes an idle phone: 1:34 then 8:33).
+
+> "Icon for changing rotation is not good. It should be just two squares, one vertical, one horizontal, overlapping. Forget the phone, make simple square design Not square rectangle." (Marko, 26.10.2026)
+
+106. The orientation icon: two overlapping rectangles, one upright, one across; no phone. — **Status:** v155: the shooting one bold, the other faint.
+
+> "please make the color of the camera in the same row icon in a different color. Make it a yellow-orange color. Make it orange" / "On the long press on the False colors, please make legend what each color means in exposure values." (Marko, 26.10.2026)
+
+107. The photo camera icon orange; the FC help a legend: each false colour and its exposure value. — **Status:** v155: the camera #FF9500; FC held 2 s: PURPLE < 2.5 % (≈ −6 EV), BLUE 2.5–10 % (≈ −4), GREEN 38–42 % (0 EV, middle grey), PINK 52–56 % (+1, skin), YELLOW 97–99 % (≈ +4), RED > 99 % (clipped), GREY elsewhere — the shader's own bands (PreviewEffects.kt); a note that on log curves grey sits lower.
+
+> "so, please let me know if logic for battery is correct. When the triangle is going up, it means we are charging and the number shows the charging state. That color of the everything should be green means we are charging. When we are discharging, we are yellow, and the number shows how much time we have left to discharge. When we are balanced, then we are white and average values for time, what you calculate every five seconds" (Marko, 26.10.2026)
+
+108. The POWER MONITOR's colours: ▲ charging green (time to full), ▼ discharging yellow (time left; red when critical), = balanced white (the averaged time, every 5 s). — **Status:** v155 on the Pixel: 28%▲ 2:06 h in green while charging; yellow discharging, red under 20 % or 20 min; white when balanced, the time of its slow drift (BAL when still within 5 mA).

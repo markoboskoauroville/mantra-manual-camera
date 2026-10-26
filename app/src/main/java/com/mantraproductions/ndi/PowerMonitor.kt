@@ -97,9 +97,18 @@ class PowerMonitor(private val context: Context) {
             Flow.DISCHARGING -> chargeMah?.let { Calc.secondsToEmpty(it.toDouble(), -net) }
                 ?: Calc.secondsToEmptyByLevel(level, -net, DESIGN_MAH_GUESS)
             Flow.CHARGING -> {
+                // v155 (26.10.2026: 1:34 then 8:33 a minute later): Android's estimate assumes an idle phone; once the
+                // cell's own counter has measured the net charge, that is what the time is made of
                 val system = runCatching { bm.computeChargeTimeRemaining() }.getOrDefault(-1L)
-                if (system > 0) { lastSystemFull = system; system / 1000 }
-                else Calc.secondsToFull(level, chargeMah?.toDouble(), net)
+                if (measured || system <= 0) Calc.secondsToFull(level, chargeMah?.toDouble(), net)
+                else { lastSystemFull = system; system / 1000 }
+            }
+            // v155 (Marko, 26.10.2026: "When we are balanced, then we are white and average values for time"): the
+            // way it drifts, slowly, still gives a time; truly still (within 5 mA) none
+            Flow.BALANCED -> when {
+                net < -5 -> chargeMah?.let { Calc.secondsToEmpty(it.toDouble(), -net) } ?: Calc.secondsToEmptyByLevel(level, -net, DESIGN_MAH_GUESS)
+                net > 5 -> Calc.secondsToFull(level, chargeMah?.toDouble(), net)
+                else -> null
             }
             else -> null
         }
@@ -118,7 +127,7 @@ class PowerMonitor(private val context: Context) {
             return fullMah in 1000.0..15000.0
         }
 
-        fun smooth(prev: Double?, x: Double, a: Double = 0.15): Double = if (prev == null) x else prev + a * (x - prev)
+        fun smooth(prev: Double?, x: Double, a: Double = 0.05): Double = if (prev == null) x else prev + a * (x - prev)
 
         /** The counter's slope in mA (+ rising) over the samples, or null until they span [minMs] and moved [minStep]. */
         fun slopeMa(samples: List<Pair<Long, Long>>, minMs: Long, minStep: Long): Double? {

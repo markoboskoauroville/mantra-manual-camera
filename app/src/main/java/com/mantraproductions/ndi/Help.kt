@@ -23,7 +23,7 @@ object Help {
         name == "POR" -> "POR · PORTRAIT" to "The shooting is upright now. A tap turns it to LAN (landscape): the whole interface turns and every label stays upright."
         name == "LAN" -> "LAN · LANDSCAPE" to "The shooting is across now. A tap turns it to POR (portrait)."
         name == "PEA" -> "PEA · PEAKING" to "Focus peaking: the sharp edges lit in the colour chosen in settings. Monitor only."
-        name == "FAL" -> "FAL · FALSE COLOUR" to "Exposure in false colour: middle grey green, skin pink, clipping red, crushed blacks purple. Monitor only."
+        name == "FC" -> "FC · FALSE COLOUR" to "Exposure in false colour: middle grey green, skin pink, clipping red, crushed blacks purple. Monitor only."
         name == "ZEB" -> "ZEB · ZEBRA" to "Stripes over everything brighter than the zebra level set in settings (95 % by default). Monitor only."
         name.contains("GB") || name == "NO DRIVE" || name == "—" && power == null ->
             "FREE SPACE" to "The free space on the recording drive and how many hours and minutes of recording it holds at the present bit rate. Red under ten minutes. A tap opens settings."
