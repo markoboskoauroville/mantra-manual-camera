@@ -842,7 +842,7 @@ Needs the GPU stage (Settings → Picture path).
 
 > "by the way, please release the next version with the icon in the same style as the ttt advanced keyboard icon" (Marko, 26.10.2026)
 
-78. The next version's icon in the style of the TTT Advanced Keyboard's icon. — **Status:** v151 asked.
+78. The next version's icon in the style of the TTT Advanced Keyboard's icon. — **Status:** v151: first five lit keys (Marko: "Icon is not good"), then 86.
 
 > "the app is open. Remote controller for camera on my Note phone. You can access it through wireless debugging" (Marko, 26.10.2026)
 >
@@ -852,11 +852,11 @@ Needs the GPU stage (Settings → Picture path).
 
 > "in the app, the white triangle for focus pulling needs to have the white finger landing thing circle as the yellow one. Same in this. That means manual focusing: tapping inside it and dragging it up and down to make it focus. To leave the keyframe, it's a long press, and then the dialog opens: Add Keyframe or Delete Keyframe. All other keyframes there also have a long press on this circle, and then the user can delete the keyframe" (Marko, 26.10.2026)
 
-80. The lens's white triangle gets a white finger circle like the key points' amber ones: press inside it and drag up and down to focus by hand. A long press on the white circle opens ADD KEYFRAME / DELETE KEYFRAME (delete when a key point stands there); a long press on any key point's circle offers DELETE KEYFRAME. (A tap on a key circle still racks to it; key points are no longer added by a tap on the scale.) On the camera and on the remote alike (the remote shows the camera's own meter). — **Status:** v151 asked.
+80. The lens's white triangle gets a white finger circle like the key points' amber ones: press inside it and drag up and down to focus by hand. A long press on the white circle opens ADD KEYFRAME / DELETE KEYFRAME (delete when a key point stands there); a long press on any key point's circle offers DELETE KEYFRAME. (A tap on a key circle still racks to it; key points are no longer added by a tap on the scale.) On the camera and on the remote alike (the remote shows the camera's own meter). — **Status:** v151 released: the white circle drawn and dragged (seen in the trace, 6.4 → 7.0 dpt under a finger).
 
 > "now we need to fix the user interface. The round button, the record button, should still be the record button as before. But this triangle, which is the playing button, should become this round button with the last picture of the last clip. Then when I press it, it plays. We don't have any more square buttons. We don't have any more triangle buttons. Everything is circular. Please make the recording in the place of the lot, in the middle of the screen" (Marko, 26.10.2026)
 
-81. REC is the plain record button again (white disc, red while recording). The PLAY key (a triangle) becomes a round button showing the last capture; a press plays it (a take in the player, a still in the viewer). No square or triangle buttons on the rail: round. REC moves to the LUT's place, the middle of the rail; the LUT key takes REC's old place. — **Status:** v151 asked.
+81. REC is the plain record button again (white disc, red while recording). The PLAY key (a triangle) becomes a round button showing the last capture; a press plays it (a take in the player, a still in the viewer). No square or triangle buttons on the rail: round. REC moves to the LUT's place, the middle of the rail; the LUT key takes REC's old place. — **Status:** v151 released, seen on the Pixel: LUT · the round PLAY with the last picture · SNAP · PORTRAIT · REC (white, the middle) · PEAK · FALSE · ZEBRA · free space. A still, then PLAY → Android's "open with" for the PNG (more than one viewer on the Pixel; Android asks once).
 
 > "long press on the focusing pulling interface should last two seconds" (Marko, 26.10.2026)
 
@@ -876,4 +876,4 @@ Needs the GPU stage (Settings → Picture path).
 
 > "Icon is not good. Bring the camera back with the same color styling. That's all" (Marko, 26.10.2026)
 
-86. (Replaces 78's keys.) The icon is the camera again (v95's traced camera), drawn in TTT's colours: the dark #0D1117 ground, the camera as lit neon lines with TTT's soft glow, the version under it. The monitor keeps its own old symbol (a screen with a lens) in the same colours. — **Status:** v151.
+86. (Replaces 78's keys.) The icon is the camera again (v95's traced camera), drawn in TTT's colours: the dark #0D1117 ground, the camera as lit neon lines with TTT's soft glow, the version under it. The monitor keeps its own old symbol (a screen with a lens) in the same colours. — **Status:** v151 released, seen on both phones' App info: the camera's amber outline, red flash tab, cyan lens ring with its glow, the body in TTT's key colour on #0D1117, v151 under it; the monitor's cyan screen with the green lens and a red REC dot. scripts/make_icons.py writes both.
