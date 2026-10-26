@@ -45,6 +45,8 @@ class PowerMonitor(private val context: Context) {
     private var signFlip: Int? = null                           // 1 or -1 once the counter has shown the direction
     private var lastSystemFull = 0L
     private var lastPlugged: String? = null
+    /** v155: when this run of readings began (the app opened, a cable in or out). */
+    private var since = 0L
 
     /** One look at the battery; call about once a second. */
     fun read(now: Long = System.currentTimeMillis()): Reading {
@@ -67,7 +69,8 @@ class PowerMonitor(private val context: Context) {
             ?.takeIf { Calc.plausible(it, level) }
 
         // a cable in or out: the minutes before it measured another flow
-        if (plugged != lastPlugged) { counter.clear(); ema = null; lastPlugged = plugged }
+        if (plugged != lastPlugged) { counter.clear(); ema = null; lastPlugged = plugged; since = now }
+        if (since == 0L) since = now
         if (uah != null) {
             counter.addLast(now to uah)
             while (counter.size > 2 && now - counter.first().first > WINDOW_MAX_MS) counter.removeFirst()
@@ -112,7 +115,10 @@ class PowerMonitor(private val context: Context) {
             }
             else -> null
         }
-        return Reading(level, flow, net.toInt(), volts, abs(net) / 1000.0 * volts, seconds, tempC, plugged, measured, chargeMah)
+        // v155 (seen 26.10.2026: 0:18 h on the charger right after the app was installed): a first estimate is
+        // not shown before FIRST_MS of readings; the work of starting the app is not the work of filming
+        val shown = if (!measured && now - since < FIRST_MS) null else seconds
+        return Reading(level, flow, net.toInt(), volts, abs(net) / 1000.0 * volts, shown, tempC, plugged, measured, chargeMah)
     }
 
     /** The numbers, without Android, so they are tested on the Mac. */
@@ -190,6 +196,7 @@ class PowerMonitor(private val context: Context) {
 
     companion object {
         const val BALANCE_MA = 50.0
+        const val FIRST_MS = 30_000L
         const val WINDOW_MIN_MS = 120_000L
         const val WINDOW_MAX_MS = 600_000L
         const val MIN_STEP_UAH = 2_000L

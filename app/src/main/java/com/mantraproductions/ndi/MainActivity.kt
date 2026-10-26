@@ -611,11 +611,11 @@ class MainActivity : AppCompatActivity() {
         }
         shootKey = newKey("POR") { nextShoot() }.also { it.glyph = RailButton.Glyph.ROTATE; it.tint = SNAP_ORANGE; railRight.addView(it) }
         railRight.addView(recKey)
-        peakKey = newKey("PEA") { togglePeaking() }.also { it.glyph = RailButton.Glyph.PEAKING; railRight.addView(it) }
+        peakKey = newKey("PEA") { togglePeaking() }.also { it.glyph = RailButton.Glyph.PEAKING; it.tint = SNAP_ORANGE; railRight.addView(it) }
         falseKey = newKey("FC") { falseColour = !falseColour; applyLook(); refreshKeys() }
-            .also { it.glyph = RailButton.Glyph.FALSECOLOUR; railRight.addView(it) }
+            .also { it.glyph = RailButton.Glyph.FALSECOLOUR; it.tint = SNAP_ORANGE; railRight.addView(it) }
         zebraKey = newKey("ZEB") { zebra = !zebra; applyLook(); refreshKeys() }
-            .also { it.glyph = RailButton.Glyph.ZEBRA; railRight.addView(it) }
+            .also { it.glyph = RailButton.Glyph.ZEBRA; it.tint = SNAP_ORANGE; railRight.addView(it) }
         // v145: no gear (Marko, 26.10.2026: "remove this settings icon, and clicking on the free space will open the
         // settings. That's why you need to color this free space thing in yellow"). The readout is the way in.
         storageKey = newKey("—") { openSettings() }.also { it.tint = STORAGE_YELLOW; railRight.addView(it) }
@@ -3820,7 +3820,7 @@ class MainActivity : AppCompatActivity() {
         focusKey.state =
             if (focus.mode == FocusDirector.Mode.AUTO) RailButton.State.ON
             else RailButton.State.OFF
-        peakKey.state = if (peaking) RailButton.State.ON else RailButton.State.OFF
+        peakKey.state = if (peaking) RailButton.State.ON else RailButton.State.SHOWN    // v155: orange outline off, green on
         snapKey.state =
             if (pipeline.isRunning) RailButton.State.SHOWN else RailButton.State.DEAD   // SHOWN: its orange (v155)
         logKey.sub = curveLabel(LogCurves.Curve.entries[curveIndex]).take(5)
@@ -3838,8 +3838,8 @@ class MainActivity : AppCompatActivity() {
         lutKey.sub = if (activeSlot > 0) slots.slot(activeSlot).label?.take(5) ?: "$activeSlot" else "OFF"
         lutKey.state = if (activeSlot > 0) RailButton.State.ON else RailButton.State.OFF
         if (activeSlot == 0 && slots.loadedCount() == 0) lutKey.sub = "ADD"
-        falseKey.state = if (falseColour) RailButton.State.ON else RailButton.State.OFF
-        zebraKey.state = if (zebra) RailButton.State.ON else RailButton.State.OFF
+        falseKey.state = if (falseColour) RailButton.State.ON else RailButton.State.SHOWN
+        zebraKey.state = if (zebra) RailButton.State.ON else RailButton.State.SHOWN
         zebraKey.sub = if (zebra) "${settings.zebraLevel}%" else null
         shootKey.label = if (settings.shootMode == 1) "LAN" else "POR"   // v155: three letters (Marko, 26.10.2026), the name
         shootKey.across = settings.shootMode == 1                     // v155: and the icon lies across in landscape

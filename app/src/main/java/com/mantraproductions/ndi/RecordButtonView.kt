@@ -80,7 +80,7 @@ class RecordButtonView @JvmOverloads constructor(
             dead -> Color.parseColor("#3A3E42")
             playMode -> Color.parseColor("#22262B")          // PLAY with nothing to play yet
             recording -> Color.parseColor("#FF1F0F")
-            else -> Color.WHITE
+            else -> Color.BLACK                                  // v155: black until it records (Marko, 26.10.2026)
         }
         val radius = min(cx, cy) - ringPaint.strokeWidth
 

@@ -973,3 +973,11 @@ Needs the GPU stage (Settings → Picture path).
 > "outline for the video player. The one with the thumbnail inside should be green" (Marko, 26.10.2026)
 
 110. PLAY (the thumbnail key): its ring green. — **Status:** v155.
+
+> "Orange should be the theme of this app. Then, around false color peaking and zebra, put an orange outline" (Marko, 26.10.2026)
+
+111. Orange is the app's theme; FC, PEA and ZEB with an orange outline (green while on). — **Status:** v155 on the Pixel (orange #FF9500 for the photo, orientation, FC, PEA, ZEB keys; RailButton.onGreen keeps ON green).
+
+> "inside of the recording button, let it be black. When it's record, it's turn red. When it's not recording, it's black" (Marko, 26.10.2026)
+
+112. REC: black inside, red while recording (the red ring stays). — **Status:** v155 on the Pixel. Also: a first power estimate waits 30 s after the app opens or a cable changes (0:18 h was the work of starting the app); seen: the Pixel reports status 4, NOT CHARGING, on AC at 35 °C (Android paused charging), shown as ▼/balanced.

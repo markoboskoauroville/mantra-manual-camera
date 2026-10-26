@@ -44,6 +44,9 @@ class RailButton @JvmOverloads constructor(
     var glyph: Glyph = Glyph.NONE
         set(value) { field = value; describe(); invalidate() }
 
+    /** v155: ON stays green even on a key with a tint (FC, PEA, ZEB: orange off, green on). */
+    var onGreen: Boolean = true
+
     /** v155: the ROTATE glyph's phone lies across (landscape) instead of standing (portrait). */
     var across: Boolean = false
         set(value) { field = value; describe(); invalidate() }
@@ -140,7 +143,7 @@ class RailButton @JvmOverloads constructor(
             State.ARMED -> AMBER
             State.DEAD -> DEAD
             State.SHOWN -> WHITE
-        }.let { if (state != State.OFF && state != State.DEAD) this.tint ?: it else it }
+        }.let { if (state != State.OFF && state != State.DEAD && !(state == State.ON && onGreen)) this.tint ?: it else it }
         if (marked) {
             mark.color = tint
             mark.strokeWidth = density(2.2f)
