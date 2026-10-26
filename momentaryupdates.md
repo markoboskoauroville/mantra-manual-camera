@@ -921,3 +921,7 @@ Needs the GPU stage (Settings → Picture path).
 > "When I say scale, I always mean scaling the resolution of the transfer of the file or the picture over VPN. I never mean rescaling the user interface itself, only the resolution of the transfer." (Marko, 26.10.2026)
 
 - So it is built: SCALE sets scrcpy's max_size (the picture sent over the tunnel) and the bit rate; the remote draws what arrives at full size. The picture is smaller on screen only because v154 fits it between the status line and the rail (so they do not cover the camera's keys), the same at every SCALE.
+
+> "continue testing and debugging the camera" (Marko, 26.10.2026)
+
+98. Testing and debugging go on: FULL shows the focus-puller scale (seen in the screenshots), the NDI picture stall after an HX restart (item 92), then v154. — **Status:** in work.
