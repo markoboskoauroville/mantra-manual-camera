@@ -785,7 +785,7 @@ Needs the GPU stage (Settings → Picture path).
 
 > "put in the manifest every time something new is updated. We update two apps: one is the main app camera and the remote app. On the same latest page, the latest version should be both updates, both latest versions I hope you are building this app on this computer and then sending it to GitHub under Releases. We are not using GitHub Actions to build the APK. It's built locally." (Marko, 26.10.2026)
 
-67. Every version is built on the Mac, the camera and Mantra Monitor together, and both APKs go up in the one release marked Latest; GitHub Actions no longer builds on a push (by hand only, workflow_dispatch). Every update is written into the manifest the same turn. — **Status:** from v145.
+67. (v145 on GitHub is the Actions build of 3eeb25c, released before the cancel landed; the Mac's build with FOC: and the rack is v146.) Every version is built on the Mac, the camera and Mantra Monitor together, and both APKs go up in the one release marked Latest; GitHub Actions no longer builds on a push (by hand only, workflow_dispatch). Every update is written into the manifest the same turn. — **Status:** from v145.
 
 ## 26.10.2026 — FOC: and the number; rack focus; the focus puller's meter on the remote
 
