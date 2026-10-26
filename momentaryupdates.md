@@ -908,8 +908,8 @@ Needs the GPU stage (Settings → Picture path).
 
 > "After this update, I can debug my remote app over ADB through the tunnel." / "The new feature is resolution scaling, in fractions of 0.9, 0.8, 0.7, 0.6 and 0.5. It saves bandwidth with the new setting, and the status line shows the new number." (Marko, 26.10.2026)
 
-95. Resolution scaling for the remote's ADB picture: 1.0, 0.9, 0.8, 0.7, 0.6, 0.5 of the picture's size; a smaller picture costs less bandwidth; the status line shows the scale. — **Status:** in work.
+95. Resolution scaling for the remote's ADB picture: 1.0, 0.9, 0.8, 0.7, 0.6, 0.5 of the picture's size; a smaller picture costs less bandwidth; the status line shows the scale. — **Status:** v154: a tap on the status line steps 1.0 → 0.5 → 1.0; size × scale, bit rate × scale². Measured at 0.7 through the tunnel: 1120 px, 3.9 Mbit/s (was 1600 px, 8 Mbit/s). The tap itself not yet tested on the phone.
 
 > "to the camera remote you can add the black and white screen, same as we have in our remote app" (Marko, 26.10.2026)
 
-96. The black-and-white screen of Mantra Remote in the camera remote's ADB picture. — **Status:** asked.
+96. The black-and-white screen of Mantra Remote in the camera remote's ADB picture. — **Status:** v154 built and installed on the Nothing: a long press on the status line turns the picture black and white on the phone (a colour matrix on the picture's layer), the status line ends "· B/W"; `--ez bw true` for tests. scrcpy's H.264 stays colour, so it is the look, not less data (the scale is what saves data). Not yet seen on the phone: Marko was using it.

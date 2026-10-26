@@ -114,10 +114,14 @@ class MonitorActivity : Activity() {
             setBackgroundColor(Color.parseColor("#66000000")); setPadding(dp(6), dp(3), dp(6), dp(3))
             // v154: while a camera is watched over ADB, a tap on this line steps the picture's scale
             setOnClickListener { if (adb != null) stepAdbScale() }
+            // v154 (Marko: "add the black and white screen, same as we have in our remote app"): a long press turns
+            // the picture black and white on this phone (scrcpy's H.264 stays colour: the look, not the data)
+            setOnLongClickListener { prefs.edit().putBoolean("bw", !prefs.getBoolean("bw", false)).apply(); applyBw(); true }
         }
         overlay = MarksOverlay(this)
         root.addView(overlay, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         root.addView(status, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP).apply { topMargin = dp(28) })
+        applyBw()
         railTop = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(Color.BLACK); visibility = View.GONE }
         railBottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(Color.BLACK); visibility = View.GONE }
         root.addView(railTop, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(56), Gravity.TOP).apply { topMargin = dp(24) })
@@ -201,6 +205,8 @@ class MonitorActivity : Activity() {
                 // v150: `--es adb 192.168.1.101:43917` watches over ADB at once (the emulator cannot hear mDNS);
                 // `--es pair 192.168.1.101:37123:123456` pairs first
                 intent?.getStringExtra("adb")?.let { w -> adbHosts["ADB ${w.substringBefore(':')}"] = w; current = "ADB ${w.substringBefore(':')}" }
+                // v154: `--ez bw true` black and white (tests from the Mac)
+                if (intent?.hasExtra("bw") == true) { prefs.edit().putBoolean("bw", intent!!.getBooleanExtra("bw", false)).apply(); applyBw() }
                 // v154: `--ef scale 0.7` sets the ADB picture's scale (tests from the Mac)
                 if (intent?.hasExtra("scale") == true) prefs.edit().putFloat("adbScale", intent!!.getFloatExtra("scale", 1f)).apply()
                 // v154: `--es tunnel 100.x.y.z:5555` stores the camera's tunnel address (tests from the Mac)
@@ -351,8 +357,9 @@ class MonitorActivity : Activity() {
             // v150: the ADB status line, with what arrives over it
             adb?.let { a ->
                 val t = a.frames.get() to a.bytes.get()
-                if (a.connected && a.width > 0) status.text = String.format(java.util.Locale.ROOT, "ADB ENABLED · %s · %s:%d · %d fps · %.1f Mbit/s · SCALE %.1f",
-                    a.device.ifEmpty { "camera" }, a.host, a.port, t.first - adbLast.first, (t.second - adbLast.second) * 8 / 1e6, adbScale())
+                if (a.connected && a.width > 0) status.text = String.format(java.util.Locale.ROOT, "ADB ENABLED · %s · %s:%d · %d fps · %.1f Mbit/s · SCALE %.1f%s",
+                    a.device.ifEmpty { "camera" }, a.host, a.port, t.first - adbLast.first, (t.second - adbLast.second) * 8 / 1e6, adbScale(),
+                    if (prefs.getBoolean("bw", false)) " · B/W" else "")
                 adbLast = t
                 return
             }
@@ -575,6 +582,15 @@ class MonitorActivity : Activity() {
             })
         adb = a
         a.start()
+    }
+
+    /** v154: black and white on this phone: the picture's layer drawn through a colour matrix without saturation. */
+    private fun applyBw() {
+        val bw = prefs.getBoolean("bw", false)
+        if (bw) {
+            val m = android.graphics.ColorMatrix().apply { setSaturation(0f) }
+            surface.setLayerType(View.LAYER_TYPE_HARDWARE, android.graphics.Paint().apply { colorFilter = android.graphics.ColorMatrixColorFilter(m) })
+        } else surface.setLayerType(View.LAYER_TYPE_NONE, null)
     }
 
     /** v154: the ADB picture's scale, 1.0 down to 0.5 in tenths; a tap on the status line steps it. */
