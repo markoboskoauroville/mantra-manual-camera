@@ -725,6 +725,12 @@
             android:text="ADB CONTROL" />
         <TextView android:tag="hint" style="@style/MantraHint"
             android:text="On, a Mac on the cable or on wireless debugging drives every key and every setting of this camera through adb (scripts/mcam). Only adb's shell can, no app on the phone." />
+        <!-- v150 (Marko, 26.10.2026: "in settings, there must be a guide on how to set up ADB wireless") -->
+        <Button
+            android:id="@+id/adbGuide"
+            style="@style/MantraKey"
+            android:layout_width="match_parent"
+            android:text="WIRELESS DEBUGGING: THE GUIDE" />
         <!-- The trace -->
         <TextView style="@style/MantraLabel" android:text="@string/trace" />
         <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/trace_hint" />

@@ -73,4 +73,12 @@ kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarg
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
+    // v150 (Marko, 26.10.2026: "Remote controller using ADB, and through ADB you transfer the picture using open-source
+    // code from screen copy"): ADB to the camera phone over wireless debugging — pairing by code (SPAKE2), TLS, streams
+    implementation("com.github.MuntashirAkon:libadb-android:3.1.1")
+    // its certificate maker, for the monitor's own ADB key (AdbKeys); the same version libadb-android brings at run time
+    implementation("org.bouncycastle:bcprov-jdk15to18:1.81")
+    // pairing needs TLS's exported keying material; the system's own Conscrypt hides it (MEASURED on the emulator:
+    // NoSuchMethodException com.android.org.conscrypt.Conscrypt.exportKeyingMaterial), this one does not
+    implementation("org.conscrypt:conscrypt-android:2.5.3")
 }

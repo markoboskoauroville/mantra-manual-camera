@@ -165,3 +165,8 @@ before calling the picture right or wrong. Ramps (time, smoothness) can be judge
     configs and trace the one taken; say a fallback on the screen.
 23. **The lens's dioptres are its real distance here** (calibration APPROXIMATE on the Pixel 7 main lens): the motor's
     finest step is 0.034 dpt, about 280 positions from ∞ to 10.5 cm; L1 and the front lenses are fixed focus.
+24. **scrcpy 4.1's wire is not 2.x's** (v150, measured by dumping the first bytes from the Mac): codec id is 4 bytes,
+    the size comes in a SESSION packet (top bit set, then width and height) sent first and on every size change, and
+    the frame flags moved down a bit (62 config, 61 key frame). In a forward tunnel the device name and codec come only
+    after the control socket is open too. `cleanup=true` deletes the pushed jar: push it every start.
+25. **ADB pairing from an app needs the app's own Conscrypt** (org.conscrypt): the system's hides exportKeyingMaterial.

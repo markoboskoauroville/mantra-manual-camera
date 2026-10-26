@@ -493,6 +493,10 @@ class SettingsActivity : AppCompatActivity() {
             isChecked = settings.adbControl
             setOnCheckedChangeListener { _, on -> settings.adbControl = on; Trace.control("adb control", if (on) "on" else "off", "settings") }
         }
+        // v150: the wireless debugging guide, the same words as in Mantra Monitor
+        findViewById<Button>(R.id.adbGuide).setOnClickListener {
+            android.app.AlertDialog.Builder(this).setTitle("ADB OVER WI-FI, ONCE").setMessage(ADB_GUIDE).setPositiveButton("OK", null).show()
+        }
         findViewById<TextView>(R.id.version).text =
             if (NdiSender.available) "NDI SDK present" else "built without the NDI SDK"
     }

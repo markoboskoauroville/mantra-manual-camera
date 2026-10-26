@@ -773,13 +773,13 @@ Needs the GPU stage (Settings → Picture path).
 
 > "in settings, there must be a guide on how to set up ADB wireless. Then these two phones are talking through Wi-Fi, and they are able to control each other" (Marko, 26.10.2026)
 
-64. Mantra Monitor (the remote) gets a second way to the camera beside today's (MANTRA LINK over NDI): ADB over wireless debugging, the keys as adb commands and the picture through scrcpy's open-source server, with a switch between the two, to compare which is faster and more precise. — **Status:** asked.
+64. Mantra Monitor (the remote) gets a second way to the camera beside today's (MANTRA LINK over NDI): ADB over wireless debugging, the keys as adb commands and the picture through scrcpy's open-source server, with a switch between the two, to compare which is faster and more precise. — **Status:** v150 PROVEN 26.10.2026, the emulator (Mantra Monitor) driving the real Pixel 7 (the camera) over Wi-Fi: paired by code (libadb-android 3.1.1 + Conscrypt 2.5.3; the system's own Conscrypt hides exportKeyingMaterial), connected over TLS to 192.168.1.101:43917, scrcpy 4.1's server (an asset, from the Mac's Homebrew scrcpy) pushed through ADB sync and started; the camera's whole screen at 30–33 fps, 0.7–2.3 Mbit/s, H.264 1600 px; one tap on the meter's 30 cm circle in the remote racked the Pixel's lens 20.8 → 29.9 cm (scrcpy's 32-byte touch event, unchanged in 4.1). scrcpy 4.1's wire, MEASURED from the Mac: dummy byte; device name and codec only after the control socket is open; codec id is 4 bytes; a SESSION packet (top bit, then width, height) first and on every size change; frames with bit 62 config, bit 61 key frame. Remembers the last camera's address; reconnects at start.
 
-65. In the settings, a guide to set up wireless debugging, so the two phones talk over Wi-Fi and each can control the other. — **Status:** asked.
+65. In the settings, a guide to set up wireless debugging, so the two phones talk over Wi-Fi and each can control the other. — **Status:** v150: the same guide (shared/kotlin AdbGuide.kt) in Mantra Monitor's sources (GUIDE, seen on the emulator) and in the camera's settings, MORE → WIRELESS DEBUGGING: THE GUIDE; the steps for the other way round are the same with the phones swapped.
 
 > "we have a remote controller in two modes: ADB or not ADB. Maybe that can be the difference in the app. There will be some kind of ADB status line that says ADB is enabled, and then it works through ADB. If I disable it, it works through any protocol you decide to use without ADB" (Marko, 26.10.2026)
 
-66. The remote (Mantra Monitor) has two modes, ADB on and ADB off, and a status line that says which: "ADB enabled" and it drives the camera through ADB; off, it works through the way without ADB (today's MANTRA LINK). — **Status:** asked, with 64 and 65.
+66. The remote (Mantra Monitor) has two modes, ADB on and ADB off, and a status line that says which: "ADB enabled" and it drives the camera through ADB; off, it works through the way without ADB (today's MANTRA LINK). — **Status:** v150: in the sources, ADB ON / OFF (on by default) with its line ("ADB ENABLED: a camera is watched and driven through wireless debugging" / "ADB OFF: cameras are watched over MANTRA LINK and NDI"), PAIR, GUIDE, and the phones wireless debugging announces; watching, the status line reads "ADB ENABLED · Pixel 7 · 192.168.1.101:43917 · 33 fps · 0.7 Mbit/s". With ADB on, a LINK camera that also announces ADB is reached over ADB.
 
 ## 26.10.2026 — built on the Mac, both apps in one release, the manifest every time
 
@@ -803,7 +803,7 @@ Needs the GPU stage (Settings → Picture path).
 
 > "To test the remote controller, you can open up our local Pixel 7 emulator and control the real Pixel 7 from the emulator to test all its functions. Focus pulling is the function of the second phone and on this phone as well. This is in Settings. We can put focus pulling UI, and it must use the longest edge of the phone's UI, not the short one." (Marko, 26.10.2026)
 
-71. The remote is tested from the Pixel 7 emulator on the Mac driving the real Pixel 7. The focus puller's meter (70) is on both: the remote phone and the camera itself, switched on in the settings; the meter runs along the phone's longest edge. — **Status:** asked.
+71. The remote is tested from the Pixel 7 emulator on the Mac driving the real Pixel 7. The focus puller's meter (70) is on both: the remote phone and the camera itself, switched on in the settings; the meter runs along the phone's longest edge. — **Status:** v150: tested from the emulator as asked. Over ADB the remote shows the camera's own screen, so the camera's meter (v149) is on the remote too and works from it (proven: the 30 cm circle tapped on the remote). The real remote phone (the Nothing, 192.168.1.102) is Marko's try.
 
 ## 26.10.2026 — a FOCUS tab in the settings; focus speed and tracking speed in mm/s
 
@@ -838,4 +838,4 @@ Needs the GPU stage (Settings → Picture path).
 
 > "yes, please start the remote" (Marko, 26.10.2026, to 64–66: the remote over wireless ADB with scrcpy's picture, the ADB switch and status line, the guide)
 
-77. The remote over ADB is started (64–66, 65, and the meter on the remote, 70). — **Status:** in work.
+77. The remote over ADB is started (64–66, 65, and the meter on the remote, 70). — **Status:** v150 released; see 64, 65, 66, 71. The Pixel's Wireless debugging now lists "Mantra Monitor (sdk_gphone64_arm64)", the emulator, as a paired device (revocable there).

@@ -28,6 +28,7 @@ import com.mantraproductions.ndi.MonitorEngine
 import com.mantraproductions.ndi.NdiFinder
 import com.mantraproductions.ndi.NdiReceiver
 import com.mantraproductions.ndi.RailButton
+import com.mantraproductions.ndi.ADB_GUIDE
 import kotlin.concurrent.thread
 
 /**
@@ -82,6 +83,14 @@ class MonitorActivity : Activity() {
     private var linkClean = false
     private var nsd: android.net.nsd.NsdManager? = null
     private var nsdListener: android.net.nsd.NsdManager.DiscoveryListener? = null
+    // v150, THE REMOTE OVER ADB: the switch (Marko: "we have a remote controller in two modes: ADB or not ADB ... If I
+    // disable it, it works through any protocol you decide to use without ADB"), the phones wireless debugging
+    // announces ("ADB name" -> host:port), and the link while one is watched
+    private var adb: AdbLink? = null
+    private val adbHosts = mutableMapOf<String, String>()
+    private var adbMdns: io.github.muntashirakon.adb.android.AdbMdns? = null
+    private var adbPairPort = 0
+    private val adbOn get() = prefs.getBoolean("adb", true)
 
     private val prefs by lazy { getSharedPreferences("monitor", MODE_PRIVATE) }
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -171,19 +180,31 @@ class MonitorActivity : Activity() {
             }
             override fun onDown(e: MotionEvent) = true
         })
-        surface.setOnTouchListener { _, ev -> if (link != null) linkTouch(ev) else taps.onTouchEvent(ev) }
+        surface.setOnTouchListener { _, ev -> if (link != null || adb != null) linkTouch(ev) else taps.onTouchEvent(ev) }
 
         surface.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(t: SurfaceTexture, w: Int, h: Int) {
                 output = Surface(t)
                 // `adb shell am start … --es link 192.168.1.102` connects straight to a camera (tests, the emulator)
                 intent?.getStringExtra("link")?.let { h -> linkHosts["LINK $h"] = h; current = "LINK $h" }
+                // v150: the camera phone watched last over ADB, by address and port, in case mDNS is slow or deaf
+                prefs.getString("adbLast", null)?.let { w -> adbHosts.putIfAbsent("ADB ${w.substringBefore(':')}", w) }
+                // v150: `--es adb 192.168.1.101:43917` watches over ADB at once (the emulator cannot hear mDNS);
+                // `--es pair 192.168.1.101:37123:123456` pairs first
+                intent?.getStringExtra("adb")?.let { w -> adbHosts["ADB ${w.substringBefore(':')}"] = w; current = "ADB ${w.substringBefore(':')}" }
+                intent?.getStringExtra("pair")?.split(':')?.takeIf { it.size == 3 }?.let { (h, p, c) ->
+                    thread(name = "adb-pair") {
+                        val ok = runCatching { AdbLink.pair(this@MonitorActivity, h, p.toInt(), c) }.getOrElse { e -> android.util.Log.w("AdbLink", "pair", e); false }
+                        android.util.Log.i("AdbLink", "paired $h:$p: $ok")
+                        ui.post { say(if (ok) "Paired with $h" else "Pairing with $h failed") }
+                    }
+                }
                 val again = current ?: prefs.getString("source", null)
                 if (again != null) watch(again) else say("Double tap in the middle to choose a source")
             }
             override fun onSurfaceTextureSizeChanged(t: SurfaceTexture, w: Int, h: Int) = fit()
             override fun onSurfaceTextureDestroyed(t: SurfaceTexture): Boolean {
-                engine?.stop(); engine = null; output?.release(); output = null
+                engine?.stop(); engine = null; adb?.stop(); adb = null; output?.release(); output = null
                 return true
             }
             override fun onSurfaceTextureUpdated(t: SurfaceTexture) {
@@ -214,6 +235,7 @@ class MonitorActivity : Activity() {
         finding = false
         NdiFinder.stop()
         nsdListener?.let { l -> runCatching { nsd?.stopServiceDiscovery(l) } }; nsdListener = null
+        runCatching { adbMdns?.stop() }; runCatching { adbPairMdns?.stop() }; adbMdns = null; adbPairMdns = null
         runCatching { wifiLock?.release() }
         wifiLock = null
     }
@@ -243,8 +265,25 @@ class MonitorActivity : Activity() {
         runCatching { m.discoverServices(Link.SERVICE, android.net.nsd.NsdManager.PROTOCOL_DNS_SD, l); nsdListener = l }
     }
 
+    /** v150: the phones with wireless debugging on announce _adb-tls-connect (and, while "Pair with code" is open, _adb-tls-pairing). */
+    private fun findAdb() {
+        if (adbMdns != null) return
+        runCatching {
+            adbMdns = io.github.muntashirakon.adb.android.AdbMdns(this, io.github.muntashirakon.adb.android.AdbMdns.SERVICE_TYPE_TLS_CONNECT) { host, port ->
+                val h = host?.hostAddress ?: return@AdbMdns
+                if (port <= 0) return@AdbMdns
+                ui.post { adbHosts["ADB $h"] = "$h:$port"; if (picker.visibility == View.VISIBLE) fillPicker() }
+            }.apply { start() }
+            adbPairMdns = io.github.muntashirakon.adb.android.AdbMdns(this, io.github.muntashirakon.adb.android.AdbMdns.SERVICE_TYPE_TLS_PAIRING) { _, port ->
+                if (port > 0) ui.post { adbPairPort = port }
+            }.apply { start() }
+        }
+    }
+    private var adbPairMdns: io.github.muntashirakon.adb.android.AdbMdns? = null
+
     private fun startFinding() {
         if (nsdListener == null) findLinks()
+        findAdb()
         if (!NdiFinder.available) { say("The NDI runtime is not in this build"); return }
         if (!NdiFinder.start(this)) { say("NDI discovery would not start"); return }
         finding = true
@@ -261,9 +300,18 @@ class MonitorActivity : Activity() {
     private var lastTotalsAt = 0L
     private var lastEngine: MonitorEngine? = null
     private var linkLast = 0L to 0L
+    private var adbLast = 0L to 0L
     private val statsTick = object : Runnable {
         override fun run() {
             ui.postDelayed(this, 1000)
+            // v150: the ADB status line, with what arrives over it
+            adb?.let { a ->
+                val t = a.frames.get() to a.bytes.get()
+                if (a.width > 0) status.text = String.format(java.util.Locale.ROOT, "ADB ENABLED · %s · %s:%d · %d fps · %.1f Mbit/s",
+                    a.device.ifEmpty { "camera" }, a.host, a.port, t.first - adbLast.first, (t.second - adbLast.second) * 8 / 1e6)
+                adbLast = t
+                return
+            }
             link?.let { lk ->
                 val t = lk.frames.get() to lk.bytes.get()
                 android.util.Log.i("MonitorStats", String.format(java.util.Locale.ROOT, "link %d fps, %.1f Mbit/s",
@@ -314,6 +362,28 @@ class MonitorActivity : Activity() {
         head.addView(word("SOURCES", Color.parseColor("#E8A33D"), 13f, null), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         head.addView(word("✕", Color.parseColor("#F2DDB4"), 20f) { showPicker(false) })
         list.addView(head)
+        // v150: ADB, the switch and its status line; PAIR and GUIDE; then the phones wireless debugging announces
+        val adbRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        adbRow.addView(word("ADB", if (adbOn) Color.parseColor("#33D17A") else Color.parseColor("#7A8087"), 16f) {
+            prefs.edit().putBoolean("adb", !adbOn).apply(); fillPicker()
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        adbRow.addView(word(if (adbOn) "  ON" else "  OFF", if (adbOn) Color.parseColor("#33D17A") else Color.parseColor("#7A8087"), 13f) {
+            prefs.edit().putBoolean("adb", !adbOn).apply(); fillPicker()
+        })
+        adbRow.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        adbRow.addView(word("PAIR", Color.parseColor("#F2DDB4"), 14f) { pairDialog() })
+        adbRow.addView(word("    GUIDE", Color.parseColor("#F2DDB4"), 14f) { guideDialog() })
+        list.addView(adbRow)
+        list.addView(word(
+            if (adbOn) "ADB ENABLED: a camera is watched and driven through wireless debugging (scrcpy's picture, every touch)"
+            else "ADB OFF: cameras are watched over MANTRA LINK and NDI",
+            Color.parseColor("#7A8087"), 11f, null).apply { setPadding(0, 0, 0, dp(10)) })
+        if (adbOn) for ((name, where) in adbHosts.toSortedMap()) {
+            val on = name == current
+            list.addView(word("$name  ·  $where", if (on) Color.parseColor("#33D17A") else Color.parseColor("#F2DDB4"), 16f) {
+                showPicker(false); watch(name)
+            })
+        }
         for (name in linkHosts.keys.sorted()) {
             val on = name == current
             list.addView(word(name, if (on) Color.parseColor("#33D17A") else Color.parseColor("#F2DDB4"), 16f) {
@@ -342,8 +412,9 @@ class MonitorActivity : Activity() {
     private fun fit() {
         val lk = link
         val e = engine
-        if (lk == null && e == null) return
-        val vw = (lk?.width ?: e!!.lastWidth).toFloat(); val vh = (lk?.height ?: e!!.lastHeight).toFloat()
+        val a = adb
+        if (lk == null && e == null && a == null) return
+        val vw = (a?.width ?: lk?.width ?: e!!.lastWidth).toFloat(); val vh = (a?.height ?: lk?.height ?: e!!.lastHeight).toFloat()
         val w = surface.width.toFloat(); val h = surface.height.toFloat()
         if (vw <= 0 || vh <= 0 || w <= 0 || h <= 0) return
         fittedW = vw.toInt(); fittedH = vh.toInt()
@@ -366,6 +437,14 @@ class MonitorActivity : Activity() {
     private fun watch(source: String) {
         engine?.stop(); engine = null
         link?.stop(); link = null; linkClean = false; cleanBar.visibility = View.GONE; status.visibility = View.VISIBLE
+        adb?.stop(); adb = null
+        if (source.startsWith("ADB ")) { watchAdb(source); return }
+        // v150: with ADB on, a camera found over the link is reached through wireless debugging when it announces it
+        if (source.startsWith("LINK ") && adbOn) {
+            val h = linkHosts[source]
+            val viaAdb = adbHosts.keys.firstOrNull { k -> h != null && adbHosts[k]?.startsWith("$h:") == true }
+            if (viaAdb != null) { watchAdb(viaAdb); return }
+        }
         if (source.startsWith("LINK ")) { watchLink(source); return }
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
         current = source
@@ -412,6 +491,52 @@ class MonitorActivity : Activity() {
     }
 
     /**
+     * v150: the camera phone's screen over wireless debugging (AdbLink: scrcpy's picture, every touch back as scrcpy's
+     * own touch event). Like the link, the monitor adds nothing to the picture but the ADB status line.
+     */
+    private fun watchAdb(source: String) {
+        val where = adbHosts[source] ?: source.removePrefix("ADB ").takeIf { it.contains(':') } ?: run { say("Not found: $source"); return }
+        val host = where.substringBefore(':'); val port = where.substringAfter(':').toIntOrNull() ?: run { say("No port for $source"); return }
+        current = source
+        prefs.edit().putString("source", source).putString("adbLast", where).apply()
+        turns = 0
+        remote = false; railTop.visibility = View.GONE; railBottom.visibility = View.GONE; info.visibility = View.GONE
+        overlay.marks = emptyList(); turnKey.visibility = View.GONE
+        status.visibility = View.VISIBLE
+        fittedW = 0; fittedH = 0
+        val out = output ?: run { say("No picture surface yet"); return }
+        val a = AdbLink(this, host, port, out,
+            onStatus = { msg -> ui.post { status.visibility = View.VISIBLE; status.text = msg } },
+            onSize = { w, h -> ui.post { followCamera(w, h); fit() } },
+            onPairingNeeded = { ui.post { pairDialog(host) } })
+        adb = a
+        a.start()
+    }
+
+    /** v150: wireless debugging's "Pair with code" on the camera phone shows an address, a port and six digits. */
+    private fun pairDialog(hostHint: String? = null) {
+        val host = android.widget.EditText(this).apply { hint = "camera phone's address, 192.168.1.101"; setText(hostHint ?: adbHosts.values.firstOrNull()?.substringBefore(':') ?: "") }
+        val port = android.widget.EditText(this).apply { hint = "pairing port (the five digits after the colon)"; inputType = android.text.InputType.TYPE_CLASS_NUMBER; if (adbPairPort > 0) setText(adbPairPort.toString()) }
+        val code = android.widget.EditText(this).apply { hint = "six-digit pairing code"; inputType = android.text.InputType.TYPE_CLASS_NUMBER }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), 0); addView(host); addView(port); addView(code) }
+        android.app.AlertDialog.Builder(this).setTitle("PAIR WITH THE CAMERA PHONE").setView(box)
+            .setNegativeButton("CANCEL", null)
+            .setPositiveButton("PAIR") { _, _ ->
+                val h = host.text.toString().trim(); val p = port.text.toString().toIntOrNull() ?: 0; val c = code.text.toString()
+                say("Pairing with $h…")
+                thread(name = "adb-pair") {
+                    val ok = runCatching { AdbLink.pair(this, h, p, c) }.getOrElse { ui.post { say("Pairing failed: " + (it.message ?: it.javaClass.simpleName)) }; return@thread }
+                    ui.post { say(if (ok) "Paired with $h. Choose ADB $h in the sources." else "Pairing refused: check the code and the port") }
+                }
+            }.show()
+    }
+
+    /** v150 (Marko: "in settings, there must be a guide on how to set up ADB wireless"). */
+    private fun guideDialog() {
+        android.app.AlertDialog.Builder(this).setTitle("ADB OVER WI-FI, ONCE").setMessage(ADB_GUIDE).setPositiveButton("OK", null).show()
+    }
+
+    /**
      * v134: over the link the monitor holds the camera's orientation (Marko, 4.10.2026: "the noting phone is always
      * following the orientation of the pixel phone ... Now a phone is vertical and view is horizontal ... we have just
      * tiny tiny view"). The camera's window upright → this screen upright; the window across → this screen across.
@@ -450,8 +575,10 @@ class MonitorActivity : Activity() {
 
     /** Every finger to the camera, as fractions of its picture; three fingers open the sources; CLEAN: a double tap returns. */
     private fun linkTouch(ev: MotionEvent): Boolean {
-        val c = link ?: return false
-        if (linkClean) {
+        val a = adb
+        val c = link
+        if (a == null && c == null) return false
+        if (c != null && linkClean) {
             if (ev.actionMasked == MotionEvent.ACTION_UP) {
                 val now = android.os.SystemClock.uptimeMillis()
                 if (now - cleanTapAt < 350) c.mode(false)
@@ -461,7 +588,8 @@ class MonitorActivity : Activity() {
         }
         if (ev.pointerCount >= 3) {
             if (ev.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
-                c.touch(MotionEvent.ACTION_CANCEL, 0, intArrayOf(0), floatArrayOf(0f), floatArrayOf(0f))
+                c?.touch(MotionEvent.ACTION_CANCEL, 0, intArrayOf(0), floatArrayOf(0f), floatArrayOf(0f))
+                a?.touch(MotionEvent.ACTION_CANCEL, 0, intArrayOf(ev.getPointerId(0), ev.getPointerId(1)), floatArrayOf(0f, 0f), floatArrayOf(0f, 0f))
                 showPicker(true)
             }
             return true
@@ -474,12 +602,13 @@ class MonitorActivity : Activity() {
             ids[i] = ev.getPointerId(i)
             xs[i] = (p[0] / surface.width).coerceIn(0f, 1f); ys[i] = (p[1] / surface.height).coerceIn(0f, 1f)
         }
-        c.touch(ev.actionMasked, ev.actionIndex, ids, xs, ys)
+        if (a != null) a.touch(ev.actionMasked, ev.actionIndex, ids, xs, ys) else c?.touch(ev.actionMasked, ev.actionIndex, ids, xs, ys)
         return true
     }
 
     @Deprecated("the back key goes to the camera in link mode")
     override fun onBackPressed() {
+        adb?.let { a -> if (picker.visibility != View.VISIBLE) { a.key("BACK"); return } }
         val c = link
         if (c != null && picker.visibility != View.VISIBLE) { c.key("BACK"); return }
         if (picker.visibility == View.VISIBLE) { showPicker(false); return }
