@@ -873,3 +873,7 @@ Needs the GPU stage (Settings → Picture path).
 > "we need to have Add Keyframe and Remove Keyframe, both options. It's the keyframe column, and then two yellow buttons: Add or Remove" (Marko, 26.10.2026)
 
 85. (Replaces 83 and 84.) The pop-up reads "KEYFRAME:" with the distance, and always two yellow buttons, ADD and REMOVE. ADD puts a keyframe where the lens is; REMOVE takes away the keyframe pressed (a key point's circle) or the one where the lens stands (the white circle), dimmed when there is none. A tap outside closes it. — **Status:** v151.
+
+> "Icon is not good. Bring the camera back with the same color styling. That's all" (Marko, 26.10.2026)
+
+86. (Replaces 78's keys.) The icon is the camera again (v95's traced camera), drawn in TTT's colours: the dark #0D1117 ground, the camera as lit neon lines with TTT's soft glow, the version under it. The monitor keeps its own old symbol (a screen with a lens) in the same colours. — **Status:** v151.
