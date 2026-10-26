@@ -170,3 +170,11 @@ before calling the picture right or wrong. Ramps (time, smoothness) can be judge
     the frame flags moved down a bit (62 config, 61 key frame). In a forward tunnel the device name and codec come only
     after the control socket is open too. `cleanup=true` deletes the pushed jar: push it every start.
 25. **ADB pairing from an app needs the app's own Conscrypt** (org.conscrypt): the system's hides exportKeyingMaterial.
+
+## 26. A test on an empty battery tests the battery (26.10.2026)
+
+The Pixel switched itself off in the middle of an NDI test (`getprop sys.boot.reason` = `shutdown,battery`), at
+0 % while "AC powered" on a 5 V charger: the camera, the torch at 100 %, 10-bit HEVC, NDI and two remotes over ADB
+drew more than that charger gives. Its last minutes looked exactly like the bug being hunted (picture stall, sound
+on, then nothing). Before any long or NDI test: `adb shell dumpsys battery` (level, Max charging voltage); under
+50 % or a 5 V charger, the result is not evidence. The torch off unless the test needs it.
