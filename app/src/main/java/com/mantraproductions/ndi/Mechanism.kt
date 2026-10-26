@@ -161,6 +161,21 @@ object Mechanism {
     }
 
     /**
+     * v145: a lens position in dioptres as a distance to read under the square: millimetres under 10 cm, centimetres
+     * (one decimal) under a metre, metres (two decimals) beyond, ∞ at zero.
+     */
+    fun formatFocusDistance(dioptres: Float): String {
+        if (dioptres <= 0.001f) return "∞"
+        val m = 1f / dioptres
+        return when {
+            m < 0.1f -> String.format(java.util.Locale.ROOT, "%.0f mm", m * 1000f)
+            m < 1f -> String.format(java.util.Locale.ROOT, "%.1f cm", m * 100f)
+            m < 100f -> String.format(java.util.Locale.ROOT, "%.2f m", m)
+            else -> "∞"
+        }
+    }
+
+    /**
      * v143: the shutters the circle's − and + step through, the ones a video camera offers: the 180 degree
      * shutters of 24, 25 and 30 fps, mains-safe 1/50, 1/60, 1/100, 1/120, then doubling to 1/8000.
      */

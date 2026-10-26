@@ -762,3 +762,7 @@ Needs the GPU stage (Settings → Picture path).
 61. The gear key goes. The free-space key (44.6 GB / 4:20 h) opens the settings and is coloured yellow; the other keys of the bottom rail spread into the room the gear left. — **Status:** v145 asked.
 
 62. Inside the record button, in place of the white disc, the thumbnail of the last thing this app captured, photo or video, whichever is newest; the button stays the record button. — **Status:** v145 asked.
+
+> "also check if it's possible to adjust the brightness of the LED in the Pixel phone, so in our settings we can have brightness control for the LED" (Marko, 26.10.2026)
+
+63. The light's brightness: find whether the Pixel 7's LED takes a strength level; if it does, a brightness control in the settings. — **Status:** asked.
