@@ -2211,7 +2211,7 @@ class MainActivity : AppCompatActivity() {
     /** v149: the meter shown when the settings say so and the lens focuses; its lens triangle follows the capture result. */
     private fun showMeter() {
         val closest = if (pipeline.isRunning) pipeline.engine.minimumFocusDistance() else 0f
-        val on = settings.focusPuller && closest > 0f
+        val on = settings.focusPuller && closest > 0f && !fullScreen
         focusMeter.visibility = if (on) View.VISIBLE else View.GONE
         focusMeter.closest = if (on) closest else 0f
     }
@@ -3381,6 +3381,9 @@ class MainActivity : AppCompatActivity() {
         placeStatus()
         vu.visibility = hidden
         timecode.visibility = hidden
+        // v154 (seen 26.10.2026 in the page's screenshots): the focus-puller scale with its play key stayed on a
+        // clean feed; FULL is nothing but the picture
+        showMeter()
         // The zones and the focus box come back to whichever of them was up.
         zones.visibility = if (!on && zonesOn) View.VISIBLE else View.GONE
         refreshMarks()
