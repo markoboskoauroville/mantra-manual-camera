@@ -985,3 +985,7 @@ Needs the GPU stage (Settings → Picture path).
 > "make zebra lines gray, but outline is orange. Picking outline orange. Okay, understand. When it's activated, it's green. Only change the zebra to have these lines on the angle in the color of gray" (Marko, 26.10.2026)
 
 113. ZEB: the slanted lines grey, the outline orange (green when on). — **Status:** v155.
+
+> "okay, we can pose this project back to the camera, test all its functions" (Marko, 26.10.2026)
+
+114. Every function of the camera tested (v155): keys, settings, recording, photos, lenses, curves, focus, NDI, the power monitor, the remote. — **Status:** in work.
