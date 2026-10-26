@@ -883,3 +883,9 @@ Needs the GPU stage (Settings → Picture path).
 > "now continue testing. Search for the bugs, optimize the code, test all the outputs. You can control my web browser. You have NDI Monitor. You have OBS. Everything is here. The testing is ready. This is the testing ground. Please stress test the application. Remote controller, search for bugs and optimizations of the code" (Marko, 26.10.2026)
 
 87. A stress pass: every output (FILE, NDI HX and FULL, over Wi-Fi and the cable) received on the Mac (NDI Monitor, OBS), the remote over ADB and over MANTRA LINK under load and reconnects, the code read for bugs and waste. — **Status:** in work.
+
+88. BUG found by the stress pass, 26.10.2026: with NDI HX streaming on L2, `set ndiKind 2` (FULL) answered "Full NDI is not possible on this lens" and the HX stream stopped with it; the Mac's probe then found no source at all. A choice the lens cannot take must leave the stream it had running. — **Status:** fixing in v152.
+
+> "already developed controlling of this Oxi device A16 over the USB in my computer, so you can animate the LED rings if you want to have some kind of moving picture. You can check for the drop frames or whatever you need to check when the picture is not static. If it's not developed, then you need to develop it." (Marko, 26.10.2026; the Oxi E16 in front of the lens)
+
+89. A moving picture for the stress pass: the Oxi E16's LED rings animated from the Mac over USB MIDI, so dropped frames show in a picture that is not static. — **Status:** asked.
