@@ -2025,7 +2025,7 @@ class MainActivity : AppCompatActivity() {
                 engine.setWhiteBalanceKelvin(wbKelvin)
                 "White balance " + WhiteBalance.format(wbKelvin)
             }
-            "focus" -> if (v == "auto") { setParamAuto(2, true, quiet = true); "Focus automatic" } else {
+            "focus" -> if (v == "auto") { rackTicket++; setParamAuto(2, true, quiet = true); "Focus automatic" } else {
                 if (!engine.supportsManualFocus()) return "this lens has fixed focus"
                 val f = v.toFloatOrNull() ?: return "focus takes 0 (infinity) to 1 (closest) or auto"
                 focusFraction = f.coerceIn(0f, 1f)
@@ -2037,18 +2037,38 @@ class MainActivity : AppCompatActivity() {
             // v145: the lens at an exact distance, in dioptres (4.0), centimetres (25cm), millimetres (250mm) or metres (0.25m)
             "focusd" -> {
                 if (!engine.supportsManualFocus()) return "this lens has fixed focus"
-                val dpt = when {
-                    v.endsWith("mm") -> v.removeSuffix("mm").toFloatOrNull()?.let { 1000f / it }
-                    v.endsWith("cm") -> v.removeSuffix("cm").toFloatOrNull()?.let { 100f / it }
-                    v.endsWith("m") -> v.removeSuffix("m").toFloatOrNull()?.let { 1f / it }
-                    else -> v.removeSuffix("dpt").toFloatOrNull()
-                } ?: return "focusd takes dioptres (4.0), 250mm, 25cm or 0.25m"
+                val dpt = adbDioptres(v) ?: return "focusd takes dioptres (4.0), 250mm, 25cm or 0.25m"
                 stopTrack()
                 if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
                 val closest = engine.minimumFocusDistance()
                 focusFraction = (dpt / closest).coerceIn(0f, 1f)
                 engine.setFocusDistance(dpt.coerceIn(0f, closest))
                 String.format(java.util.Locale.ROOT, "Focus %.4f dpt", dpt.coerceIn(0f, closest))
+            }
+            // v145: a rack to a distance, eased in and out over a time (rack 40cm 3000), as a focus puller does it
+            "rack" -> {
+                if (!engine.supportsManualFocus()) return "this lens has fixed focus"
+                val parts = v.split(' ').filter { it.isNotBlank() }
+                val to = parts.getOrNull(0)?.let { adbDioptres(it) } ?: return "rack takes a distance and ms: rack 40cm 3000"
+                val ms = parts.getOrNull(1)?.toLongOrNull() ?: settings.focusRackMs
+                stopTrack()
+                if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
+                val closest = engine.minimumFocusDistance()
+                val from = engine.lastFocusDistance ?: 0f
+                val target = to.coerceIn(0f, closest)
+                val started = android.os.SystemClock.uptimeMillis()
+                val mine = ++rackTicket
+                ui.post(object : Runnable {
+                    override fun run() {
+                        if (rackTicket != mine || !pipeline.isRunning) return
+                        val p = ((android.os.SystemClock.uptimeMillis() - started).toFloat() / ms.coerceAtLeast(1)).coerceIn(0f, 1f)
+                        val at = Mechanism.rackPosition(from, target, p)
+                        focusFraction = (at / closest).coerceIn(0f, 1f)
+                        pipeline.engine.setFocusDistance(at)
+                        if (p < 1f) ui.postDelayed(this, 33) else say("Rack arrived: " + Mechanism.formatFocusDistance(target))
+                    }
+                })
+                "Rack " + Mechanism.formatFocusDistance(from) + " → " + Mechanism.formatFocusDistance(target) + " in ${ms} ms"
             }
             // any key of the rails, by the name the link uses (REC, MARK0, a key's label)
             "key" -> { pressKey(v.uppercase()); return "key ${v.uppercase()}" }
@@ -2060,12 +2080,24 @@ class MainActivity : AppCompatActivity() {
                 "+", "-" -> { stepShutter(if (v == "+") 1 else -1); return lastSaid }
                 else -> return "circle takes iso, wb, tap, + or -"
             }
-            else -> return "unknown command $cmd: state, settings, set, restart, update, lens, torch, exposure, iso, shutter, ev, wb, focus, focusd, circle, key"
+            else -> return "unknown command $cmd: state, settings, set, restart, update, lens, torch, exposure, iso, shutter, ev, wb, focus, focusd, rack, circle, key"
         }
         say("ADB: $said")
         refreshZones()
         refreshKeys()
         return said
+    }
+
+    /** v145: a rack running from adb; a new one, or any other focus command, takes over. */
+    private var rackTicket = 0
+
+    /** v145: 4.0 (dioptres), 250mm, 25cm, 0.25m or inf as dioptres. */
+    private fun adbDioptres(v: String): Float? = when {
+        v == "inf" || v == "∞" -> 0f
+        v.endsWith("mm") -> v.removeSuffix("mm").toFloatOrNull()?.let { 1000f / it }
+        v.endsWith("cm") -> v.removeSuffix("cm").toFloatOrNull()?.let { 100f / it }
+        v.endsWith("m") -> v.removeSuffix("m").toFloatOrNull()?.let { 1f / it }
+        else -> v.removeSuffix("dpt").toFloatOrNull()
     }
 
     /** 1/50, 0.02 or 20ms as nanoseconds. */
@@ -3564,10 +3596,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * v145, under the square (Marko, 26.10.2026: "In the same style as we have ISO under the circle ... focusing auto
-     * ... focusing set ... Then you need to put the meters, which are centimeters or meters, where the focus is actually
-     * adjusted, so we always know the distance"): FOCUSING: AUTO while the camera is measuring, FOCUSING: SET once it
-     * holds (locked, MF or a rack that arrived), and under it where the lens really is, from the capture result.
+     * v145, under the square (Marko, 26.10.2026: "In the same style as we have ISO under the circle ... put the meters,
+     * which are centimeters or meters, where the focus is actually adjusted, so we always know the distance"): FOC: and
+     * where the lens really is, from the capture result, running while it searches.
      */
     private val focusLabelTick = object : Runnable {
         override fun run() {
@@ -3579,11 +3610,10 @@ class MainActivity : AppCompatActivity() {
     private fun focusLabel(): String? {
         if (!pipeline.isRunning) return null
         val e = pipeline.engine
-        if (e.minimumFocusDistance() <= 0f) return "FIXED FOCUS"
-        val measuring = focusSquare.state == FocusSquareView.State.SEEKING ||
-            (focus.mode == FocusDirector.Mode.AUTO && focusSquare.state != FocusSquareView.State.LOCKED)
-        val head = if (measuring) "FOCUSING: AUTO" else "FOCUSING: SET"
-        return head + (e.lastFocusDistance?.let { "\n" + Mechanism.formatFocusDistance(it) } ?: "")
+        // v145, his second word (26.10.2026): "It can be FOC. Then column, then centimeters. The set thing. I don't need
+        // to have it ... while it's searching, instead of auto, it goes to display the number" — one line, the number runs
+        if (e.minimumFocusDistance() <= 0f) return "FOC: FIXED"
+        return "FOC: " + (e.lastFocusDistance?.let { Mechanism.formatFocusDistance(it) } ?: "--")
     }
 
     private fun focusLockText(): String? {

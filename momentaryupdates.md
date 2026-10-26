@@ -753,7 +753,7 @@ Needs the GPU stage (Settings → Picture path).
 
 59. Under the square, small, as ISO / WB under the circle: FOCUSING: AUTO while the camera measures, FOCUSING: SET once it holds, and under it the distance the lens is really at, in centimetres or metres. — **Status:** v145 built (mm under 10 cm, cm with one decimal under 1 m, m beyond; FIXED FOCUS on a lens without travel); adb `mcam focusd 25cm|250mm|4.0` and the state's focus_dpt, focus_at, focus_closest_dpt, focus_calibration.
 
-60. The focus measured from the Mac on every lens that focuses: whether the app moves it, over the whole range, and the finest step the hardware takes (he wants millimetres). — **Status:** asked.
+60. The focus measured from the Mac on every lens that focuses: whether the app moves it, over the whole range, and the finest step the hardware takes (he wants millimetres). — **Status:** MEASURED 26.10.2026 on v145 (`mcam focusd`, the capture result read back): L1 ultra wide 17 mm, L4 and L5 front: FIXED focus, no motor. L2 25 mm (fused) and L3 50 mm are the same main sensor and motor: infinity to 10.5 cm (9.52 dpt), calibration APPROXIMATE, every position asked is reached (asked 2.381 → reached 2.381). The motor's finest step is 0.034 dpt (about 280 positions infinity → 10.5 cm): about 0.4 mm at 10.5 cm, 0.8 mm at 15 cm, 2 mm at 25 cm, 8 mm at 50 cm, 3.5 cm at 1 m, 14 cm at 2 m. Millimetres hold only closer than about 30 cm.
 
 ## 26.10.2026 — no gear: the free space opens the settings; the last take inside the record button
 
@@ -795,9 +795,9 @@ Needs the GPU stage (Settings → Picture path).
 >
 > There will be one square, one triangle pointing down, in a different color than the key frames. Key frames on the meter will look like an empty triangle looking down, and the current focus will be a full white triangle. When the user clicks on these circles, the triangle will, in this matter of animation, ramp up with the speed and then ramp down and fall on that focusing point where the user presses." (Marko, 26.10.2026)
 
-68. Under the square only "FOC: 21.7 cm": no AUTO, no SET; while it searches the number runs. — **Status:** v145 (replaces 59's words).
+68. Under the square only "FOC: 21.7 cm": no AUTO, no SET; while it searches the number runs. — **Status:** v145 PROVEN on the Pixel 7: "FOC: 15.0 cm", the number running while it searches or racks.
 
-69. Rack focus between points, eased in and out like a focus puller on set: tested from the Mac. — **Status:** asked.
+69. Rack focus between points, eased in and out like a focus puller on set: tested from the Mac. — **Status:** v145 PROVEN 26.10.2026 with `mcam rack 15cm 3000` (smootherstep): 50.1 cm at 0 s, 49.2 at 0.36 s, 37.1 at 0.98 s, 22.9 at 1.63 s, 17.3 at 2.22 s, 15.1 at 2.89 s, 15.0 from 3.25 s — slow out, fast through the middle, slow in.
 
 70. THE FOCUS PULLER'S METER on the remote: a distance scale on the screen; he marks any distances as key points (empty triangles pointing down, each with a circle the size of a fingertip under it, like the ISO circle); the lens is a full white triangle; a tap on a circle racks the focus there, the white triangle accelerating and easing to land on the point; a play button goes from one key point to the next. — **Status:** asked, for the remote with 64–66.
 
