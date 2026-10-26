@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import android.util.Size
+import android.view.MotionEvent
 import android.view.Surface
 import android.view.TextureView
 import android.view.View
@@ -70,6 +71,10 @@ private const val ADB_ACTION = "com.mantraproductions.manualcamera.ADB"
 private const val THUMB_PX = 192
 /** v145: the free-space key, which opens the settings, in yellow. */
 private val STORAGE_YELLOW = android.graphics.Color.parseColor("#F5D90A")
+/** v155: the POWER MONITOR's readout, blue beside the drive's yellow. */
+private val POWER_BLUE = android.graphics.Color.parseColor("#4DB8FF")
+/** v155: how long a finger stays on a key before its help opens. */
+private const val HELP_MS = 2000L
 
 class MainActivity : AppCompatActivity() {
 
@@ -204,7 +209,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var storageKey: RailButton
     /** v155: the POWER MONITOR, beside the drive's time left (Marko, 26.10.2026). */
     private lateinit var powerMonitor: PowerMonitor
-    private lateinit var powerRing: PowerRingView
+    private lateinit var powerKey: RailButton
     private var lastPower: PowerMonitor.Reading? = null
     private lateinit var timecode: TextView
 
@@ -575,7 +580,7 @@ class MainActivity : AppCompatActivity() {
         // which is the playing button, should become this round button with the last picture of the last clip ...
         // Everything is circular. Please make the recording in the place of the lot, in the middle of the screen"):
         // LUT where REC was, PLAY as a round key with the last capture, REC in the middle where the LUT was.
-        recKey = RecordButtonView(this).also { it.setOnClickListener { toggleRecording() } }
+        recKey = RecordButtonView(this).also { it.setOnClickListener { toggleRecording() }; withHelp(it) { "REC" } }
         lutKey = newKey("LUT") { nextLut() }.also {
             it.setOnLongClickListener { openSettings(); true }
             railRight.addView(it)
@@ -585,6 +590,7 @@ class MainActivity : AppCompatActivity() {
         lastKey = RecordButtonView(this).also {
             it.playMode = true
             it.setOnClickListener { playLastCapture() }
+            withHelp(it) { "PLAY" }
             railRight.addView(it)
         }
         // v145: the last capture, kept from the run before
@@ -597,12 +603,12 @@ class MainActivity : AppCompatActivity() {
             it.glyph = RailButton.Glyph.CAMERA
             railRight.addView(it)
         }
-        shootKey = newKey("PORTRAIT") { nextShoot() }.also { railRight.addView(it) }
+        shootKey = newKey("POR") { nextShoot() }.also { railRight.addView(it) }
         railRight.addView(recKey)
-        peakKey = newKey("PEAK") { togglePeaking() }.also { railRight.addView(it) }
-        falseKey = newKey("FALSE") { falseColour = !falseColour; applyLook(); refreshKeys() }
+        peakKey = newKey("PEA") { togglePeaking() }.also { railRight.addView(it) }
+        falseKey = newKey("FAL") { falseColour = !falseColour; applyLook(); refreshKeys() }
             .also { railRight.addView(it) }
-        zebraKey = newKey("ZEBRA") { zebra = !zebra; applyLook(); refreshKeys() }
+        zebraKey = newKey("ZEB") { zebra = !zebra; applyLook(); refreshKeys() }
             .also { railRight.addView(it) }
         // v145: no gear (Marko, 26.10.2026: "remove this settings icon, and clicking on the free space will open the
         // settings. That's why you need to color this free space thing in yellow"). The readout is the way in.
@@ -610,7 +616,7 @@ class MainActivity : AppCompatActivity() {
         // v155 (Marko, 26.10.2026: "two points of reference that tell me how long I can keep working"): the drive's
         // time left, and under it the battery's, on the ring of the POWER MONITOR; a tap opens all of its numbers
         powerMonitor = PowerMonitor(this)
-        powerRing = PowerRingView(this).also { v -> v.setOnClickListener { showPower() }; railRight.addView(v) }
+        powerKey = newKey("—") { showPower() }.also { it.tint = POWER_BLUE; railRight.addView(it) }
     }
 
     /** v130: the lens drawer opens over the whole left rail (wider in landscape, taller upright) and closes again. */
@@ -666,7 +672,31 @@ class MainActivity : AppCompatActivity() {
         RailButton(this).apply {
             this.label = label
             setOnClickListener { onTap() }
+            withHelp(this) { keyName(this) }
         }
+
+    /**
+     * v155 (Marko, 26.10.2026: "long press of any of the action buttons after 2 seconds. Open the help menu explaining
+     * what the button does"): a finger held 2 s on a key opens its help, and the key is not pressed. A key with its own
+     * long press (LUT: the settings) keeps it.
+     */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private fun withHelp(v: View, name: () -> String) {
+        var shown = false
+        val open = Runnable { if (!v.isLongClickable) { shown = true; showHelp(name()) } }
+        v.setOnTouchListener { _, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { shown = false; v.postDelayed(open, HELP_MS) }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { v.removeCallbacks(open); if (shown) { v.isPressed = false; return@setOnTouchListener true } }
+            }
+            false
+        }
+    }
+
+    private fun showHelp(name: String) {
+        val (title, text) = Help.forKey(name, lastPower)
+        android.app.AlertDialog.Builder(this).setTitle(title).setMessage(text).setPositiveButton("OK", null).show()
+    }
 
     /**
      * Across in landscape, down in portrait. Both, like any app on a phone.
@@ -1009,7 +1039,7 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             if (pipeline.isRunning) pipeline.sampleRate()
             if (++storageTicks % 5 == 0) refreshStorage()
-            runCatching { powerMonitor.read() }.getOrNull()?.let { lastPower = it; powerRing.reading = it }
+            runCatching { powerMonitor.read() }.getOrNull()?.let { lastPower = it; refreshPower(it) }
             if (storageTicks % 2 == 0) watchWire()
             // v136: the stream watchdog, and the service that keeps the stream alive behind other apps
             pipeline.watchStream()?.let { Trace.refused("stream watch", it) }
@@ -1944,7 +1974,9 @@ class MainActivity : AppCompatActivity() {
             else -> {
                 val all = (0 until railLeft.childCount).map { railLeft.getChildAt(it) } +
                     (0 until railRight.childCount).map { railRight.getChildAt(it) }
-                all.filterIsInstance<RailButton>().firstOrNull { keyName(it) == name }?.performClick()
+                // v155: the keys are three letters now; their old names still reach them (mcam key FALSE …)
+                val n = mapOf("PORTRAIT" to "POR", "LANDSCAPE" to "LAN", "PEAK" to "PEA", "FALSE" to "FAL", "ZEBRA" to "ZEB")[name] ?: name
+                all.filterIsInstance<RailButton>().firstOrNull { keyName(it) == n || (n == "POR" && keyName(it) == "LAN") || (n == "LAN" && keyName(it) == "POR") }?.performClick()
                     ?: Trace.refused("remote", "no key called $name")
             }
         }
@@ -2218,6 +2250,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** v149: the meter shown when the settings say so and the lens focuses; its lens triangle follows the capture result. */
+    /**
+     * v155 (Marko, 26.10.2026: "make it the same as free space, the same design, maybe in the blue color"): the
+     * battery above (level and ▲ charging, ▼ discharging, = balanced), the time under it (to empty, or to full);
+     * red under 20 % or 20 minutes, as the drive's readout goes red under ten.
+     */
+    private fun refreshPower(r: PowerMonitor.Reading) {
+        val arrow = when (r.flow) {
+            PowerMonitor.Flow.CHARGING -> "▲"; PowerMonitor.Flow.DISCHARGING -> "▼"
+            PowerMonitor.Flow.BALANCED -> "="; PowerMonitor.Flow.FULL -> ""
+        }
+        powerKey.label = "${r.level}%$arrow"
+        powerKey.sub = when (r.flow) {
+            PowerMonitor.Flow.FULL -> "FULL"; PowerMonitor.Flow.BALANCED -> "BAL"
+            else -> PowerMonitor.Calc.format(r.seconds) + " h"
+        }
+        val low = r.flow == PowerMonitor.Flow.DISCHARGING && (r.level < 20 || (r.seconds ?: Long.MAX_VALUE) < 20 * 60)
+        powerKey.state = if (low) RailButton.State.ARMED else RailButton.State.SHOWN
+        powerKey.tint = if (low) null else POWER_BLUE
+        powerKey.contentDescription = PowerMonitor.Calc.describe(r)
+    }
+
     /** v155: the POWER MONITOR's numbers, in words, as a V-mount's menu shows them. */
     private fun showPower() {
         val r = lastPower ?: return
@@ -2230,7 +2283,7 @@ class MainActivity : AppCompatActivity() {
         val lines = listOf(
             time,
             "${r.level} %" + (r.chargeMah?.let { "  ·  $it mAh in the cell" } ?: ""),
-            "${PowerRingView.signed(r.netMa)}  ·  " + String.format(java.util.Locale.ROOT, "%.2f V  ·  %.1f W", r.volts, r.watts),
+            "${PowerMonitor.Calc.signed(r.netMa)}  ·  " + String.format(java.util.Locale.ROOT, "%.2f V  ·  %.1f W", r.volts, r.watts),
             if (r.plugged.isEmpty()) "On battery" else "Plugged in: ${r.plugged}",
             String.format(java.util.Locale.ROOT, "Battery %.1f °C", r.tempC),
             if (r.measured) "Measured: the cell's own charge counter over the last minutes"
@@ -2295,7 +2348,7 @@ class MainActivity : AppCompatActivity() {
             "brightness" to sampleBrightness()?.let { String.format(java.util.Locale.ROOT, "%.2f", it) },
             "rec" to rolling,
             // v155: the POWER MONITOR, for the Mac and the remote
-            "power" to lastPower?.let { PowerRingView.describe(it) },
+            "power" to lastPower?.let { PowerMonitor.Calc.describe(it) },
             "power_level" to lastPower?.level,
             "power_flow" to lastPower?.flow?.name?.lowercase(),
             "power_ma" to lastPower?.netMa,
@@ -3729,7 +3782,7 @@ class MainActivity : AppCompatActivity() {
         falseKey.state = if (falseColour) RailButton.State.ON else RailButton.State.OFF
         zebraKey.state = if (zebra) RailButton.State.ON else RailButton.State.OFF
         zebraKey.sub = if (zebra) "${settings.zebraLevel}%" else null
-        shootKey.label = if (settings.shootMode == 1) "LANDSCAPE" else "PORTRAIT"
+        shootKey.label = if (settings.shootMode == 1) "LAN" else "POR"   // v155: three letters (Marko, 26.10.2026)
         shootKey.state = RailButton.State.OFF
         playKey.state = if (lastTakeUri() != null) RailButton.State.OFF else RailButton.State.DEAD
 

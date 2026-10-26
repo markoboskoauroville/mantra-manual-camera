@@ -152,6 +152,24 @@ class PowerMonitor(private val context: Context) {
             return ((to80 / netMa + above / (netMa / 2)) * 3600).toLong()
         }
 
+        /** +1.2A, −850mA: amperes from one ampere up, as a V-mount shows them. */
+        fun signed(ma: Int): String {
+            val s = if (ma > 0) "+" else if (ma < 0) "−" else "±"
+            val a = abs(ma)
+            return if (a >= 1000) String.format(java.util.Locale.ROOT, "%s%.1fA", s, a / 1000.0) else "$s${a}mA"
+        }
+
+        fun describe(r: Reading?): String {
+            if (r == null) return "Power monitor"
+            val what = when (r.flow) {
+                Flow.CHARGING -> "charging, full in ${format(r.seconds)}"
+                Flow.DISCHARGING -> "discharging, empty in ${format(r.seconds)}"
+                Flow.BALANCED -> "balanced"
+                Flow.FULL -> "full"
+            }
+            return "Battery ${r.level} %, $what, ${signed(r.netMa)}, ${String.format(java.util.Locale.ROOT, "%.1f", r.watts)} W"
+        }
+
         /** 3:42 h, 42 min. */
         fun format(seconds: Long?): String = when {
             seconds == null -> "--:--"
