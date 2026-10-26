@@ -609,7 +609,7 @@ class MainActivity : AppCompatActivity() {
             it.tint = SNAP_ORANGE
             railRight.addView(it)
         }
-        shootKey = newKey("POR") { nextShoot() }.also { it.glyph = RailButton.Glyph.ROTATE; railRight.addView(it) }
+        shootKey = newKey("POR") { nextShoot() }.also { it.glyph = RailButton.Glyph.ROTATE; it.tint = SNAP_ORANGE; railRight.addView(it) }
         railRight.addView(recKey)
         peakKey = newKey("PEA") { togglePeaking() }.also { it.glyph = RailButton.Glyph.PEAKING; railRight.addView(it) }
         falseKey = newKey("FC") { falseColour = !falseColour; applyLook(); refreshKeys() }
@@ -3843,7 +3843,7 @@ class MainActivity : AppCompatActivity() {
         zebraKey.sub = if (zebra) "${settings.zebraLevel}%" else null
         shootKey.label = if (settings.shootMode == 1) "LAN" else "POR"   // v155: three letters (Marko, 26.10.2026), the name
         shootKey.across = settings.shootMode == 1                     // v155: and the icon lies across in landscape
-        shootKey.state = RailButton.State.OFF
+        shootKey.state = RailButton.State.SHOWN                       // v155: orange, as the photo key (Marko, 26.10.2026)
         playKey.state = if (lastTakeUri() != null) RailButton.State.OFF else RailButton.State.DEAD
 
         recKey.dead = !pipeline.isRunning

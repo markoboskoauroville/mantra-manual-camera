@@ -74,7 +74,8 @@ class RecordButtonView @JvmOverloads constructor(
         val cy = height / 2f
         val density = resources.displayMetrics.density
         ringPaint.strokeWidth = 2f * density
-        ringPaint.color = if (dead) Color.parseColor("#3A3E42") else Color.parseColor("#C8CDD2")
+        // v155 (Marko, 26.10.2026: "Make the outline in red color"): REC's ring red; PLAY keeps its grey ring
+        ringPaint.color = if (dead) Color.parseColor("#3A3E42") else if (playMode) Color.parseColor("#33D17A") else Color.parseColor("#FF3B30")   // PLAY green (Marko, 26.10.2026)
         fillPaint.color = when {
             dead -> Color.parseColor("#3A3E42")
             playMode -> Color.parseColor("#22262B")          // PLAY with nothing to play yet

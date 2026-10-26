@@ -965,3 +965,11 @@ Needs the GPU stage (Settings → Picture path).
 > "so, please let me know if logic for battery is correct. When the triangle is going up, it means we are charging and the number shows the charging state. That color of the everything should be green means we are charging. When we are discharging, we are yellow, and the number shows how much time we have left to discharge. When we are balanced, then we are white and average values for time, what you calculate every five seconds" (Marko, 26.10.2026)
 
 108. The POWER MONITOR's colours: ▲ charging green (time to full), ▼ discharging yellow (time left; red when critical), = balanced white (the averaged time, every 5 s). — **Status:** v155 on the Pixel: 28%▲ 2:06 h in green while charging; yellow discharging, red under 20 % or 20 min; white when balanced, the time of its slow drift (BAL when still within 5 mA).
+
+> "now I wanted you to do this screen orientation thing. You need to make the icon also orange, same as the camera recording button. Make the outline in red color, please" (Marko, 26.10.2026)
+
+109. The orientation icon orange like the photo camera; the REC button's outline red. — **Status:** v155 on the Pixel.
+
+> "outline for the video player. The one with the thumbnail inside should be green" (Marko, 26.10.2026)
+
+110. PLAY (the thumbnail key): its ring green. — **Status:** v155.
