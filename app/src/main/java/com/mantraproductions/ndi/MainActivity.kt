@@ -3786,7 +3786,9 @@ class MainActivity : AppCompatActivity() {
         if (!::telemetry.isInitialized || !::pipeline.isInitialized) return
         val parts = Mechanism.telemetry(
             settings.armFile, pipeline.isRecording, pipeline.videoBitRate / 1_000_000.0,
-            settings.armNdi, settings.ndiKind, pipeline.mode != CameraPipeline.Mode.OFF,
+            // v152: the kind actually streaming (FULL refused by a lens streams HX; the line said FULL over HX's 16 Mb/s)
+            settings.armNdi, when (pipeline.mode) { CameraPipeline.Mode.FULL -> 2; CameraPipeline.Mode.HX -> 1; else -> settings.ndiKind },
+            pipeline.mode != CameraPipeline.Mode.OFF,
             lastMbps, lastWatching,
             wire = Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter ?: pipeline.currentAdapter()),
             sound = if (meter != null && settings.ndiAudio) audioLabel.ifEmpty { "MIC" } else ""
