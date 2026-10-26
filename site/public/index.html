@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mantra Manual Camera</title>
+<meta name="description" content="A broadcast camera in your pocket: real manual control, cinema log curves, 10-bit HLG, a clean feed and NDI out from an Android phone, with remote control from a second phone or a tablet.">
+<meta property="og:title" content="Mantra Manual Camera">
+<meta property="og:description" content="A broadcast camera in your pocket. Manual control, log, a clean feed and NDI out, from the phone you already own.">
+<meta property="og:image" content="https://mantramanualcamera.pages.dev/img/hero.jpg">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;1,300&family=IBM+Plex+Sans:wght@300;500&family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --night: #0d0a0b; --card: rgba(30,22,20,.72); --edge: rgba(224,162,87,.20);
+    --ink: #f2ece4; --ink2: #b9ad9d; --quiet: #85796f;
+    --brass: #e0a257; --brass-hi: #f3c97a; --cushion: #a8432f;
+    /* the app's own language (CAMERA): colour is the state */
+    --c-ground: #0B0D10; --c-sand: #F2DDB4; --c-on: #33D17A; --c-off: #7A8087;
+    --c-armed: #E8A33D; --c-dead: #33383E; --c-live: #FF3B30;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; color: var(--ink); background: var(--night);
+    font: 300 17px/1.7 "IBM Plex Sans", system-ui, sans-serif;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(60vw 50vh at 85% 0%, rgba(224,162,87,.14), transparent 70%),
+      radial-gradient(50vw 60vh at 0% 45%, rgba(168,67,47,.12), transparent 70%),
+      radial-gradient(70vw 40vh at 50% 100%, rgba(224,162,87,.08), transparent 70%);
+  }
+  a { color: var(--brass-hi); }
+  b, strong { font-weight: 500; color: var(--ink); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  h1, h2, h3 { font-family: Spectral, Georgia, serif; font-weight: 300; margin: 0; }
+  h1 { font-size: clamp(42px, 7vw, 76px); line-height: 1.02; }
+  h1 em, h2 em { color: var(--brass); }
+  h2 { font-size: clamp(28px, 4.2vw, 42px); line-height: 1.15; margin-bottom: 14px; }
+  h3 { font-size: 23px; margin-bottom: 6px; }
+  .eyebrow { font: 400 11px/1 "IBM Plex Mono", monospace; letter-spacing: .26em; text-transform: uppercase; color: var(--brass); margin-bottom: 16px; }
+  section { padding: 84px 0; }
+  p { margin: 0 0 14px; color: var(--ink2); }
+  .lead { font-size: 19px; color: var(--ink2); max-width: 36em; }
+  .card { background: var(--card); border: 1px solid var(--edge); border-radius: 22px; padding: 26px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+  .quiet { color: var(--quiet); font-size: 14.5px; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--brass-hi); box-shadow: 0 0 10px var(--brass); margin-right: 8px; vertical-align: middle; }
+
+  /* hero */
+  header { padding: 56px 0 30px; }
+  .hero { display: grid; grid-template-columns: 1fr 1.15fr; gap: 44px; align-items: center; }
+  .hero .status { font-size: 14.5px; color: var(--quiet); margin-top: 22px; }
+  .photo { position: relative; border-radius: 22px; overflow: hidden; border: 1px solid var(--edge); box-shadow: 0 30px 80px rgba(0,0,0,.6); background: radial-gradient(circle at 30% 30%, rgba(224,162,87,.22), rgba(30,22,20,.9) 70%); aspect-ratio: 16/10; }
+  .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo .wait { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px; font: 400 11px/1.6 "IBM Plex Mono", monospace; letter-spacing: .2em; text-transform: uppercase; color: var(--quiet); }
+  .photo img + .wait { display: none; }
+
+  /* principles */
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .num { font: 400 11px/1 "IBM Plex Mono", monospace; letter-spacing: .22em; color: var(--brass); margin-bottom: 12px; }
+  .card p:last-child { margin-bottom: 0; }
+
+  /* ---------- the app, drawn: the CAMERA language ---------- */
+  .phone {
+    width: 100%; max-width: 900px; margin: 26px auto 0; aspect-ratio: 20/9;
+    background: var(--c-ground); border-radius: 34px; padding: 1.4%;
+    border: 1px solid #2a2a2e; box-shadow: 0 0 0 7px #151517, 0 34px 90px rgba(0,0,0,.75), 0 0 60px rgba(224,162,87,.10);
+    display: grid; grid-template-columns: 1fr 16fr 1fr; gap: 1.2%;
+    font-family: "IBM Plex Mono", ui-monospace, monospace; container-type: inline-size;
+  }
+  .rail { display: flex; flex-direction: column; justify-content: space-evenly; align-items: center; gap: 2px; }
+  .key { background: none; border: 0; padding: 4px 0; cursor: pointer; font: 700 clamp(7px, 1.45cqw, 13px)/1.1 "IBM Plex Mono", monospace; letter-spacing: .04em; color: var(--c-off); text-align: center; position: relative; }
+  .key small { display: block; font-weight: 400; font-size: .72em; opacity: .62; letter-spacing: 0; }
+  .key.on { color: var(--c-on); }
+  .key.dead { color: var(--c-dead); cursor: default; }
+  .key.armed { color: var(--c-armed); }
+  .key.tally::after { content: ""; position: absolute; top: 1px; right: -5px; width: 5px; height: 5px; border-radius: 50%; background: var(--c-live); box-shadow: 0 0 6px var(--c-live); }
+  .rec { width: clamp(16px, 3.2cqw, 30px); aspect-ratio: 1; border-radius: 50%; border: 2px solid #C8CDD2; display: grid; place-items: center; cursor: pointer; background: none; padding: 0; }
+  .rec::before { content: ""; width: 42%; aspect-ratio: 1; border-radius: 50%; background: var(--c-live); }
+  .rec.rolling { background: var(--c-live); border-color: var(--c-live); }
+  .rec.rolling::before { background: transparent; }
+  .stage { position: relative; aspect-ratio: 16/9; align-self: center; background: #000; overflow: hidden; border-radius: 3px; }
+  .pic { position: absolute; inset: 0; background-size: cover; background-position: center; transition: opacity .25s; }
+  .pic .lbl { position: absolute; left: 10px; bottom: 8px; font-size: clamp(6px, 1.2cqw, 11px); color: rgba(255,255,255,.55); letter-spacing: .14em; }
+  .line { position: absolute; top: 6px; left: 0; right: 0; text-align: center; font-size: clamp(6px, 1.05cqw, 10px); color: #fff; }
+  .line span { background: rgba(0,0,0,.47); padding: 2px 8px; border-radius: 6px; }
+  .tc { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font-size: clamp(6px, 1.15cqw, 11px); color: #fff; }
+  .tc i { font-style: normal; color: var(--c-off); }
+  .tc.rolling i { color: var(--c-live); }
+  /* scenes stand in for pictures until the photographs are made */
+  .s1 { background: url(img/cam1.jpg) center/cover, #1a120d; }
+  .s2 { background: url(img/cam2.jpg) center/cover, #1a120d; }
+  .s3 { background: url(img/cam3.jpg) center/cover, #1a120d; }
+  .s4 { background: radial-gradient(circle at 30% 55%, #c27a3a 0 5%, transparent 20%), radial-gradient(ellipse at 50% 60%, #2b231f, #0a0808 70%); }
+  .s5 { background: radial-gradient(circle at 70% 60%, #b9874f 0 6%, transparent 22%), radial-gradient(ellipse at 50% 60%, #33261d, #0b0908 70%); }
+
+  /* multiview */
+  .mv { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; background: #000; }
+  .tile { position: relative; cursor: pointer; outline: 2px solid transparent; outline-offset: -2px; }
+  .tile .pic { inset: 0; }
+  .tile .name { position: absolute; left: 0; bottom: 0; font-size: clamp(6px, 1.1cqw, 10px); letter-spacing: .1em; color: #fff; background: rgba(0,0,0,.6); padding: 2px 7px; }
+  .tile.pvw { outline-color: var(--c-on); }
+  .tile.pvw .name { background: var(--c-on); color: #000; }
+  .tile.pgm { outline-color: var(--c-live); }
+  .tile.pgm .name { background: var(--c-live); }
+  .tile.out { cursor: default; }
+  .tile.out .name { background: var(--c-live); }
+  .tile.out::after { content: "PROGRAM"; position: absolute; top: 4px; right: 6px; font-size: clamp(6px, 1cqw, 9px); color: var(--c-live); letter-spacing: .14em; }
+  .sbs { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; align-items: center; background: #000; }
+  .sbs .tile { aspect-ratio: 16/9; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: center; margin-top: 18px; font: 400 12px/1.4 "IBM Plex Mono", monospace; color: var(--ink2); }
+  .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; background: var(--k); vertical-align: -1px; }
+  .try { text-align: center; color: var(--quiet); font-size: 14px; margin-top: 8px; }
+  .toggle { display: flex; justify-content: center; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+  .toggle button { font: 400 12px/1 "IBM Plex Mono", monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--ink2); background: rgba(255,240,220,.035); border: 1px solid rgba(255,255,255,.07); border-radius: 999px; padding: 11px 16px; cursor: pointer; }
+  .toggle button.chosen { color: #22150a; background: linear-gradient(90deg, #f6d394, #e0a257); border-color: transparent; box-shadow: 0 0 0 1px rgba(243,201,122,.55), 0 0 22px rgba(224,162,87,.28); }
+
+  /* tables */
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,.06); vertical-align: top; }
+  th { font: 400 11px/1.3 "IBM Plex Mono", monospace; letter-spacing: .18em; text-transform: uppercase; color: var(--brass); font-weight: 400; }
+  td { color: var(--ink2); }
+  td:first-child { color: var(--ink); white-space: nowrap; }
+  .scroll { overflow-x: auto; }
+
+  /* diagrams */
+  svg.dia { width: 100%; height: auto; display: block; }
+  svg.dia text { font-family: "IBM Plex Mono", monospace; fill: var(--ink2); }
+  svg.dia .t-big { fill: var(--ink); font-size: 15px; }
+  svg.dia .t-small { font-size: 11.5px; fill: var(--quiet); }
+  svg.dia .box { fill: rgba(30,22,20,.9); stroke: rgba(224,162,87,.35); }
+  svg.dia .wifi { stroke: var(--brass); stroke-width: 2; fill: none; }
+  svg.dia .ble { stroke: #7fb2d9; stroke-width: 1.6; fill: none; stroke-dasharray: 5 5; }
+  svg.dia .hdmi { stroke: #8a8178; stroke-width: 2.2; fill: none; }
+  .key-line { display: flex; flex-wrap: wrap; gap: 6px 22px; font: 400 12px/1.6 "IBM Plex Mono", monospace; color: var(--ink2); margin-top: 12px; }
+  .key-line i { display: inline-block; width: 26px; height: 0; border-top: 2px solid var(--c); vertical-align: middle; margin-right: 8px; }
+  .key-line i.d { border-top-style: dashed; }
+
+  ol.road { list-style: none; counter-reset: r; padding: 0; margin: 0; }
+  ol.road li { counter-increment: r; position: relative; padding: 0 0 22px 58px; }
+  ol.road li::before { content: counter(r, decimal-leading-zero); position: absolute; left: 0; top: 2px; font: 400 12px/1 "IBM Plex Mono", monospace; letter-spacing: .2em; color: var(--brass); }
+  ol.road li.now::before { color: var(--brass-hi); text-shadow: 0 0 10px var(--brass); }
+  ol.road b { display: block; color: var(--ink); font-weight: 500; }
+
+  .kit { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 22px; }
+  .kit .card { display: flex; flex-direction: column; }
+  .kit .card p { flex: 1; }
+  .kit .price { font: 400 12px/1 "IBM Plex Mono", monospace; letter-spacing: .14em; color: var(--brass); margin-bottom: 12px; }
+  .buy { align-self: flex-start; text-decoration: none; font: 500 15px/1 "IBM Plex Sans", sans-serif; color: #22150a; background: linear-gradient(90deg, #f6d394, #e0a257); padding: 13px 20px; border-radius: 999px; box-shadow: 0 6px 22px rgba(224,162,87,.25); }
+  @media (max-width: 860px) { .kit { grid-template-columns: 1fr; } }
+  footer { padding: 50px 0 70px; color: var(--quiet); font-size: 14px; border-top: 1px solid rgba(255,255,255,.05); }
+
+  @media (max-width: 860px) {
+    .hero, .grid2 { grid-template-columns: 1fr; }
+    .grid3 { grid-template-columns: 1fr; }
+    section { padding: 60px 0; }
+    .phone { border-radius: 20px; box-shadow: 0 0 0 4px #151517, 0 20px 50px rgba(0,0,0,.7); }
+  }
+</style>
+<style>
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 30px; }
+  .shots figure { margin: 0; }
+  .shots img { width: 100%; display: block; border-radius: 14px; box-shadow: 0 0 40px rgba(255, 190, 110, .08); }
+  .shots figcaption { font-size: 14px; opacity: .7; margin-top: 8px; }
+  .cta { display: inline-flex; align-items: center; gap: 10px; padding: 16px 26px; border-radius: 999px; text-decoration: none; font-weight: 600;
+    background: linear-gradient(90deg, #f3c97a, #fff0c4, #f3c97a); color: #1a1206; box-shadow: 0 0 30px rgba(255, 196, 120, .45); margin-top: 26px; }
+  .cta.ghost { background: none; color: inherit; box-shadow: none; border: 1px solid rgba(243, 201, 122, .5); margin-left: 10px; }
+  .family a { color: #f3c97a; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap hero">
+    <div>
+      <div class="eyebrow">An Android camera app by Mantra Productions</div>
+      <h1>Mantra<br><em>Manual Camera</em></h1>
+      <p class="lead" style="margin-top:22px">A broadcast camera in your pocket. Real manual control, real log, a clean feed and NDI out, from the phone you already own, and the whole camera steered from a second phone or a tablet.</p>
+      <p class="status"><span class="dot"></span>In development · tested every day on a Google Pixel 7</p>
+      <a class="cta" href="https://github.com/markoboskoauroville/mantra-manual-camera/releases/latest" target="_blank" rel="noopener">Download the latest build →</a>
+    </div>
+    <div class="photo"><img src="img/hero.jpg" alt="A phone running Mantra Manual Camera on a small tripod at a kirtan concert, streaming to a tablet" onerror="this.remove()"><div class="wait">photograph in the making</div></div>
+  </div>
+</header>
+
+<section id="why">
+  <div class="wrap">
+    <div class="eyebrow">What it does</div>
+    <h2>A camera's controls, <em>not a phone's</em></h2>
+    <p class="lead">Most camera apps give you either a pretty automatic picture or a wall of sliders. This one gives you both, parameter by parameter, and then sends the picture where a production needs it: to a card, to NDI, to a screen-share, to OBS.</p>
+    <div class="grid3" style="margin-top:34px"><div class="card"><div class="num">01</div><h3>Manual where you want it</h3><p>ISO, shutter, focus and white balance each on a thick mixer fader with its own A / M switch. Pull focus yourself while the camera keeps exposure. Shutter presets in degrees, ISO presets at the sensor's cleanest and highest.</p></div><div class="card"><div class="num">02</div><h3>Log from the cinema cameras</h3><p>Sony S-Log3, Panasonic V-Log, ARRI LogC3 and LogC4, Blackmagic Film Gen5, in the phone's own tone mapper: in the file and on the stream, and auto exposure puts a grey card on each maker's own number.</p></div><div class="card"><div class="num">03</div><h3>10-bit HLG HEVC</h3><p>With no log curve, the phone's own broadcast HLG: a soft highlight shoulder like film, a wide gamut, none of the smartphone processing that flattens light. Half the size of H.264.</p></div><div class="card"><div class="num">04</div><h3>NDI HX and full NDI</h3><p>The phone appears as a camera in vMix, OBS, Wirecast, NDI Studio Monitor. Over Wi-Fi, or over a USB cable with no network at all.</p></div><div class="card"><div class="num">05</div><h3>A truly clean feed</h3><p>One key, FULL, and there is nothing on the glass but the picture. Mirror the phone to a computer and it is ready to broadcast.</p></div><div class="card"><div class="num">06</div><h3>Focus you can point at</h3><p>Tap anywhere to focus there. Pinch the mark from an eye to the whole frame. A focus director that holds, then racks over a beat, and tracking focus that follows a face.</p></div><div class="card"><div class="num">07</div><h3>Look and exposure tools</h3><p>Your own .cube LUTs, focus peaking, false colour and zebra, drawn by the GPU on the monitor only, so the recording keeps its full range.</p></div><div class="card"><div class="num">08</div><h3>White balance like a cinema camera</h3><p>Kelvin from tungsten to daylight. Tap the triangle on something white: it reads, steps and locks neutral in a few moves.</p></div><div class="card"><div class="num">09</div><h3>A camera's readouts</h3><p>Record-run timecode, REC, the free space and the hours left on the drive, to the phone or a USB-C SSD. Every lens one key. The interface turns for portrait.</p></div></div>
+  </div>
+</section>
+
+<section id="screens">
+  <div class="wrap">
+    <div class="eyebrow">The app</div>
+    <h2>The picture is sacred, <em>the keys live beside it</em></h2>
+    <p class="lead">A phone's screen is wider than 16:9, so the keys go in the black margins and never sit on the shot. Grey is off, green is on, dark is a key this phone cannot honour.</p>
+    <div class="shots"><figure><img src="img/screens/01-camera.jpg" alt="The camera: faders, rails, the picture untouched" loading="lazy" onerror="this.closest('figure').remove()"><figcaption>The camera: faders, rails, the picture untouched</figcaption></figure><figure><img src="img/screens/02-full.jpg" alt="FULL: the clean feed, nothing on the glass" loading="lazy" onerror="this.closest('figure').remove()"><figcaption>FULL: the clean feed, nothing on the glass</figcaption></figure><figure><img src="img/screens/03-false-colour.jpg" alt="False colour and zebra, on the monitor only" loading="lazy" onerror="this.closest('figure').remove()"><figcaption>False colour and zebra, on the monitor only</figcaption></figure><figure><img src="img/screens/04-log-lut.jpg" alt="A log curve with a LUT on the monitor" loading="lazy" onerror="this.closest('figure').remove()"><figcaption>A log curve with a LUT on the monitor</figcaption></figure><figure><img src="img/screens/05-marks.jpg" alt="□ focus ○ exposure △ white balance" loading="lazy" onerror="this.closest('figure').remove()"><figcaption>□ focus ○ exposure △ white balance</figcaption></figure><figure><img src="img/screens/06-settings.jpg" alt="Settings: the output switchboard" loading="lazy" onerror="this.closest('figure').remove()"><figcaption>Settings: the output switchboard</figcaption></figure><figure><img src="img/screens/07-monitor.jpg" alt="Mantra Monitor: another phone as the remote" loading="lazy" onerror="this.closest('figure').remove()"><figcaption>Mantra Monitor: another phone as the remote</figcaption></figure><figure><img src="img/screens/08-remote.jpg" alt="Camera Remote: quality per network" loading="lazy" onerror="this.closest('figure').remove()"><figcaption>Camera Remote: quality per network</figcaption></figure></div>
+    <p class="quiet" id="noShots" style="margin-top:18px">Screenshots from the phone are on their way.</p>
+  </div>
+</section>
+
+<section id="remote">
+  <div class="wrap family">
+    <div class="eyebrow">Remote control</div>
+    <h2>Several cameras, <em>one tablet</em></h2>
+    <p class="lead">Put a phone on a tripod as a camera and steer it from anywhere in the room. <b>Mantra Monitor</b>, the sister app on a second phone or a tablet, finds every Mantra camera on the network, plays its picture through the hardware decoder and becomes its remote: the camera's own keys, its status line and its marks. A tap on a key presses it on the camera; a tap on the picture focuses, meters or white-balances there.</p>
+    <div class="grid2" style="margin-top:30px">
+      <div class="card"><h3>Camera Remote</h3><p>Record, focus, exposure and white balance of every phone camera from the tablet, and the stream's quality per network (frame rate, scale, bit rate) set live, so a crowded Wi-Fi still carries the picture.</p></div>
+      <div class="card"><h3>With Sony cameras too</h3><p>Next to the phones, Sony Alpha bodies join the same tablet through <a href="https://mantrasonyremote.pages.dev" target="_blank" rel="noopener">Mantra Sony Remote</a>: one key per camera and a multiview of what is live.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="rack">
+  <div class="wrap">
+    <div class="eyebrow">In use</div>
+    <h2>A drawer in the band's rack</h2>
+    <p class="lead">Santoshi Kirtan Band carries its whole sound and video in one rolling rack. One drawer holds the tablet: open it, and every camera, the recording and the picture are in your hands.</p>
+    <div class="photo" style="margin-top:26px;aspect-ratio:16/9"><img src="img/rack-tablet.jpg" alt="A tablet lying in an open drawer of a black rolling rack, the camera remote on its screen" loading="lazy" onerror="this.remove()"><div class="wait">photograph in the making</div></div>
+    <p class="quiet" style="margin-top:14px"><a href="https://santoshi-band.pages.dev/#equipment" target="_blank" rel="noopener" style="color:#f3c97a">See the Santoshi rack →</a></p>
+  </div>
+</section>
+
+<section id="get">
+  <div class="wrap">
+    <div class="eyebrow">Get it</div>
+    <h2>Try it on <em>your own phone</em></h2>
+    <div class="grid2" style="margin-top:30px">
+      <div class="card"><h3>Tested on</h3><p><b>Google Pixel 7</b> is the reference phone: a feature is not called done until it works there, and every release survives 20,000-touch stress runs on its emulator. <b>Nothing Phone (2a)</b> is being tested. Phones differ in what their cameras can do: the app says so in words when a phone cannot, and carries on.</p></div>
+      <div class="card"><h3>The store version</h3><p>About €22, with a free trial: every feature on your own phone before you pay. Until then the latest build is free to download and install.</p><a class="buy" href="https://github.com/markoboskoauroville/mantra-manual-camera/releases/latest" target="_blank" rel="noopener">The latest build on GitHub →</a></div>
+    </div>
+    <h3 style="margin-top:40px">Coming next</h3>
+    <p class="quiet">Waveform and vectorscope, the phone as a webcam for a Mac, a grey-card sweep that finds white balance by itself, and a live settings preview.</p>
+  </div>
+</section>
+
+<!-- THE MANTRA PAYMENT GATEWAY, the donation bowl (MANTRA_MANIFEST modules/donation-bowl.md, payment-links.md).
+     Step 1, on the page: only the title and the Tibetan bowl (a photoreal Nano Banana Pro render).
+     Step 2, after a tap: the bowl rings (a singing bowl synthesised in the browser, nothing downloaded), fades away, and
+     the giving panel takes its place: a "Give with Revolut" button, his Revolut QR code, a way back to the bowl.
+     Paste this block into the page; put tibetan-bowl.jpg and revolut-qr.png in the page's img/ folder.
+     Self-contained: its own styles (scoped to .mantra-bowl) and script; no library, no tracking. -->
+<section id="donate" class="mantra-bowl" data-revolut="https://revolut.me/mbosko0612" aria-label="Help build Mantra Manual Camera">
+  <style>
+    .mantra-bowl { --brass: #f3c97a; --glow: rgba(255, 196, 120, .45); --card: #292c2f; text-align: center; padding: 64px 16px; }
+    .mantra-bowl h2 { margin: 0 0 26px; }
+    .mantra-bowl .stage { position: relative; display: grid; place-items: center; min-height: 380px; aspect-ratio: auto; background: none; overflow: visible; border-radius: 0; }
+    .mantra-bowl .stage > * { grid-area: 1 / 1; transition: opacity .9s ease, transform .9s ease; }
+    .mantra-bowl .bowl { background: none; border: 0; padding: 0; cursor: pointer; position: relative; color: inherit; font: inherit; -webkit-tap-highlight-color: transparent; }
+    .mantra-bowl .bowl:focus-visible { outline: 2px solid var(--brass); outline-offset: 8px; border-radius: 24px; }
+    .mantra-bowl .bowl img { width: min(360px, 82vw); height: auto; display: block; border-radius: 24px; transition: transform .4s ease, filter .4s ease; }
+    .mantra-bowl .hint { display: block; margin-top: 16px; font-size: 15px; letter-spacing: .06em; opacity: .75; }
+    .mantra-bowl .bowl:hover img { transform: translateY(-3px); filter: brightness(1.08); }
+    .mantra-bowl .ring { position: absolute; left: 50%; top: 36%; width: 60%; aspect-ratio: 3 / 1; border: 2px solid var(--glow); border-radius: 50%;
+      transform: translate(-50%, -50%) scale(.6); opacity: 0; pointer-events: none; }
+    .mantra-bowl.ringing .ring { animation: mantra-bowl-ring 2.4s ease-out forwards; }
+    .mantra-bowl.ringing .ring.r2 { animation-delay: .5s; }
+    .mantra-bowl.ringing .ring.r3 { animation-delay: 1s; }
+    @keyframes mantra-bowl-ring { 0% { opacity: .9; transform: translate(-50%, -50%) scale(.6); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); } }
+    /* step 2: the bowl gives way to the panel */
+    .mantra-bowl.giving .bowl { opacity: 0; transform: scale(.94); pointer-events: none; }
+    .mantra-bowl .panel { opacity: 0; transform: translateY(14px); pointer-events: none; width: min(420px, 92vw); }
+    .mantra-bowl.giving .panel { opacity: 1; transform: none; pointer-events: auto; transition-delay: .35s; }
+    .mantra-bowl .give { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 18px 22px; border-radius: 999px;
+      background: linear-gradient(90deg, #f3c97a, #fff0c4, #f3c97a); color: #1a1206; font-weight: 700; font-size: 17px; text-decoration: none;
+      box-shadow: 0 0 30px var(--glow); box-sizing: border-box; }
+    .mantra-bowl .qr { margin: 22px auto 0; background: var(--card); border-radius: 22px; padding: 22px; width: min(260px, 70vw); box-sizing: border-box; }
+    .mantra-bowl .qr img { width: 100%; height: auto; display: block; }
+    .mantra-bowl .small { font-size: 14px; opacity: .7; margin: 14px 0 0; }
+    .mantra-bowl .back { background: none; border: 0; color: inherit; opacity: .6; font-size: 14px; margin-top: 18px; cursor: pointer; text-decoration: underline; }
+    @media (prefers-reduced-motion: reduce) { .mantra-bowl.ringing .ring { animation: none; } .mantra-bowl .stage > * { transition: none; } }
+  </style>
+  <div class="eyebrow">Help build it</div>
+  <h2>Put something in the bowl</h2>
+  <p class="quiet" style="max-width:560px;margin:-10px auto 26px">The camera is free to try while it grows. Every gift goes into its development: the phones to test on, the hours of coding, the next features on the list above. Give what feels right.</p>
+  <div class="stage">
+    <button type="button" class="bowl" aria-label="Ring the bowl to give">
+      <span class="ring"></span><span class="ring r2"></span><span class="ring r3"></span>
+      <img src="img/tibetan-bowl.jpg" alt="A Tibetan singing bowl on a red cushion, coins inside" width="900" height="900">
+      <span class="hint">Click on the bowl to donate</span>
+    </button>
+    <div class="panel" aria-hidden="true">
+      <a class="give" href="https://revolut.me/mbosko0612" target="_blank" rel="noopener">Give with Revolut →</a>
+      <p class="small">Any amount, by card or Revolut. No Revolut account needed. It goes straight to Marko, for the development of the app.</p>
+      <div class="qr"><img src="img/revolut-qr.png" alt="Revolut QR code for @mbosko0612" width="620" height="760"></div>
+      <p class="small">On a computer? Scan it with your phone.</p>
+      <button type="button" class="back">back to the bowl</button>
+    </div>
+  </div>
+  <script>
+  (() => {
+    const box = document.currentScript.closest('.mantra-bowl');
+    const bowl = box.querySelector('.bowl'), panel = box.querySelector('.panel');
+    box.querySelector('.give').href = box.dataset.revolut;
+    // A singing bowl's voice: a low fundamental with inharmonic partials (about 1, 2.76, 5.4, 8.9 times), each a pair a
+    // few tenths of a hertz apart so the tone beats, a soft strike and a long fading hum.
+    function ring() {
+      const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
+      const ac = new Ctx(), now = ac.currentTime, out = ac.createGain();
+      out.gain.value = 0.32; out.connect(ac.destination);
+      [[1, 1, 9], [2.76, .5, 6], [5.4, .25, 4], [8.93, .12, 2.5]].forEach(([k, amp, dur]) => {
+        [0, 0.6].forEach(detune => {
+          const o = ac.createOscillator(), g = ac.createGain();
+          o.type = 'sine'; o.frequency.value = 196 * k + detune;
+          g.gain.setValueAtTime(0, now);
+          g.gain.linearRampToValueAtTime(amp / 2, now + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+          o.connect(g); g.connect(out); o.start(now); o.stop(now + dur + 0.1);
+        });
+      });
+      setTimeout(() => ac.close(), 10000);
+    }
+    bowl.addEventListener('click', () => {
+      ring();
+      box.classList.remove('ringing'); void box.offsetWidth; box.classList.add('ringing');
+      // the bowl sounds first, then gives way to the panel
+      setTimeout(() => { box.classList.add('giving'); panel.setAttribute('aria-hidden', 'false'); bowl.setAttribute('aria-hidden', 'true'); }, 1300);
+    });
+    box.querySelector('.back').addEventListener('click', () => {
+      box.classList.remove('giving', 'ringing'); panel.setAttribute('aria-hidden', 'true'); bowl.removeAttribute('aria-hidden');
+    });
+  })();
+  </script>
+</section>
+
+<footer>
+  <div class="wrap">
+    Mantra Manual Camera · Mantra Productions · Marko Boško. In development.
+    NDI is a trademark of Vizrt NDI AB; Sony, Pixel and other names are trademarks of their owners; this app is independent of them.
+    The photographs marked as such are illustrations made with Google's Nano Banana; the screenshots are the app itself.
+  </div>
+</footer>
+<script>
+  addEventListener('load', () => { if (document.querySelectorAll('.shots figure').length) document.getElementById('noShots').remove(); });
+</script>
+</body>
+</html>
