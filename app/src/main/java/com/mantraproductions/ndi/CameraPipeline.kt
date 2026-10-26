@@ -506,8 +506,19 @@ class CameraPipeline(private val context: Context) {
     fun attachPreview(surface: Surface) { gpu?.setOutput(GpuStage.Output.PREVIEW, surface, enabled = true) }
 
     /** v136: queued, never sent from here (see [NdiVideo]): a slow wire must never hold the encoder. */
+    /** v156: the encoder whose announcements count (see [rebuildStreamEncoder]). */
+    @Volatile private var newestEncoder: HdrVideoEncoder? = null
+
     private fun onStreamFrame(data: ByteArray, keyframe: Boolean, ptsUs: Long, hevc: Boolean) {
         lastEncodedAt = SystemClock.elapsedRealtime()
+        // v156: the safety net: a keyframe going out with no parameter sets known takes them from the codec itself,
+        // so a lost announcement heals at the next keyframe instead of leaving the stream dark
+        if (keyframe && parameterSets == null) {
+            encoder?.currentParameterSets()?.let { (sps, pps, vps) ->
+                Trace.state("stream parameter sets taken from the encoder (none were announced)")
+                onStreamFormat(sps, pps, vps)
+            }
+        }
         if (mode == Mode.HX) {
             NdiVideo.offer(data, keyframe, ptsUs, hevc)
             frames++
@@ -562,10 +573,20 @@ class CameraPipeline(private val context: Context) {
         val dims = turnedSize(streamTurns)
         stage.setOutput(GpuStage.Output.STREAM, null)
         encoder?.stop()
-        val c = HdrVideoEncoder(
+        // v156 (THE NDI PICTURE STALL, found 26.10.2026 by ndi_soak: after the 6th turn the phone sent every frame
+        // and the Mac decoded none, the sound complete): the old parameter sets were cleared AFTER the new encoder
+        // had started, and that encoder announces its own exactly once, from its own thread; when it was quicker
+        // than the clearing, the new ones were wiped and the stream went out undecodable for good. Cleared first
+        // now, and only the newest encoder's announcements count (an old one's late callback is ignored).
+        parameterSets = null
+        NdiSender.clearVideoInfo()
+        lateinit var c: HdrVideoEncoder
+        c = HdrVideoEncoder(
             width = dims.width, height = dims.height, fps = fps, bitRate = streamBitRate, tenBit = isTenBit,
-            onFormat = ::onStreamFormat, onFrame = ::onStreamFrame
+            onFormat = { sps, pps, vps -> if (newestEncoder === c) onStreamFormat(sps, pps, vps) },
+            onFrame = { data, key, pts, hevc -> if (newestEncoder === c) onStreamFrame(data, key, pts, hevc) }
         )
+        newestEncoder = c
         val surface = c.start()
         if (surface == null) {
             Trace.refused("stream encoder", "would not start at ${dims.width}x${dims.height} ($why)")
@@ -575,8 +596,6 @@ class CameraPipeline(private val context: Context) {
         encoder = c
         encoderSurface = surface
         encoderSize = dims
-        parameterSets = null
-        NdiSender.clearVideoInfo()
         NdiSender.setVideoFormat(dims.width, dims.height, fps, 1)
         stage.setOutput(GpuStage.Output.STREAM, surface, enabled = mode == Mode.HX)
         stage.setTurns(GpuStage.Output.STREAM, streamTurns)
