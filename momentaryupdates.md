@@ -829,4 +829,9 @@ Needs the GPU stage (Settings → Picture path).
 
 > "go to the camera and test it and debug it and improve it, see what's left with the features and make it perfect" (Marko, 26.10.2026)
 
-76. A full pass over the camera on the Pixel 7: every feature tried from the Mac, the trace read for faults, what is still open listed and built. — **Status:** asked.
+76. A full pass over the camera on the Pixel 7: every feature tried from the Mac, the trace read for faults, what is still open listed and built. — **Status:** v148, found and fixed:
+    - **The 10-bit GPU stage never came up** (every open in seven traces of 26.10: "no RGBA1010102 recordable config — the direct path is used"), so there was no tracking, no turned stream and one bit rate, and nothing said so on screen. The Pixel 7 (Android 17) offers RGBA1010102 only without EGL_RECORDABLE_ANDROID. v148 asks four configs in order and writes the one taken ("gpu stage config: RGBA1010102, window+pbuffer"). PROVEN: GPU stage ready in 10-bit HLG; a 4.3 s take = 130 frames at 30 fps, HEVC Main 10, yuv420p10le, BT.2020 arib-std-b67, upright, clean picture (ffprobe and a frame pulled on the Mac); AF → TRK starts the tracker (best match 0.973).
+    - When the GPU stage cannot start, the status line says so ("GPU STAGE could not start: direct path, no tracking").
+    - **16 KB pages**: libndi_bridge.so linked with -z max-page-size=16384 (libndi_advanced.so was already 0x4000); zipalign -c -P 16 passes; Android's "This app isn't 16 KB compatible" dialog no longer shows.
+    - **The lens is remembered**: it always opened on L1, the fixed-focus ultra wide; now on the one it was left on (proven: L2, force-stop, reopen → L2, FOC: 21.4 cm).
+    Still open: 64–66 (the remote over wireless ADB, scrcpy's picture), 65 (the wireless debugging guide), 70–71 (the focus puller's meter).

@@ -18,3 +18,7 @@ set_target_properties(ndi_advanced PROPERTIES
 find_library(log-lib log)
 
 target_link_libraries(ndi_bridge ndi_advanced ${log-lib})
+
+# v148: 16 KB pages (Android 15+ asks it of every app: "This app isn't 16 KB compatible ... libndi_bridge.so: LOAD
+# segment not aligned"). NDK r27 links at 4 KB unless told; libndi_advanced.so already ships at 0x4000.
+target_link_options(ndi_bridge PRIVATE "-Wl,-z,max-page-size=16384")

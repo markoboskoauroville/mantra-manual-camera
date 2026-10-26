@@ -246,6 +246,8 @@ class MainActivity : AppCompatActivity() {
         applyTestExtras(intent)
         manualQuarterTurns = settings.quarterTurns
         lenses = CameraCatalogue.lenses(this)
+        // v148: the lens it was left on (it always opened on L1, the ultra wide with fixed focus; Marko: "lens two is the best")
+        activeLens = (settings.lens - 1).coerceIn(0, (lenses.size - 1).coerceAtLeast(0))
         Trace.state(
             "lenses: " + lenses.joinToString {
                 it.label + " [" + it.id + (it.physicalId?.let { p -> ":$p" } ?: "") + "]"
@@ -371,7 +373,9 @@ class MainActivity : AppCompatActivity() {
                     bufferSize = size
                     holdBufferSize()
                     applyPreviewTransform()
-                    say("${size.width}x${size.height} ${if (tenBit) "10-bit" else "8-bit"} $codec")
+                    say("${size.width}x${size.height} ${if (tenBit) "10-bit" else "8-bit"} $codec" +
+                        // v148: said on the screen, not only in the trace (it fell back unseen on every open until v148)
+                        if (settings.gpuStage && !pipeline.usesGpuStage) " · GPU STAGE could not start: direct path, no tracking" else "")
                     reopenTries = -1                // v116: up again, the recovery is over
                     // v104: the light, switched in settings, is put on whenever the camera opens
                     pipeline.engine.setTorchLevel(settings.torchLevel)
@@ -1326,6 +1330,7 @@ class MainActivity : AppCompatActivity() {
         if (index >= lenses.size) return
         if (index == activeLens && pipeline.isRunning) return
         activeLens = index
+        settings.lens = index + 1           // v148: the camera opens on it next time
         restoreMode = pipeline.mode
         Trace.control("lens", index + 1, lenses[index].label + ", keeping " + restoreMode)
         pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)

@@ -293,6 +293,11 @@ class Settings(context: Context) {
         get() = prefs.getInt("trackFollow", 60)
         set(value) = prefs.edit().putInt("trackFollow", value.coerceIn(10, 100)).apply()
 
+    /** v148: the lens the camera was left on, by its number in the drawer (1 = L1); it opens on it again. */
+    var lens: Int
+        get() = prefs.getInt("lens", 1)
+        set(value) = prefs.edit().putInt("lens", value.coerceIn(1, 16)).apply()
+
     /**
      * v147: the lens's speed, millimetres of distance in front of the camera per second (Marko, 26.10.2026: "a speed of
      * tracking and a speed of focusing ... let's put millimeters per second"). 0 is CAMERA: the camera's own glide.

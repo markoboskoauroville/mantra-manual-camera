@@ -118,32 +118,55 @@ class GpuStage private constructor(
         }
 
         val bits = if (tenBit) intArrayOf(10, 10, 10, 2) else intArrayOf(8, 8, 8, 0)
-        val attributes = intArrayOf(
-            EGL14.EGL_RED_SIZE, bits[0],
-            EGL14.EGL_GREEN_SIZE, bits[1],
-            EGL14.EGL_BLUE_SIZE, bits[2],
-            EGL14.EGL_ALPHA_SIZE, bits[3],
-            EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
-            EGL14.EGL_SURFACE_TYPE, EGL14.EGL_WINDOW_BIT or EGL14.EGL_PBUFFER_BIT,
-            EGL_RECORDABLE_ANDROID, 1,
-            EGL14.EGL_NONE
-        )
+        // v148 (MEASURED 26.10.2026 on the Pixel 7, Android 17: the 10-bit stage never came up, every open said "no
+        // RGBA1010102 recordable config" and fell to the direct path — no tracking, no turned stream, one bit rate):
+        // a phone may offer 10-bit only on window surfaces, or only without the recordable flag. The configs are asked
+        // in order; without a pbuffer the context is made current with no surface (EGL_KHR_surfaceless_context).
+        val surfaceless = extensions.contains("EGL_KHR_surfaceless_context")
+        data class Ask(val name: String, val surfaces: Int, val recordable: Boolean)
+        val asks = listOf(
+            Ask("window+pbuffer, recordable", EGL14.EGL_WINDOW_BIT or EGL14.EGL_PBUFFER_BIT, true),
+            Ask("window, recordable, surfaceless", EGL14.EGL_WINDOW_BIT, true),
+            Ask("window+pbuffer", EGL14.EGL_WINDOW_BIT or EGL14.EGL_PBUFFER_BIT, false),
+            Ask("window, surfaceless", EGL14.EGL_WINDOW_BIT, false)
+        ).filter { surfaceless || it.surfaces and EGL14.EGL_PBUFFER_BIT != 0 }
         val configs = arrayOfNulls<EGLConfig>(1)
         val count = IntArray(1)
-        if (!EGL14.eglChooseConfig(display, attributes, 0, configs, 0, 1, count, 0) || count[0] == 0) {
-            return if (tenBit) "no RGBA1010102 recordable config" else "no RGB888 recordable config"
+        var chosen: Ask? = null
+        for (a in asks) {
+            val attributes = mutableListOf(
+                EGL14.EGL_RED_SIZE, bits[0],
+                EGL14.EGL_GREEN_SIZE, bits[1],
+                EGL14.EGL_BLUE_SIZE, bits[2],
+                EGL14.EGL_ALPHA_SIZE, bits[3],
+                EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
+                EGL14.EGL_SURFACE_TYPE, a.surfaces
+            )
+            if (a.recordable) attributes += listOf(EGL_RECORDABLE_ANDROID, 1)
+            attributes += EGL14.EGL_NONE
+            if (EGL14.eglChooseConfig(display, attributes.toIntArray(), 0, configs, 0, 1, count, 0) && count[0] > 0) {
+                chosen = a; break
+            }
+        }
+        if (chosen == null) {
+            return (if (tenBit) "no RGBA1010102 config" else "no RGB888 config") +
+                " (asked: ${asks.joinToString { it.name }}; surfaceless ${if (surfaceless) "yes" else "no"})"
         }
         config = configs[0]
+        Trace.state("gpu stage config: ${if (tenBit) "RGBA1010102" else "RGB888"}, ${chosen.name}")
 
         context = EGL14.eglCreateContext(
             display, config, EGL14.EGL_NO_CONTEXT,
             intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE), 0
         )
         if (context == EGL14.EGL_NO_CONTEXT) return "no GLES 3 context"
-        pbuffer = EGL14.eglCreatePbufferSurface(
-            display, config, intArrayOf(EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE), 0
-        )
-        if (!EGL14.eglMakeCurrent(display, pbuffer, pbuffer, context)) return "context not current"
+        if (chosen.surfaces and EGL14.EGL_PBUFFER_BIT != 0) {
+            pbuffer = EGL14.eglCreatePbufferSurface(
+                display, config, intArrayOf(EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE), 0
+            )
+        }
+        // with no pbuffer, EGL_NO_SURFACE: the surfaceless context the extension allows
+        if (!EGL14.eglMakeCurrent(display, pbuffer, pbuffer, context)) return "context not current (${chosen.name})"
 
         if (tenBit && !(GLES20.glGetString(GLES20.GL_EXTENSIONS) ?: "").contains("GL_EXT_YUV_target")) {
             return "no GL_EXT_YUV_target"
