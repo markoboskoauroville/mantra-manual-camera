@@ -87,6 +87,13 @@ class MonitorActivity : Activity() {
     // disable it, it works through any protocol you decide to use without ADB"), the phones wireless debugging
     // announces ("ADB name" -> host:port), and the link while one is watched
     private var adb: AdbLink? = null
+    /**
+     * v154 (measured 26.10.2026): inside the tunnel the link survives Wi-Fi -> 4G without a break, so the picture kept
+     * Wi-Fi's 8 Mbit/s on the SIM. When the way out changes between Wi-Fi and mobile data, the ADB picture is started
+     * again at that network's weight (Marko: "So we never waste the data in vain").
+     */
+    private var lastMobile: Boolean? = null
+    private var mobileSince = 0L
     private val adbHosts = mutableMapOf<String, String>()
     private var adbMdns: io.github.muntashirakon.adb.android.AdbMdns? = null
     private var adbPairPort = 0
@@ -192,6 +199,8 @@ class MonitorActivity : Activity() {
                 // v150: `--es adb 192.168.1.101:43917` watches over ADB at once (the emulator cannot hear mDNS);
                 // `--es pair 192.168.1.101:37123:123456` pairs first
                 intent?.getStringExtra("adb")?.let { w -> adbHosts["ADB ${w.substringBefore(':')}"] = w; current = "ADB ${w.substringBefore(':')}" }
+                // v154: `--es tunnel 100.x.y.z:5555` stores the camera's tunnel address (tests from the Mac)
+                intent?.getStringExtra("tunnel")?.let { t -> prefs.edit().putString("adbTunnel", t).apply() }
                 intent?.getStringExtra("pair")?.split(':')?.takeIf { it.size == 3 }?.let { (h, p, c) ->
                     thread(name = "adb-pair") {
                         val ok = runCatching { AdbLink.pair(this@MonitorActivity, h, p.toInt(), c) }.getOrElse { e -> android.util.Log.w("AdbLink", "pair", e); false }
@@ -217,6 +226,22 @@ class MonitorActivity : Activity() {
 
     // v120: Wi-Fi out of power save while the monitor is in front (the stream came in bursts without it)
     private var wifiLock: android.net.wifi.WifiManager.WifiLock? = null
+
+    /**
+     * v154 (measured 26.10.2026): with the screen off Android cuts the app off the network and the link only failed
+     * every 6 s; now it rests while the monitor is hidden and comes back the moment the phone is woken.
+     */
+    override fun onStart() {
+        super.onStart()
+        lastMobile = onMobileData()
+        val src = current
+        if (adb == null && output != null && src != null && src.startsWith("ADB ")) watch(src)
+    }
+
+    override fun onStop() {
+        adb?.stop(); adb = null
+        super.onStop()
+    }
 
     override fun onResume() {
         super.onResume()
@@ -304,6 +329,21 @@ class MonitorActivity : Activity() {
     private val statsTick = object : Runnable {
         override fun run() {
             ui.postDelayed(this, 1000)
+            // v154: Wi-Fi <-> mobile data held for 3 s: the ADB picture again at that network's weight
+            adb?.let { a ->
+                val mobile = onMobileData()
+                if (mobile != lastMobile) {
+                    if (mobileSince == 0L) mobileSince = System.currentTimeMillis()
+                    else if (System.currentTimeMillis() - mobileSince > 3000) {
+                        val was = lastMobile; lastMobile = mobile; mobileSince = 0L
+                        val src = current
+                        if (was != null && src != null && src.startsWith("ADB ")) {
+                            android.util.Log.i("AdbLink", "the way out is now " + (if (mobile) "mobile data" else "Wi-Fi") + ": the picture again")
+                            watch(src); return
+                        }
+                    }
+                } else mobileSince = 0L
+            }
             // v150: the ADB status line, with what arrives over it
             adb?.let { a ->
                 val t = a.frames.get() to a.bytes.get()
@@ -372,6 +412,7 @@ class MonitorActivity : Activity() {
         })
         adbRow.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         adbRow.addView(word("PAIR", Color.parseColor("#F2DDB4"), 14f) { pairDialog() })
+        adbRow.addView(word("    TUNNEL", if (prefs.getString("adbTunnel", null) != null) Color.parseColor("#33D17A") else Color.parseColor("#F2DDB4"), 14f) { tunnelDialog() })
         adbRow.addView(word("    GUIDE", Color.parseColor("#F2DDB4"), 14f) { guideDialog() })
         list.addView(adbRow)
         list.addView(word(
@@ -507,16 +548,53 @@ class MonitorActivity : Activity() {
         val out = output ?: run { say("No picture surface yet"); return }
         // v153 (the review): the address is asked again before every try, so a new port announced by mDNS (wireless
         // debugging switched on again) is taken by the running link instead of the dead one being retried forever
+        // v154 (Marko: "control this camera from anywhere in the world using the tunnel"): with this phone's VPN up
+        // and the camera's tunnel address known, the tunnel (Tailscale goes straight over the Wi-Fi when both are home
+        // and through the internet when not, on the same address, so nothing reconnects when he walks out); else the
+        // Wi-Fi address mDNS found
         val endpoint = {
-            val w = adbHosts[source] ?: prefs.getString("adbLast", where) ?: where
-            w.substringBefore(':') to (w.substringAfter(':').toIntOrNull() ?: port)
+            val tunnel = prefs.getString("adbTunnel", null)
+            val w = if (tunnel != null && (vpnUp() || adbHosts[source] == null)) tunnel
+                else adbHosts[source] ?: prefs.getString("adbLast", where) ?: where
+            w.substringBefore(':') to (w.substringAfter(':').toIntOrNull() ?: 5555)
         }
         val a = AdbLink(this, endpoint, out,
             onStatus = { msg -> ui.post { status.visibility = View.VISIBLE; status.text = msg } },
             onSize = { w, h -> ui.post { followCamera(w, h); fit() } },
-            onPairingNeeded = { ui.post { pairDialog(host) } })
+            onPairingNeeded = { ui.post { pairDialog(host) } },
+            quality = { if (onMobileData()) Triple(2_000_000, 1280, 24) else Triple(8_000_000, 1600, 30) })
         adb = a
         a.start()
+    }
+
+    /** v154: is this phone's VPN (the tunnel) up? */
+    private fun vpnUp(): Boolean = runCatching {
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        cm.allNetworks.any { n -> cm.getNetworkCapabilities(n)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true }
+    }.getOrDefault(false)
+
+    /** v154: is the way out mobile data (no Wi-Fi under the default network)? Then the picture is lighter. */
+    private fun onMobileData(): Boolean = runCatching {
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val all = cm.allNetworks.mapNotNull { cm.getNetworkCapabilities(it) }
+        all.none { it.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) } &&
+            all.any { it.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) }
+    }.getOrDefault(false)
+
+    /** v154: the camera phone's tunnel address (its Tailscale address and adb's TCP port 5555). */
+    private fun tunnelDialog() {
+        val field = android.widget.EditText(this).apply { hint = "100.x.y.z:5555"; setText(prefs.getString("adbTunnel", "") ?: "") }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), 0); addView(field) }
+        android.app.AlertDialog.Builder(this).setTitle("THE CAMERA THROUGH THE TUNNEL").setView(box)
+            .setMessage("The camera phone's Tailscale address, with :5555. Used whenever this phone's VPN is up.")
+            .setNegativeButton("CANCEL", null)
+            .setNeutralButton("CLEAR") { _, _ -> prefs.edit().remove("adbTunnel").apply(); fillPicker() }
+            .setPositiveButton("SAVE") { _, _ ->
+                val t = field.text.toString().trim().let { if (it.contains(':')) it else "$it:5555" }
+                prefs.edit().putString("adbTunnel", t).apply()
+                adbHosts.putIfAbsent("ADB ${t.substringBefore(':')}", t)
+                fillPicker()
+            }.show()
     }
 
     /** v150: wireless debugging's "Pair with code" on the camera phone shows an address, a port and six digits. */

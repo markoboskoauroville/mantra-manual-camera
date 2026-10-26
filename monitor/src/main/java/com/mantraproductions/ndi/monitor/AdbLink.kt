@@ -38,7 +38,12 @@ class AdbLink(
     private val onStatus: (String) -> Unit,
     private val onSize: (Int, Int) -> Unit,
     /** The camera phone asks to be paired with this monitor (its key is not known there yet). */
-    private val onPairingNeeded: () -> Unit
+    private val onPairingNeeded: () -> Unit,
+    /**
+     * v154: the picture's weight, asked before every try: (bit rate, longest side, fps). On mobile data the monitor
+     * asks for less (Marko: "So we never waste the data in vain").
+     */
+    private val quality: () -> Triple<Int, Int, Int> = { Triple(BIT_RATE, MAX_SIZE, 30) }
 ) {
     @Volatile var host = ""; private set
     @Volatile var port = 0; private set
@@ -100,6 +105,10 @@ class AdbLink(
         val (h, p) = endpoint()
         host = h; port = p
         onStatus("ADB: connecting to $host:$port")
+        // v154 (measured 26.10.2026, the Nothing switched from Wi-Fi to 4G): libadb's timeout does not cover the TCP
+        // connect, and a SYN lost while Tailscale finds its new path waits the system's 75 s — the picture came back
+        // after 77 s instead of 2. A 4 s probe first: a dead path fails fast and the next try takes the new one.
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, port), 4000) }
         val m = AdbManager(context).apply { setTimeout(10, java.util.concurrent.TimeUnit.SECONDS) }
         manager = m
         if (!m.connect(host, port)) throw IllegalStateException("$host:$port did not answer")
@@ -112,9 +121,11 @@ class AdbLink(
 
         // the session's id: a 31-bit number in hex, as scrcpy reads it; its socket is scrcpy_<scid>
         val scid = Integer.toHexString((Math.random() * 0x7FFFFFFF).toInt())
+        val (bitRate, maxSize, maxFps) = quality()
+        Log.i(TAG, "picture: $bitRate bit/s, $maxSize px, $maxFps fps")
         val args = listOf(
             "scid=$scid", "log_level=info", "tunnel_forward=true", "audio=false", "control=true",
-            "video_codec=h264", "max_size=$MAX_SIZE", "video_bit_rate=$BIT_RATE", "max_fps=30", "cleanup=true",
+            "video_codec=h264", "max_size=$maxSize", "video_bit_rate=$bitRate", "max_fps=$maxFps", "cleanup=true",
             "stay_awake=true", "power_off_on_close=false"
         ).joinToString(" ")
         val sh = m.openStream("shell:CLASSPATH=$SERVER_PATH app_process / com.genymobile.scrcpy.Server $SERVER_VERSION $args")
