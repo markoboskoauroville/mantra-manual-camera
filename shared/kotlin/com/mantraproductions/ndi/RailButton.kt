@@ -329,10 +329,12 @@ class RailButton @JvmOverloads constructor(
                 canvas.drawRect(cx - h, cy - h, cx + h, cy + h, mark)
                 canvas.save()
                 canvas.clipRect(cx - h, cy - h, cx + h, cy + h)
-                mark.strokeWidth = density(2.2f)
+                // the stripes grey, whatever the outline's colour (Marko, 26.10.2026: "lines on the angle in the color of gray")
+                val stripe = Paint(mark).apply { strokeWidth = density(2.2f); color = if (state == State.DEAD) DEAD else GREY }
                 var x = -2 * h
-                while (x <= 2 * h) { canvas.drawLine(cx + x - h, cy + h, cx + x + h, cy - h, mark); x += h * 0.55f }
+                while (x <= 2 * h) { canvas.drawLine(cx + x - h, cy + h, cx + x + h, cy - h, stripe); x += h * 0.55f }
                 canvas.restore()
+                canvas.drawRect(cx - h, cy - h, cx + h, cy + h, mark)            // the outline over the stripes' ends
             }
             Glyph.PEAKING -> {
                 // v155 (Marko: "Peaking will be the red square with random dots"): the square in the key's colour, the

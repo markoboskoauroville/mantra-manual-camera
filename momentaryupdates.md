@@ -981,3 +981,7 @@ Needs the GPU stage (Settings → Picture path).
 > "inside of the recording button, let it be black. When it's record, it's turn red. When it's not recording, it's black" (Marko, 26.10.2026)
 
 112. REC: black inside, red while recording (the red ring stays). — **Status:** v155 on the Pixel. Also: a first power estimate waits 30 s after the app opens or a cable changes (0:18 h was the work of starting the app); seen: the Pixel reports status 4, NOT CHARGING, on AC at 35 °C (Android paused charging), shown as ▼/balanced.
+
+> "make zebra lines gray, but outline is orange. Picking outline orange. Okay, understand. When it's activated, it's green. Only change the zebra to have these lines on the angle in the color of gray" (Marko, 26.10.2026)
+
+113. ZEB: the slanted lines grey, the outline orange (green when on). — **Status:** v155.
