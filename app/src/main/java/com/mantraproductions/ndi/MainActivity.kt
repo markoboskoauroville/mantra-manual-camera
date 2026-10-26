@@ -75,6 +75,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var preview: TextureView
     private lateinit var focusSquare: FocusSquareView
+    private lateinit var focusMeter: FocusMeterView
     private lateinit var exposureCircle: MarkView
     private lateinit var zones: ControlZones
     private lateinit var fullScreenCatcher: View
@@ -228,6 +229,7 @@ class MainActivity : AppCompatActivity() {
         preview = findViewById(R.id.preview)
         focusSquare = findViewById(R.id.focusSquare)
         exposureCircle = findViewById(R.id.exposureCircle)
+        focusMeter = findViewById(R.id.focusMeter)
         zones = findViewById(R.id.zones)
         fullScreenCatcher = findViewById(R.id.fullScreenCatcher)
         status = findViewById(R.id.status)
@@ -280,6 +282,14 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        // v149: the focus puller's meter
+        focusMeter.keys = Mechanism.decodeKeys(settings.focusKeys)
+        focusMeter.onRack = { dpt -> rackTo(dpt) }
+        focusMeter.onPull = { dpt -> pullTo(dpt) }
+        focusMeter.onKeysChanged = { keys ->
+            settings.focusKeys = Mechanism.encodeKeys(keys)
+            Trace.control("focus puller", "key points", keys.joinToString { Mechanism.formatFocusDistance(it) })
+        }
         focusSquare.size = settings.focusBoxSize
         focusSquare.onMoved = { x, y ->
             focus.target = x to y
@@ -376,6 +386,7 @@ class MainActivity : AppCompatActivity() {
                     say("${size.width}x${size.height} ${if (tenBit) "10-bit" else "8-bit"} $codec" +
                         // v148: said on the screen, not only in the trace (it fell back unseen on every open until v148)
                         if (settings.gpuStage && !pipeline.usesGpuStage) " · GPU STAGE could not start: direct path, no tracking" else "")
+                    showMeter()                     // v149: a lens that focuses has the meter, a fixed one none
                     reopenTries = -1                // v116: up again, the recovery is over
                     // v104: the light, switched in settings, is put on whenever the camera opens
                     pipeline.engine.setTorchLevel(settings.torchLevel)
@@ -812,6 +823,7 @@ class MainActivity : AppCompatActivity() {
         // v104: back from settings — the marks take their sizes from there, and the light follows its switch
         focusSquare.size = settings.focusBoxSize
         exposureCircle.size = settings.circleSize
+        showMeter()                                 // v149: back from the settings, the FOCUS PULLER switch
         focus.speedMmS = settings.focusSpeedMmS
         focus.trackSpeedMmS = settings.trackSpeedMmS
         focus.holdMs = settings.focusHoldMs
@@ -1948,6 +1960,8 @@ class MainActivity : AppCompatActivity() {
             applyChanged(was)
             focusSquare.size = settings.focusBoxSize
             exposureCircle.size = settings.circleSize
+            showMeter()
+            focusMeter.keys = Mechanism.decodeKeys(settings.focusKeys)
             focus.speedMmS = settings.focusSpeedMmS
             focus.trackSpeedMmS = settings.trackSpeedMmS
             focus.holdMs = settings.focusHoldMs
@@ -2065,27 +2079,23 @@ class MainActivity : AppCompatActivity() {
                 if (!engine.supportsManualFocus()) return "this lens has fixed focus"
                 val parts = v.split(' ').filter { it.isNotBlank() }
                 val to = parts.getOrNull(0)?.let { adbDioptres(it) } ?: return "rack takes a distance and ms: rack 40cm 3000"
-                stopTrack()
-                if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
-                val closest = engine.minimumFocusDistance()
-                val from = engine.lastFocusDistance ?: 0f
-                val target = to.coerceIn(0f, closest)
-                // v147: rack 40cm 3000 is three seconds; rack 40cm alone goes at FOCUS SPEED (or the ramp, at CAMERA)
-                val ms = parts.getOrNull(1)?.toLongOrNull()
-                    ?: Mechanism.focusTravelMs(from, target, settings.focusSpeedMmS).takeIf { it > 0 } ?: settings.focusRackMs
-                val started = android.os.SystemClock.uptimeMillis()
-                val mine = ++rackTicket
-                ui.post(object : Runnable {
-                    override fun run() {
-                        if (rackTicket != mine || !pipeline.isRunning) return
-                        val p = ((android.os.SystemClock.uptimeMillis() - started).toFloat() / ms.coerceAtLeast(1)).coerceIn(0f, 1f)
-                        val at = Mechanism.rackPosition(from, target, p)
-                        focusFraction = (at / closest).coerceIn(0f, 1f)
-                        pipeline.engine.setFocusDistance(at)
-                        if (p < 1f) ui.postDelayed(this, 33) else say("Rack arrived: " + Mechanism.formatFocusDistance(target))
+                rackTo(to, parts.getOrNull(1)?.toLongOrNull()) ?: return "the camera is not running"
+            }
+            // v149: the focus puller's meter: meter on|off, meter add 40cm, meter clear, meter next
+            "meter" -> {
+                val parts = v.split(' ').filter { it.isNotBlank() }
+                when (parts.getOrNull(0)) {
+                    "on", "off" -> { settings.focusPuller = parts[0] == "on"; showMeter(); "Focus puller ${parts[0]}" }
+                    "add" -> {
+                        val d = parts.getOrNull(1)?.let { adbDioptres(it) } ?: return "meter add takes a distance: meter add 40cm"
+                        val keys = Mechanism.decodeKeys(settings.focusKeys) + d.coerceIn(0f, engine.minimumFocusDistance())
+                        settings.focusKeys = Mechanism.encodeKeys(keys); focusMeter.keys = keys
+                        "Key point " + Mechanism.formatFocusDistance(d) + " (${keys.size})"
                     }
-                })
-                "Rack " + Mechanism.formatFocusDistance(from) + " → " + Mechanism.formatFocusDistance(target) + " in ${ms} ms"
+                    "clear" -> { settings.focusKeys = ""; focusMeter.keys = emptyList(); "Key points cleared" }
+                    "keys" -> return "keys " + Mechanism.decodeKeys(settings.focusKeys).joinToString(" ") { Mechanism.formatFocusDistance(it) }
+                    else -> return "meter takes on, off, add 40cm, clear, keys"
+                }
             }
             // any key of the rails, by the name the link uses (REC, MARK0, a key's label)
             "key" -> { pressKey(v.uppercase()); return "key ${v.uppercase()}" }
@@ -2097,7 +2107,7 @@ class MainActivity : AppCompatActivity() {
                 "+", "-" -> { stepShutter(if (v == "+") 1 else -1); return lastSaid }
                 else -> return "circle takes iso, wb, tap, + or -"
             }
-            else -> return "unknown command $cmd: state, settings, set, restart, update, lens, torch, exposure, iso, shutter, ev, wb, focus, focusd, rack, circle, key"
+            else -> return "unknown command $cmd: state, settings, set, restart, update, lens, torch, exposure, iso, shutter, ev, wb, focus, focusd, rack, meter, circle, key"
         }
         say("ADB: $said")
         refreshZones()
@@ -2107,6 +2117,57 @@ class MainActivity : AppCompatActivity() {
 
     /** v145: a rack running from adb; a new one, or any other focus command, takes over. */
     private var rackTicket = 0
+
+    /**
+     * v145/v149: the lens racked to [dpt], eased in and out (smootherstep), over [ms] or, without it, at FOCUS SPEED
+     * (or the ramp, at CAMERA). The adb `rack` and the focus puller's meter both come here. Null when there is no lens
+     * to move; otherwise what was done.
+     */
+    private fun rackTo(dpt: Float, ms: Long? = null): String? {
+        if (!pipeline.isRunning) return null
+        val engine = pipeline.engine
+        if (!engine.supportsManualFocus()) return "this lens has fixed focus"
+        stopTrack()
+        if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
+        val closest = engine.minimumFocusDistance()
+        val from = engine.lastFocusDistance ?: 0f
+        val target = dpt.coerceIn(0f, closest)
+        val time = ms ?: Mechanism.focusTravelMs(from, target, settings.focusSpeedMmS).takeIf { it > 0 } ?: settings.focusRackMs
+        val started = android.os.SystemClock.uptimeMillis()
+        val mine = ++rackTicket
+        ui.post(object : Runnable {
+            override fun run() {
+                if (rackTicket != mine || !pipeline.isRunning) return
+                val p = ((android.os.SystemClock.uptimeMillis() - started).toFloat() / time.coerceAtLeast(1)).coerceIn(0f, 1f)
+                val at = Mechanism.rackPosition(from, target, p)
+                focusFraction = (at / closest).coerceIn(0f, 1f)
+                pipeline.engine.setFocusDistance(at)
+                if (p < 1f) ui.postDelayed(this, 33) else say("Rack arrived: " + Mechanism.formatFocusDistance(target))
+            }
+        })
+        Trace.control("rack", Mechanism.formatFocusDistance(from) + " → " + Mechanism.formatFocusDistance(target), "$time ms")
+        return "Rack " + Mechanism.formatFocusDistance(from) + " → " + Mechanism.formatFocusDistance(target) + " in $time ms"
+    }
+
+    /** v149: the lens straight to [dpt], by the hand on the meter's white triangle (no ease: the hand is the ease). */
+    private fun pullTo(dpt: Float) {
+        if (!pipeline.isRunning || !pipeline.engine.supportsManualFocus()) return
+        rackTicket++
+        stopTrack()
+        if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
+        val closest = pipeline.engine.minimumFocusDistance()
+        val at = dpt.coerceIn(0f, closest)
+        focusFraction = (at / closest).coerceIn(0f, 1f)
+        pipeline.engine.setFocusDistance(at)
+    }
+
+    /** v149: the meter shown when the settings say so and the lens focuses; its lens triangle follows the capture result. */
+    private fun showMeter() {
+        val closest = if (pipeline.isRunning) pipeline.engine.minimumFocusDistance() else 0f
+        val on = settings.focusPuller && closest > 0f
+        focusMeter.visibility = if (on) View.VISIBLE else View.GONE
+        focusMeter.closest = if (on) closest else 0f
+    }
 
     /** v145: 4.0 (dioptres), 250mm, 25cm, 0.25m or inf as dioptres. */
     private fun adbDioptres(v: String): Float? = when {
@@ -3621,6 +3682,7 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             ui.postDelayed(this, 150)
             focusSquare.label = focusLabel()
+            if (focusMeter.visibility == View.VISIBLE) focusMeter.lens = if (pipeline.isRunning) pipeline.engine.lastFocusDistance else null
         }
     }
 

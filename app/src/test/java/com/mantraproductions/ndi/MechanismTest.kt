@@ -1619,4 +1619,22 @@ class MechanismTest {
         assertEquals("21.7 cm", Mechanism.formatFocusDistance(4.60668f))
         assertEquals("1.25 m", Mechanism.formatFocusDistance(0.8f))
     }
+
+    // v149: the focus puller's meter
+    @Test fun theMeterRunsFromTheClosestToInfinity() {
+        val closest = 9.5238f
+        assertEquals(0f, Mechanism.meterPosition(closest, closest), 1e-5f)
+        assertEquals(1f, Mechanism.meterPosition(0f, closest), 1e-5f)
+        assertEquals(0.5f, Mechanism.meterPosition(closest / 2f, closest), 1e-5f)
+        // there and back
+        for (p in listOf(0f, 0.25f, 0.6f, 1f)) assertEquals(p, Mechanism.meterPosition(Mechanism.meterDioptres(p, closest), closest), 1e-5f)
+        // a fixed lens has no meter
+        assertEquals(0f, Mechanism.meterPosition(1f, 0f), 0f)
+    }
+
+    @Test fun keyPointsSurviveTheirText() {
+        assertEquals(listOf(4f, 2f, 0f), Mechanism.decodeKeys(Mechanism.encodeKeys(listOf(4f, 2f, 0f))))
+        assertEquals(emptyList<Float>(), Mechanism.decodeKeys(null))
+        assertEquals(listOf(1.5f), Mechanism.decodeKeys("x, 1.5,,-3"))
+    }
 }

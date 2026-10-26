@@ -298,6 +298,18 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
+        <!-- v149: the focus puller's meter (Marko, 26.10.2026: "Focus pulling is the function of the second phone and on
+             this phone as well. This is in Settings") -->
+        <Switch
+            android:id="@+id/focusPuller"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:textColor="@color/sand"
+            android:text="FOCUS PULLER" />
+        <TextView android:tag="hint" style="@style/MantraHint" android:text="A meter along the picture's long edge: the lens is the white triangle. Tap the scale to mark a key point, tap its circle to rack there at FOCUS SPEED (or over the ramp at CAMERA), hold the circle to remove it, ▶ goes to the next key point, drag the white triangle to pull by hand." />
         <!-- v147: the speeds in millimetres per second (Marko, 26.10.2026: "a speed of tracking and a speed of focusing ...
              let's put millimeters per second") -->
         <TextView style="@style/MantraLabel" android:text="SPEED" />

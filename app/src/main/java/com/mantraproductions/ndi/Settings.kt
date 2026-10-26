@@ -293,6 +293,16 @@ class Settings(context: Context) {
         get() = prefs.getInt("trackFollow", 60)
         set(value) = prefs.edit().putInt("trackFollow", value.coerceIn(10, 100)).apply()
 
+    /** v149: the focus puller's meter on the camera's screen (FOCUS → FOCUS PULLER). */
+    var focusPuller: Boolean
+        get() = prefs.getBoolean("focusPuller", false)
+        set(value) = prefs.edit().putBoolean("focusPuller", value).apply()
+
+    /** v149: the meter's key points, dioptres in the order marked ([Mechanism.encodeKeys]). */
+    var focusKeys: String
+        get() = prefs.getString("focusKeys", "") ?: ""
+        set(value) = prefs.edit().putString("focusKeys", value).apply()
+
     /** v148: the lens the camera was left on, by its number in the drawer (1 = L1); it opens on it again. */
     var lens: Int
         get() = prefs.getInt("lens", 1)

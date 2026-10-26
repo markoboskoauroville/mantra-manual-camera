@@ -68,6 +68,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
 
+            <!-- v149: the focus puller's meter, along the long edge; it claims only touches on its strip -->
+            <com.mantraproductions.ndi.FocusMeterView
+                android:id="@+id/focusMeter"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
+
             <!--
                  The audio, down the inside edge of the picture.
 

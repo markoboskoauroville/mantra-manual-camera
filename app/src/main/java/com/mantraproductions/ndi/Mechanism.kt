@@ -175,6 +175,22 @@ object Mechanism {
         return (mm / mmPerSecond * 1000f).toLong().coerceIn(150L, 20_000L)
     }
 
+    /**
+     * v149, the focus puller's meter: where [dpt] stands along it, 0 at the closest the lens goes, 1 at infinity. Linear
+     * in dioptres, the lens's own steps, so the near distances (where a pull is fine) get the room.
+     */
+    fun meterPosition(dpt: Float, closest: Float): Float =
+        if (closest <= 0f) 0f else (1f - dpt / closest).coerceIn(0f, 1f)
+
+    /** v149: the dioptres at [position] along the meter (the inverse of [meterPosition]). */
+    fun meterDioptres(position: Float, closest: Float): Float =
+        (closest * (1f - position.coerceIn(0f, 1f))).coerceIn(0f, closest.coerceAtLeast(0f))
+
+    /** v149: the key points kept as text, "4.0000,2.0000"; anything unreadable is dropped. */
+    fun encodeKeys(keys: List<Float>): String = keys.joinToString(",") { String.format(java.util.Locale.ROOT, "%.4f", it) }
+    fun decodeKeys(text: String?): List<Float> =
+        text.orEmpty().split(',').mapNotNull { it.trim().toFloatOrNull() }.filter { it >= 0f && it < 100f }
+
     /** v147: a speed slider's 0..100 as millimetres per second: 0 is CAMERA, then 10 to 1000 in steps of 10. */
     fun speedFromSlider(v: Int): Int = v.coerceIn(0, 100) * 10
 

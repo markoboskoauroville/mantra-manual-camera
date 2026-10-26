@@ -367,6 +367,11 @@ class SettingsActivity : AppCompatActivity() {
         slider(R.id.trackFollow, R.id.trackFollowValue, value = settings.trackFollow - 10,
             label = { "mark follows ${it + 10}% of the way per search" },
             onSet = { settings.trackFollow = it + 10 })
+        // v149: the focus puller's meter on the camera's screen
+        findViewById<android.widget.Switch>(R.id.focusPuller).apply {
+            isChecked = settings.focusPuller
+            setOnCheckedChangeListener { _, on -> settings.focusPuller = on; Trace.control("focus puller", if (on) "on" else "off", "settings") }
+        }
         // v147: the speeds, mm/s; 0 is the camera's own glide
         slider(R.id.focusSpeed, R.id.focusSpeedValue, value = settings.focusSpeedMmS / 10,
             label = { "focus  " + Mechanism.speedLabel(Mechanism.speedFromSlider(it)) },
