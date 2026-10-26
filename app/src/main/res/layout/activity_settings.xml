@@ -235,6 +235,14 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="visible">
+        <!-- v145: the light's brightness (Marko, 26.10.2026: "in our settings we can have brightness control for the LED") -->
+        <TextView style="@style/MantraLabel" android:text="LIGHT" />
+        <TextView android:id="@+id/torchLevelValue" style="@style/MantraValue" />
+        <SeekBar
+            android:id="@+id/torchLevel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="99" />
         <!-- v112: the two bit rates, named by what they are for (Marko: "Just say recording and streaming") -->
         <!--
              The wire first.

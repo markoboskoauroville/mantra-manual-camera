@@ -751,7 +751,7 @@ Needs the GPU stage (Settings → Picture path).
 
 > "In the same style as we have ISO under the circle, I want to have focus under the square, with two modes: focus auto and focus manual. While it's measuring the focus, there will be "focus auto." While it's locked, it will be "focus manual." This is to explain what's going on. Also, please check if the focus works. You need to control the focus. Go to all focal ranges and check if the actual camera application can control the focus of this camera in every lens which is actually enabled to be focused. Please see if that's fine enough. I want to have the maximum possible resolution of focusing movement, so I can go in millimeters. What are the steps which the camera or hardware accepts for focus? The slowest steps. Under the focus text, "focusing auto." We don't do focus manual. We do it like this: "focusing set column auto focusing." Then you need to put the meters, which are centimeters or meters, where the focus is actually adjusted, so we always know the distance." (Marko, 26.10.2026)
 
-59. Under the square, small, as ISO / WB under the circle: FOCUSING: AUTO while the camera measures, FOCUSING: SET once it holds, and under it the distance the lens is really at, in centimetres or metres. — **Status:** v145 asked.
+59. Under the square, small, as ISO / WB under the circle: FOCUSING: AUTO while the camera measures, FOCUSING: SET once it holds, and under it the distance the lens is really at, in centimetres or metres. — **Status:** v145 built (mm under 10 cm, cm with one decimal under 1 m, m beyond; FIXED FOCUS on a lens without travel); adb `mcam focusd 25cm|250mm|4.0` and the state's focus_dpt, focus_at, focus_closest_dpt, focus_calibration.
 
 60. The focus measured from the Mac on every lens that focuses: whether the app moves it, over the whole range, and the finest step the hardware takes (he wants millimetres). — **Status:** asked.
 
@@ -759,13 +759,13 @@ Needs the GPU stage (Settings → Picture path).
 
 > "another feature is to remove this settings icon, and clicking on the free space will open the settings. That's why you need to color this free space thing in yellow, and then you can spread other controls there. There will be more space, so there's actually less. Inside the record button, instead of this white thing, you need to display the thumbnail of the last clip, either it's photography or video, whatever is last captured with this application. The thumbnail will be inside the record button, and the record button is still the record button" (Marko, 26.10.2026)
 
-61. The gear key goes. The free-space key (44.6 GB / 4:20 h) opens the settings and is coloured yellow; the other keys of the bottom rail spread into the room the gear left. — **Status:** v145 asked.
+61. The gear key goes. The free-space key (44.6 GB / 4:20 h) opens the settings and is coloured yellow; the other keys of the bottom rail spread into the room the gear left. — **Status:** v145 built: the gear is gone, the free-space key is yellow (#F5D90A, red under ten minutes) and opens the settings; the bottom rail's keys share the room.
 
-62. Inside the record button, in place of the white disc, the thumbnail of the last thing this app captured, photo or video, whichever is newest; the button stays the record button. — **Status:** v145 asked.
+62. Inside the record button, in place of the white disc, the thumbnail of the last thing this app captured, photo or video, whichever is newest; the button stays the record button. — **Status:** v145 built: a still's picture or a take's first frame, kept as files/last_capture.jpg across runs; red while recording as before.
 
 > "also check if it's possible to adjust the brightness of the LED in the Pixel phone, so in our settings we can have brightness control for the LED" (Marko, 26.10.2026)
 
-63. The light's brightness: find whether the Pixel 7's LED takes a strength level; if it does, a brightness control in the settings. — **Status:** asked.
+63. The light's brightness: find whether the Pixel 7's LED takes a strength level; if it does, a brightness control in the settings. — **Status:** MEASURED 26.10.2026: the Pixel 7 (Android 17, API 37) publishes torchStrengthMaxLevel 45 in a camera session (default 45) and 45 through the camera manager (default 21). v145 built: CAMERA → LIGHT, brightness 1–100 %, at once on the lamp; adb `mcam torch 30%`, `mcam set torchLevel 30`.
 
 ## 26.10.2026 — the remote over ADB: wireless debugging and scrcpy's picture
 

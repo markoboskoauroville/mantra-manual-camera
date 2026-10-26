@@ -66,6 +66,10 @@ import androidx.core.view.WindowInsetsControllerCompat
  */
 /** v139: the action of the adb control (MainActivity.adbControl, scripts/mcam). */
 private const val ADB_ACTION = "com.mantraproductions.manualcamera.ADB"
+/** v145: how wide the record button's picture of the last capture is kept, in pixels. */
+private const val THUMB_PX = 192
+/** v145: the free-space key, which opens the settings, in yellow. */
+private val STORAGE_YELLOW = android.graphics.Color.parseColor("#F5D90A")
 
 class MainActivity : AppCompatActivity() {
 
@@ -190,7 +194,6 @@ class MainActivity : AppCompatActivity() {
 
     private val lensKeys = mutableListOf<RailButton>()
     private lateinit var recKey: RecordButtonView
-    private lateinit var gearKey: RailButton
     private lateinit var playKey: RailButton
     private lateinit var shootKey: RailButton
     private lateinit var lutKey: RailButton
@@ -371,6 +374,7 @@ class MainActivity : AppCompatActivity() {
                     say("${size.width}x${size.height} ${if (tenBit) "10-bit" else "8-bit"} $codec")
                     reopenTries = -1                // v116: up again, the recovery is over
                     // v104: the light, switched in settings, is put on whenever the camera opens
+                    pipeline.engine.setTorchLevel(settings.torchLevel)
                     if (settings.torch) pipeline.engine.setTorch(true)
                     restoreMode = CameraPipeline.Mode.OFF
                     // v136: the stream stands the way the phone is held
@@ -530,6 +534,11 @@ class MainActivity : AppCompatActivity() {
             it.setOnClickListener { toggleRecording() }
             railRight.addView(it)
         }
+        // v145: the last capture inside it, kept from the run before
+        stillWriter.execute {
+            val kept = runCatching { android.graphics.BitmapFactory.decodeFile(lastCaptureFile().path) }.getOrNull()
+            if (kept != null) ui.post { if (recKey.thumbnail == null) recKey.thumbnail = kept }
+        }
         playKey = newKey("") { playLastTake() }.also {
             it.glyph = RailButton.Glyph.PLAY
             railRight.addView(it)
@@ -549,12 +558,9 @@ class MainActivity : AppCompatActivity() {
             .also { railRight.addView(it) }
         zebraKey = newKey("ZEBRA") { zebra = !zebra; applyLook(); refreshKeys() }
             .also { railRight.addView(it) }
-        gearKey = newKey("") { openSettings() }.also {
-            it.glyph = RailButton.Glyph.GEAR
-            railRight.addView(it)
-        }
-        // Not a switch: a readout that opens where the takes go.
-        storageKey = newKey("—") { openSettings() }.also { railRight.addView(it) }
+        // v145: no gear (Marko, 26.10.2026: "remove this settings icon, and clicking on the free space will open the
+        // settings. That's why you need to color this free space thing in yellow"). The readout is the way in.
+        storageKey = newKey("—") { openSettings() }.also { it.tint = STORAGE_YELLOW; railRight.addView(it) }
     }
 
     /** v130: the lens drawer opens over the whole left rail (wider in landscape, taller upright) and closes again. */
@@ -800,7 +806,10 @@ class MainActivity : AppCompatActivity() {
         // v104: back from settings — the marks take their sizes from there, and the light follows its switch
         focusSquare.size = settings.focusBoxSize
         exposureCircle.size = settings.circleSize
-        if (pipeline.isRunning && pipeline.engine.hasFlash()) pipeline.engine.setTorch(settings.torch)
+        if (pipeline.isRunning && pipeline.engine.hasFlash()) {
+            pipeline.engine.setTorchLevel(settings.torchLevel)
+            pipeline.engine.setTorch(settings.torch)
+        }
         // Settings may have removed the LUT that was on.
         if (activeSlot > 0 && !slots.slot(activeSlot).loaded) { activeSlot = 0; applyLook() }
         refreshStorage()
@@ -1108,6 +1117,8 @@ class MainActivity : AppCompatActivity() {
         )
             ?: run { refreshKeys(); return false }
         pipeline.lastTakeUri?.let { settings.lastTake = it.toString() }
+        // v145: the take's first picture, for the record button once the take is saved
+        takeThumb = runCatching { if (preview.isAvailable) preview.getBitmap(THUMB_PX, THUMB_PX * preview.height / maxOf(1, preview.width)) else null }.getOrNull()
         say("Recording → $where")
         return true
     }
@@ -1116,6 +1127,8 @@ class MainActivity : AppCompatActivity() {
         val frames = pipeline.recordedFrames
         val drops = pipeline.recordedDrops
         val where = pipeline.stopRecording()
+        takeThumb?.let { t -> if (where != null) stillWriter.execute { keepLastCapture(t) } }
+        takeThumb = null
         refreshStorage()
         say(
             when {
@@ -1468,6 +1481,7 @@ class MainActivity : AppCompatActivity() {
         Trace.control("still", "${w}x$h", "PNG", "read in ${android.os.SystemClock.uptimeMillis() - t0} ms")
         stillWriter.execute {
             val where = Recordings.savePng(this, bitmap, at = at, folder = settings.recordFolder)
+            if (where != null) keepLastCapture(bitmap)
             // One buffer is kept for the next snap; the others go back, so idle memory stays at one picture.
             if (!keptStill.compareAndSet(null, bitmap)) bitmap.recycle()
             stillsWaiting.decrementAndGet()
@@ -1923,7 +1937,10 @@ class MainActivity : AppCompatActivity() {
             applyChanged(was)
             focusSquare.size = settings.focusBoxSize
             exposureCircle.size = settings.circleSize
-            if (pipeline.isRunning && pipeline.engine.hasFlash()) pipeline.engine.setTorch(settings.torch)
+            if (pipeline.isRunning && pipeline.engine.hasFlash()) {
+                pipeline.engine.setTorchLevel(settings.torchLevel)
+                pipeline.engine.setTorch(settings.torch)
+            }
             telemetry.visibility = if (!fullScreen && settings.showOutputs) View.VISIBLE else View.GONE
             say("ADB: $said")
             refreshZones()
@@ -1953,6 +1970,14 @@ class MainActivity : AppCompatActivity() {
         val said: String = when (cmd) {
             "torch", "light" -> {
                 if (!engine.hasFlash()) return "this lens has no lamp"
+                // v145: a brightness in percent turns it on at that level (torch 30%)
+                v.removeSuffix("%").toIntOrNull()?.takeIf { v.endsWith("%") }?.let { pct ->
+                    settings.torchLevel = pct
+                    settings.torch = true
+                    engine.setTorchLevel(settings.torchLevel)
+                    engine.setTorch(true)
+                    return "Light ${settings.torchLevel}% (level of ${engine.torchStrengthMax()})"
+                }
                 val on = when (v) { "on", "1" -> true; "off", "0" -> false; else -> !settings.torch }
                 settings.torch = on
                 engine.setTorch(on)
@@ -2060,6 +2085,7 @@ class MainActivity : AppCompatActivity() {
             "lens" to (activeLens + 1),
             "lenses" to lenses.mapIndexed { i, l -> "L${i + 1}:" + l.label.replace(' ', '_') + (l.equivalentMm.takeIf { it > 0 }?.let { "_${it}mm" } ?: "") }.joinToString(","),
             "torch" to (if (e.hasFlash()) settings.torch else "none"),
+            "torch_level" to (if (e.hasFlash()) "${settings.torchLevel}% of ${e.torchStrengthMax()} levels" else "-"),
             "exposure" to Mechanism.exposureMode(isoAuto, shutterAuto).name.lowercase(),
             "iso" to (if (isoAuto) "auto" else iso),
             "shutter" to (if (shutterAuto) "auto" else Mechanism.formatShutter(shutterNs)),
@@ -3266,6 +3292,22 @@ class MainActivity : AppCompatActivity() {
         Trace.control("LUT", activeSlot, if (activeSlot == 0) "off" else slots.slot(activeSlot).label)
     }
 
+    // --- v145: THE LAST CAPTURE, inside the record button ----------------------------------------------------------
+
+    private var takeThumb: android.graphics.Bitmap? = null
+
+    private fun lastCaptureFile() = java.io.File(filesDir, "last_capture.jpg")
+
+    /** Off the main thread: [picture] made small, shown in the record button, and kept for the next run. */
+    private fun keepLastCapture(picture: android.graphics.Bitmap) {
+        runCatching {
+            val h = (THUMB_PX * picture.height / maxOf(1, picture.width)).coerceAtLeast(1)
+            val small = android.graphics.Bitmap.createScaledBitmap(picture, THUMB_PX, h, true)
+            lastCaptureFile().outputStream().use { small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
+            ui.post { recKey.thumbnail = small }
+        }.onFailure { Trace.fault("last capture", it) }
+    }
+
     /** The last take: this session's, or the one remembered from before. */
     private fun lastTakeUri(): Uri? =
         pipeline.lastTakeUri ?: settings.lastTake?.let { Uri.parse(it) }
@@ -3332,12 +3374,15 @@ class MainActivity : AppCompatActivity() {
             storageKey.label = "NO DRIVE"
             storageKey.sub = null
             storageKey.state = RailButton.State.ARMED
+            storageKey.tint = null
             return
         }
         val left = Mechanism.secondsLeft(free, pipeline.videoBitRate.toLong(), 192_000L)
         storageKey.label = Mechanism.formatFree(free)
         storageKey.sub = Mechanism.formatTimeLeft(left)
-        storageKey.state = if (left < 10 * 60) RailButton.State.ARMED else RailButton.State.OFF
+        // v145: yellow, the settings' key; red under ten minutes, as before
+        storageKey.state = if (left < 10 * 60) RailButton.State.ARMED else RailButton.State.SHOWN
+        storageKey.tint = if (left < 10 * 60) null else STORAGE_YELLOW
     }
 
     /** Record-run timecode, ticking ten times a second while a take runs. */
@@ -3476,7 +3521,6 @@ class MainActivity : AppCompatActivity() {
         shootKey.label = if (settings.shootMode == 1) "LANDSCAPE" else "PORTRAIT"
         shootKey.state = RailButton.State.OFF
         playKey.state = if (lastTakeUri() != null) RailButton.State.OFF else RailButton.State.DEAD
-        gearKey.state = RailButton.State.OFF
 
         recKey.dead = !pipeline.isRunning
         recKey.recording = rolling

@@ -234,6 +234,10 @@ class SettingsActivity : AppCompatActivity() {
             // phone's own torch switch works here; back on the camera, the camera takes the lamp over (v104).
             lampNow(settings.torch)
         }
+        // v145: the light's brightness, 1 to 100 % of what the lamp gives; moved, the lamp shows it at once
+        slider(R.id.torchLevel, R.id.torchLevelValue, value = settings.torchLevel - 1,
+            label = { "brightness  ${it + 1}%" },
+            onSet = { settings.torchLevel = it + 1; if (settings.torch) lampNow(true) })
         // v111: the three marks in one line, each its icon and its size as a drop-down in steps of 25 % ("You go
         // by 25% that's the scale"). 25 % is the smallest a mark may be, 100 % the largest.
         val quarters = listOf("25%", "50%", "75%", "100%")
@@ -576,8 +580,14 @@ class SettingsActivity : AppCompatActivity() {
                     c.get(android.hardware.camera2.CameraCharacteristics.LENS_FACING) ==
                     android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
             } ?: return
-            cm.setTorchMode(id, on)
-            Trace.control("torch", on, "settings, through the camera manager")
+            // v145: at the chosen brightness where the phone takes a level (Android 13+, a lamp with more than one)
+            val max = if (android.os.Build.VERSION.SDK_INT >= 33)
+                cm.getCameraCharacteristics(id).get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_STRENGTH_MAXIMUM_LEVEL) ?: 1
+            else 1
+            if (on && max > 1 && android.os.Build.VERSION.SDK_INT >= 33) {
+                cm.turnOnTorchWithStrengthLevel(id, Math.round(max * settings.torchLevel / 100f).coerceIn(1, max))
+            } else cm.setTorchMode(id, on)
+            Trace.control("torch", on, "settings, through the camera manager, ${settings.torchLevel}% of $max")
         }.onFailure { Trace.refused("torch", "settings: " + Trace.describe(it)) }
     }
 

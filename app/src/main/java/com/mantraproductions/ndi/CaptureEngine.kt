@@ -886,10 +886,33 @@ class CaptureEngine(private val context: Context) {
             CaptureRequest.FLASH_MODE,
             if (on) CaptureRequest.FLASH_MODE_TORCH else CaptureRequest.FLASH_MODE_OFF
         )
+        val level = torchStrengthFor(torchPercent)
+        if (on && level != null) request.set(CaptureRequest.FLASH_STRENGTH_LEVEL, level)
         val ok = apply()
         if (ok) torchOn = on
-        Trace.control("torch", on, if (ok) on else "refused")
+        Trace.control("torch", on, if (ok) (if (level != null) "level $level of ${torchStrengthMax()}" else on) else "refused")
         return ok
+    }
+
+    /** v145: the light's brightness in percent; set before [setTorch], or applied at once when the lamp is on. */
+    @Volatile var torchPercent: Int = 100
+        private set
+
+    fun setTorchLevel(percent: Int): Boolean {
+        torchPercent = percent.coerceIn(1, 100)
+        return if (torchOn) setTorch(true) else true
+    }
+
+    /** v145: how many levels the lamp has while the camera runs (1 = no control: this phone, or Android before 15). */
+    fun torchStrengthMax(): Int =
+        if (android.os.Build.VERSION.SDK_INT >= 35)
+            lensCharacteristics?.get(CameraCharacteristics.FLASH_TORCH_STRENGTH_MAX_LEVEL) ?: 1
+        else 1
+
+    private fun torchStrengthFor(percent: Int): Int? {
+        val max = torchStrengthMax()
+        if (max <= 1) return null
+        return (Math.round(max * percent / 100f)).coerceIn(1, max)
     }
 
     fun hasFlash(): Boolean =

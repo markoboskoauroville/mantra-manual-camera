@@ -294,6 +294,14 @@ class Settings(context: Context) {
         set(value) = prefs.edit().putInt("trackFollow", value.coerceIn(10, 100)).apply()
 
     /**
+     * v145: the light's brightness, percent of what the lamp can give (Marko, 26.10.2026: "brightness control for the
+     * LED"). The Pixel 7's lamp takes 45 levels while the camera runs (FLASH_STRENGTH_LEVEL, Android 15).
+     */
+    var torchLevel: Int
+        get() = prefs.getInt("torchLevel", 100)
+        set(value) = prefs.edit().putInt("torchLevel", value.coerceIn(1, 100)).apply()
+
+    /**
      * v144: the adb door open or shut (Marko, 26.10.2026: "you need to add a switch ADB control, which is on by
      * default"). Shut, the camera answers adb only with "ADB control is off". adb itself cannot open or shut it.
      */
