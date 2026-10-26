@@ -937,3 +937,11 @@ Needs the GPU stage (Settings → Picture path).
 > "long press of any of the action buttons after 2 seconds. Open the help menu explaining what the button does" (Marko, 26.10.2026)
 
 101. A 2-second press on any key of the camera opens its help: what the key does. — **Status:** v155: every rail key, REC and PLAY (Help.kt, one text per key, the POWER MONITOR's with the reading now); the held key is not pressed; LUT keeps its own long press (settings). Tested on the Pixel: PEA held 2.6 s → "PEA · PEAKING", peaking still off.
+
+> "for false color, not VEL. Make it FC" (Marko, 26.10.2026)
+
+102. The false-colour key reads FC (not FAL). — **Status:** in work.
+
+> "instead of POR, make a standard SVG icon, same as the camera there, just change the orientation, kind of thing. What symbolizes the change of orientation of the screen should be there" / "also, zebra can be simple. You make one square and inside lines in some kind of angle. It can be like zebra" (Marko, 26.10.2026)
+
+103. POR/LAN as an icon in the camera icon's line style: a phone with a turning arrow, upright or lying across; ZEB as a square of slanted lines. — **Status:** in work.
