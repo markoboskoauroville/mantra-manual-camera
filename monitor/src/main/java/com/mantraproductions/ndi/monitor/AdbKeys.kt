@@ -22,12 +22,21 @@ object AdbKeys {
     private const val KEY = "adb-key.pk8"
     private const val CERT = "adb-cert.der"
 
+    private var cached: Pair<PrivateKey, Certificate>? = null
+
+    /**
+     * v153 (the review): synchronised and cached. Pairing and connecting can start together on a first run, and two
+     * threads making their own key at once could leave one's key beside the other's certificate.
+     */
+    @Synchronized
     fun load(context: Context): Pair<PrivateKey, Certificate> {
+        cached?.let { return it }
         val dir = context.filesDir
         val k = File(dir, KEY); val c = File(dir, CERT)
         if (k.exists() && c.exists()) runCatching {
             val key = KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(k.readBytes()))
-            val cert = CertificateFactory.getInstance("X.509").generateCertificate(c.inputStream())
+            val cert = c.inputStream().use { CertificateFactory.getInstance("X.509").generateCertificate(it) }
+            cached = key to cert
             return key to cert
         }
         val pair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
@@ -45,6 +54,7 @@ object AdbKeys {
         val cert: java.security.cert.X509Certificate = gen.generate(pair.private)   // signed by the phone's own SHA256withRSA
         k.writeBytes(pair.private.encoded)
         c.writeBytes(cert.encoded)
+        cached = pair.private to cert
         return pair.private to cert
     }
 }

@@ -294,10 +294,11 @@ class MainActivity : AppCompatActivity() {
                 ?.let { Mechanism.formatFocusDistance(it) } ?: ""
             // v151 (Marko: "Add Keyframe and Remove Keyframe, both options. It's the keyframe column, and then two yellow
             // buttons: Add or Remove"): ADD where the lens is, REMOVE the keyframe pressed or the one the lens stands on
+            val keyAt = focusMeter.keys.getOrNull(index)      // v153: removed by its value, not a list place that may move
             val d = android.app.AlertDialog.Builder(this)
                 .setTitle("KEYFRAME:  $at")
                 .setNeutralButton("ADD") { _, _ -> focusMeter.addKeyAtLens() }
-                .setPositiveButton("REMOVE") { _, _ -> focusMeter.deleteKey(index) }
+                .setPositiveButton("REMOVE") { _, _ -> keyAt?.let { v -> focusMeter.deleteKey(focusMeter.keys.indexOfFirst { it == v }) } }
                 .show()
             val yellow = RailButton.AMBER
             d.getButton(android.app.AlertDialog.BUTTON_NEUTRAL)?.apply { setTextColor(yellow); textSize = 16f }
@@ -324,7 +325,7 @@ class MainActivity : AppCompatActivity() {
             if (tracking) startTrack()
         }
         pipeline.trackListener = GpuStage.TrackListener { x, y, score -> ui.post { onTracked(x, y, score) } }
-        focusSquare.onTapped = { focus.focusHereAndHold(); alsoUnder(focusSquare.tapX, focusSquare.tapY, 0) }
+        focusSquare.onTapped = { rackTicket++; focus.focusHereAndHold(); alsoUnder(focusSquare.tapX, focusSquare.tapY, 0) }
         // v103: the circle. A tap reads there and locks; where it is dragged is kept. v143: the one circle does
         // ISO or white balance (its mode, written under it); a long press chooses, and sets the shutter.
         exposureCircle.kind = MarkView.Kind.CIRCLE
@@ -2100,6 +2101,7 @@ class MainActivity : AppCompatActivity() {
                 if (!engine.supportsManualFocus()) return "this lens has fixed focus"
                 val f = v.toFloatOrNull() ?: return "focus takes 0 (infinity) to 1 (closest) or auto"
                 focusFraction = f.coerceIn(0f, 1f)
+                rackTicket++                                  // v153: a hand on the focus ends a rack (the review)
                 stopTrack()
                 if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
                 engine.setManualFocus(focusFraction)
@@ -2109,6 +2111,7 @@ class MainActivity : AppCompatActivity() {
             "focusd" -> {
                 if (!engine.supportsManualFocus()) return "this lens has fixed focus"
                 val dpt = adbDioptres(v) ?: return "focusd takes dioptres (4.0), 250mm, 25cm or 0.25m"
+                rackTicket++
                 stopTrack()
                 if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
                 val closest = engine.minimumFocusDistance()
@@ -2170,6 +2173,7 @@ class MainActivity : AppCompatActivity() {
         val engine = pipeline.engine
         if (!engine.supportsManualFocus()) return "this lens has fixed focus"
         stopTrack()
+        focus.cancelWalk()
         if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
         val closest = engine.minimumFocusDistance()
         val from = engine.lastFocusDistance ?: 0f
@@ -2195,6 +2199,7 @@ class MainActivity : AppCompatActivity() {
     private fun pullTo(dpt: Float) {
         if (!pipeline.isRunning || !pipeline.engine.supportsManualFocus()) return
         rackTicket++
+        focus.cancelWalk()                              // v153: a tap's walk must not fight the hand
         stopTrack()
         if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
         val closest = pipeline.engine.minimumFocusDistance()

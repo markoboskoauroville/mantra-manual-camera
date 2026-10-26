@@ -307,7 +307,7 @@ class MonitorActivity : Activity() {
             // v150: the ADB status line, with what arrives over it
             adb?.let { a ->
                 val t = a.frames.get() to a.bytes.get()
-                if (a.width > 0) status.text = String.format(java.util.Locale.ROOT, "ADB ENABLED · %s · %s:%d · %d fps · %.1f Mbit/s",
+                if (a.connected && a.width > 0) status.text = String.format(java.util.Locale.ROOT, "ADB ENABLED · %s · %s:%d · %d fps · %.1f Mbit/s",
                     a.device.ifEmpty { "camera" }, a.host, a.port, t.first - adbLast.first, (t.second - adbLast.second) * 8 / 1e6)
                 adbLast = t
                 return
@@ -505,7 +505,13 @@ class MonitorActivity : Activity() {
         status.visibility = View.VISIBLE
         fittedW = 0; fittedH = 0
         val out = output ?: run { say("No picture surface yet"); return }
-        val a = AdbLink(this, host, port, out,
+        // v153 (the review): the address is asked again before every try, so a new port announced by mDNS (wireless
+        // debugging switched on again) is taken by the running link instead of the dead one being retried forever
+        val endpoint = {
+            val w = adbHosts[source] ?: prefs.getString("adbLast", where) ?: where
+            w.substringBefore(':') to (w.substringAfter(':').toIntOrNull() ?: port)
+        }
+        val a = AdbLink(this, endpoint, out,
             onStatus = { msg -> ui.post { status.visibility = View.VISIBLE; status.text = msg } },
             onSize = { w, h -> ui.post { followCamera(w, h); fit() } },
             onPairingNeeded = { ui.post { pairDialog(host) } })
@@ -608,7 +614,8 @@ class MonitorActivity : Activity() {
 
     @Deprecated("the back key goes to the camera in link mode")
     override fun onBackPressed() {
-        adb?.let { a -> if (picker.visibility != View.VISIBLE) { a.key("BACK"); return } }
+        // v153: BACK goes to the camera phone only while the link is up; down, it leaves the monitor as usual
+        adb?.let { a -> if (a.connected && picker.visibility != View.VISIBLE) { a.key("BACK"); return } }
         val c = link
         if (c != null && picker.visibility != View.VISIBLE) { c.key("BACK"); return }
         if (picker.visibility == View.VISIBLE) { showPicker(false); return }

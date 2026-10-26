@@ -369,7 +369,8 @@ class Settings(context: Context) {
             type == Long::class.javaPrimitiveType -> v.toLongOrNull()
             type == Float::class.javaPrimitiveType -> v.toFloatOrNull()
             type == Boolean::class.javaPrimitiveType -> when (v.lowercase()) { "on", "true", "1" -> true; "off", "false", "0" -> false; else -> null }
-            type == String::class.java -> if (v == "-" || v.isEmpty()) null else v
+            // v153 (the review): only the nullable settings take "-" as nothing; the others get the text, "" included
+            type == String::class.java -> if (v == "-" && name.lowercase() in NULLABLE) null else if (v == "-") "" else v
             type.isEnum -> type.enumConstants?.firstOrNull { (it as Enum<*>).name.equals(v, ignoreCase = true) }
             Set::class.java.isAssignableFrom(type) -> v.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
             else -> return "$name cannot be set over adb"
@@ -386,6 +387,8 @@ class Settings(context: Context) {
     private companion object {
         /** The door itself, and the wiring behind the screen, stay with the phone's owner. */
         val ADB_HIDDEN = setOf("adbControl", "prefs")
+        /** The String settings that may be nothing (null): a folder, the last take, the last still. */
+        val NULLABLE = setOf("recordfolder", "lasttake", "laststill")
         const val SOURCE = "sourceName"
         const val HOLD = "focusHoldMs"
         const val RACK = "focusRackMs"

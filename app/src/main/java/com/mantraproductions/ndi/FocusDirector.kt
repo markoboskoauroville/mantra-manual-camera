@@ -61,8 +61,12 @@ class FocusDirector(
     private var racking = false
     private var searching = false
 
+    /** v153 (the review): a tap's search-and-walk ends here: a hand pull, a rack or a mode change takes over. */
+    fun cancelWalk() { walkTicket++; racking = false }
+
     fun setMode(next: Mode) {
         if (mode == next) return
+        walkTicket++
         mode = next
         handler.removeCallbacksAndMessages(null)
         racking = false

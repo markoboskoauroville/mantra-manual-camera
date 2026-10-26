@@ -29,16 +29,23 @@ import kotlin.concurrent.thread
  */
 class AdbLink(
     private val context: Context,
-    val host: String,
-    val port: Int,
+    /**
+     * Where the camera phone is, asked again before every try (v153, the review: wireless debugging takes a new port
+     * whenever it is switched on again, and a link holding the old one retried a dead port forever).
+     */
+    private val endpoint: () -> Pair<String, Int>,
     private val output: Surface,
     private val onStatus: (String) -> Unit,
     private val onSize: (Int, Int) -> Unit,
     /** The camera phone asks to be paired with this monitor (its key is not known there yet). */
     private val onPairingNeeded: () -> Unit
 ) {
+    @Volatile var host = ""; private set
+    @Volatile var port = 0; private set
     @Volatile var width = 0; private set
     @Volatile var height = 0; private set
+    /** v153: true only while the picture is coming; the status line and BACK go by this. */
+    @Volatile var connected = false; private set
     val frames = AtomicLong()
     val bytes = AtomicLong()
     @Volatile var device = ""; private set
@@ -48,37 +55,60 @@ class AdbLink(
     private var control: AdbStream? = null
     private var shell: AdbStream? = null
     private val sender = Executors.newSingleThreadExecutor { Thread(it, "adb-control") }
+    /** scrcpy's server, read from the assets once (it was read again on every retry). */
+    private val jar: ByteArray by lazy { context.assets.open(SERVER_ASSET).use { it.readBytes() } }
 
     fun start() {
         running = true
         thread(name = "adb-link") {
-            try { run() } catch (e: io.github.muntashirakon.adb.AdbPairingRequiredException) {
-                if (running) { onStatus("ADB: this monitor is not paired with $host yet"); onPairingNeeded() }
-            } catch (e: Throwable) {
-                if (running) onStatus("ADB: " + (e.message ?: e.javaClass.simpleName))
-                Log.w(TAG, "link", e)
-            } finally { close() }
+            // v152 (the stress pass): a dropped link (Wi-Fi, the camera phone's scrcpy killed, the screen locked) is
+            // tried again every 2 s, as MANTRA LINK does; only a missing pairing stops it
+            var attempt = 0
+            while (running) {
+                try { run() } catch (e: io.github.muntashirakon.adb.AdbPairingRequiredException) {
+                    if (running) { onStatus("ADB: this monitor is not paired with $host yet"); onPairingNeeded() }
+                    running = false
+                } catch (e: Throwable) {
+                    if (running) onStatus("ADB: " + (e.message ?: e.javaClass.simpleName) + " — trying again")
+                    Log.w(TAG, "link", e)
+                } finally { close() }
+                if (!running) break
+                attempt++
+                Log.i(TAG, "reconnect $attempt")
+                Thread.sleep(2000)
+            }
         }
     }
 
-    fun stop() { running = false; close() }
+    /** v153: off the main thread — closing writes to the socket and joins the connection's thread. */
+    fun stop() {
+        running = false
+        thread(name = "adb-stop") { close(); sender.shutdownNow() }
+    }
 
     private fun close() {
+        connected = false
+        width = 0; height = 0
         runCatching { video?.close() }; runCatching { control?.close() }; runCatching { shell?.close() }
         runCatching { manager?.close() }
         video = null; control = null; shell = null; manager = null
     }
 
+    private fun stopped(): Boolean = !running
+
     private fun run() {
+        val (h, p) = endpoint()
+        host = h; port = p
         onStatus("ADB: connecting to $host:$port")
         val m = AdbManager(context).apply { setTimeout(10, java.util.concurrent.TimeUnit.SECONDS) }
         manager = m
         if (!m.connect(host, port)) throw IllegalStateException("$host:$port did not answer")
+        if (stopped()) return
         onStatus("ADB: connected, starting the picture")
 
         // scrcpy's server onto the camera phone
-        val jar = context.assets.open(SERVER_ASSET).use { it.readBytes() }
         push(m, jar, SERVER_PATH)
+        if (stopped()) return
 
         // the session's id: a 31-bit number in hex, as scrcpy reads it; its socket is scrcpy_<scid>
         val scid = Integer.toHexString((Math.random() * 0x7FFFFFFF).toInt())
@@ -106,6 +136,8 @@ class AdbLink(
         control = openWhenReady(m, "localabstract:scrcpy_$scid")
         device = String(readFully(vin, 64)).trimEnd('\u0000')
         readFully(vin, 4)                                   // "h264"; the size comes in the first session packet
+        if (stopped()) return
+        connected = true
         onStatus("ADB ENABLED · $device · $host:$port")
         decode(vin)
     }
@@ -195,12 +227,9 @@ class AdbLink(
             val o = dec.dequeueOutputBuffer(info, 0)
             when {
                 o >= 0 -> { dec.releaseOutputBuffer(o, true); frames.incrementAndGet() }
-                o == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                    val f = dec.outputFormat
-                    val w = if (f.containsKey("crop-right")) f.getInteger("crop-right") - f.getInteger("crop-left") + 1 else f.getInteger(MediaFormat.KEY_WIDTH)
-                    val h = if (f.containsKey("crop-bottom")) f.getInteger("crop-bottom") - f.getInteger("crop-top") + 1 else f.getInteger(MediaFormat.KEY_HEIGHT)
-                    if (w != width || h != height) { width = w; height = h; onSize(w, h) }
-                }
+                // v153 (the review): the size stays the SESSION packet's. A decoder that reports a padded size (1088
+                // for 1080) without crop keys would have put that into every touch, and scrcpy ignores a touch whose
+                // screen size is not its own.
                 else -> return
             }
         }
