@@ -913,3 +913,7 @@ Needs the GPU stage (Settings → Picture path).
 > "to the camera remote you can add the black and white screen, same as we have in our remote app" (Marko, 26.10.2026)
 
 96. The black-and-white screen of Mantra Remote in the camera remote's ADB picture. — **Status:** v154 built and installed on the Nothing: a long press on the status line turns the picture black and white on the phone (a colour matrix on the picture's layer), the status line ends "· B/W"; `--ez bw true` for tests. scrcpy's H.264 stays colour, so it is the look, not less data (the scale is what saves data). Not yet seen on the phone: Marko was using it.
+
+> "The remote camera quality must be set in the remote camera application. We have different resolutions that are transferred over the internet, Tailscale resolution and the color depth." / "Just copy this app I'm in right now. I have two names, Camera Remote and Computer Remote." / "You need to synchronize the quality features to make this usable on slow networks." (Marko, 26.10.2026, while in Mantra Remote)
+
+97. The camera remote takes Mantra Remote's quality controls, the same keys and the same status line: FPS (tap steps, long press the list), colours (FULL … B/W), SCALE 1.0–0.5, set in the camera remote itself, so it works on slow networks. The two apps are named Camera Remote (Mantra Monitor) and Computer Remote (Mantra Remote). — **Status:** in work.
