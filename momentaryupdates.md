@@ -933,3 +933,7 @@ Needs the GPU stage (Settings → Picture path).
 > "this anchor display doesn't work because its display is too small. I don't see anything. You need to make it the same as free space, the same design, maybe in the blue color, so we make it different, and to save on space, what you need to do is make shorter. This portrait peak falls zebra. Everything: three letters, P-O-R, peak, P-E-A, falls, F-A-L, zebra, Z-E-B" (Marko, 26.10.2026)
 
 100. The POWER MONITOR as a readout like the free space (two lines, large), in blue; the right rail's words in three letters: POR (LAN), PEA, FAL, ZEB. — **Status:** in work.
+
+> "long press of any of the action buttons after 2 seconds. Open the help menu explaining what the button does" (Marko, 26.10.2026)
+
+101. A 2-second press on any key of the camera opens its help: what the key does. — **Status:** in work.
