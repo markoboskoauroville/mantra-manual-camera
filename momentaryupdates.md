@@ -877,3 +877,9 @@ Needs the GPU stage (Settings → Picture path).
 > "Icon is not good. Bring the camera back with the same color styling. That's all" (Marko, 26.10.2026)
 
 86. (Replaces 78's keys.) The icon is the camera again (v95's traced camera), drawn in TTT's colours: the dark #0D1117 ground, the camera as lit neon lines with TTT's soft glow, the version under it. The monitor keeps its own old symbol (a screen with a lens) in the same colours. — **Status:** v151 released, seen on both phones' App info: the camera's amber outline, red flash tab, cyan lens ring with its glow, the body in TTT's key colour on #0D1117, v151 under it; the monitor's cyan screen with the green lens and a red REC dot. scripts/make_icons.py writes both.
+
+## 26.10.2026 — the testing ground: stress, outputs, the remote
+
+> "now continue testing. Search for the bugs, optimize the code, test all the outputs. You can control my web browser. You have NDI Monitor. You have OBS. Everything is here. The testing is ready. This is the testing ground. Please stress test the application. Remote controller, search for bugs and optimizations of the code" (Marko, 26.10.2026)
+
+87. A stress pass: every output (FILE, NDI HX and FULL, over Wi-Fi and the cable) received on the Mac (NDI Monitor, OBS), the remote over ADB and over MANTRA LINK under load and reconnects, the code read for bugs and waste. — **Status:** in work.
