@@ -835,3 +835,7 @@ Needs the GPU stage (Settings → Picture path).
     - **16 KB pages**: libndi_bridge.so linked with -z max-page-size=16384 (libndi_advanced.so was already 0x4000); zipalign -c -P 16 passes; Android's "This app isn't 16 KB compatible" dialog no longer shows.
     - **The lens is remembered**: it always opened on L1, the fixed-focus ultra wide; now on the one it was left on (proven: L2, force-stop, reopen → L2, FOC: 21.4 cm).
     Still open: 64–66 (the remote over wireless ADB, scrcpy's picture), 65 (the wireless debugging guide), 70–71 (the focus puller's meter).
+
+> "yes, please start the remote" (Marko, 26.10.2026, to 64–66: the remote over wireless ADB with scrcpy's picture, the ADB switch and status line, the guide)
+
+77. The remote over ADB is started (64–66, 65, and the meter on the remote, 70). — **Status:** in work.
