@@ -754,3 +754,11 @@ Needs the GPU stage (Settings → Picture path).
 59. Under the square, small, as ISO / WB under the circle: FOCUSING: AUTO while the camera measures, FOCUSING: SET once it holds, and under it the distance the lens is really at, in centimetres or metres. — **Status:** v145 asked.
 
 60. The focus measured from the Mac on every lens that focuses: whether the app moves it, over the whole range, and the finest step the hardware takes (he wants millimetres). — **Status:** asked.
+
+## 26.10.2026 — no gear: the free space opens the settings; the last take inside the record button
+
+> "another feature is to remove this settings icon, and clicking on the free space will open the settings. That's why you need to color this free space thing in yellow, and then you can spread other controls there. There will be more space, so there's actually less. Inside the record button, instead of this white thing, you need to display the thumbnail of the last clip, either it's photography or video, whatever is last captured with this application. The thumbnail will be inside the record button, and the record button is still the record button" (Marko, 26.10.2026)
+
+61. The gear key goes. The free-space key (44.6 GB / 4:20 h) opens the settings and is coloured yellow; the other keys of the bottom rail spread into the room the gear left. — **Status:** v145 asked.
+
+62. Inside the record button, in place of the white disc, the thumbnail of the last thing this app captured, photo or video, whichever is newest; the button stays the record button. — **Status:** v145 asked.

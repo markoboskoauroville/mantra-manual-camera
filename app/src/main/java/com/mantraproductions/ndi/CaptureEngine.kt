@@ -1961,6 +1961,27 @@ class CaptureEngine(private val context: Context) {
         return kotlin.math.abs(reached - wanted) <= travel * 0.2f
     }
 
+    /**
+     * v145: how much the dioptres this lens reports can be trusted: UNCALIBRATED is the motor's own scale (0 still
+     * infinity, the closest still the closest, the steps between not true dioptres), APPROXIMATE and CALIBRATED are
+     * real distances.
+     */
+    fun focusCalibration(): String {
+        val c = lensCharacteristics?.get(CameraCharacteristics.LENS_INFO_FOCUS_DISTANCE_CALIBRATION)
+            ?: characteristics?.get(CameraCharacteristics.LENS_INFO_FOCUS_DISTANCE_CALIBRATION)
+        return when (c) {
+            CameraCharacteristics.LENS_INFO_FOCUS_DISTANCE_CALIBRATION_CALIBRATED -> "calibrated"
+            CameraCharacteristics.LENS_INFO_FOCUS_DISTANCE_CALIBRATION_APPROXIMATE -> "approximate"
+            CameraCharacteristics.LENS_INFO_FOCUS_DISTANCE_CALIBRATION_UNCALIBRATED -> "uncalibrated"
+            else -> "-"
+        }
+    }
+
+    /** v145: the hyperfocal distance in dioptres, as the lens publishes it (null when it does not). */
+    fun hyperfocalDistance(): Float? =
+        lensCharacteristics?.get(CameraCharacteristics.LENS_INFO_HYPERFOCAL_DISTANCE)
+            ?: characteristics?.get(CameraCharacteristics.LENS_INFO_HYPERFOCAL_DISTANCE)
+
     /** The AF modes this camera will actually accept. */
     fun afModes(): IntArray =
         characteristics?.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES) ?: IntArray(0)

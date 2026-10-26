@@ -57,6 +57,15 @@ class FocusSquareView @JvmOverloads constructor(
      * the size, the size is the region the camera is given, and the size is
      * kept between runs by whoever listens to [onResized].
      */
+    /** v145: under the square, one line or two (FOCUSING: AUTO, then the distance). */
+    var label: String? = null
+        set(value) { if (value != field) { field = value; invalidate() } }
+    private val labelText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+        setShadowLayer(2f, 0f, 0f, android.graphics.Color.BLACK)
+    }
+
     var size = 0.18f
         set(value) {
             field = value.coerceIn(Mechanism.BOX_MIN, Mechanism.focusBoxMax(width, height)
@@ -213,6 +222,18 @@ class FocusSquareView @JvmOverloads constructor(
             drawLine(rect.left, rect.bottom, rect.left, rect.bottom - arm, paint)
             drawLine(rect.right, rect.bottom, rect.right - arm, rect.bottom, paint)
             drawLine(rect.right, rect.bottom, rect.right, rect.bottom - arm, paint)
+        }
+        // v145: written small under the square, as ISO / WB under the circle: FOCUSING: AUTO or SET, and the
+        // distance the lens is at (Marko, 26.10.2026: "so we always know the distance")
+        label?.let { l ->
+            labelText.color = paint.color
+            labelText.textSize = 11f * resources.displayMetrics.scaledDensity
+            val lines = l.split('\n')
+            val step = labelText.descent() - labelText.ascent()
+            val firstBelow = rect.bottom + 4f * density - labelText.ascent() + (if (tracking && lost) 18f * density else 0f)
+            val fits = firstBelow + step * (lines.size - 1) + labelText.descent() <= height
+            val first = if (fits) firstBelow else rect.top - 4f * density - labelText.descent() - step * (lines.size - 1)
+            lines.forEachIndexed { i, t -> canvas.drawText(t, cx, first + step * i, labelText) }
         }
         if (tracking) {
             // The search zone: a thin full square, faint, so the subject shows through.

@@ -787,6 +787,8 @@ class MainActivity : AppCompatActivity() {
         ui.post(logExposureTick)
         ui.removeCallbacks(remoteTick)
         ui.post(remoteTick)
+        ui.removeCallbacks(focusLabelTick)
+        ui.post(focusLabelTick)
         displays?.registerDisplayListener(displayListener, ui)
         if (fullScreen) hideSystemBars(true)
         // The camera session is lost while backgrounded even with a foreground
@@ -816,6 +818,7 @@ class MainActivity : AppCompatActivity() {
         ui.removeCallbacks(focusWatch)
         ui.removeCallbacks(logExposureTick)
         ui.removeCallbacks(remoteTick)
+        ui.removeCallbacks(focusLabelTick)
         focus.stop()
         // v136: NDI GOES ON IN THE BACKGROUND. While it streams on the GPU path, leaving the app (home, another app,
         // the screen off, settings) keeps the camera, the microphone and the sender running under the foreground
@@ -2006,6 +2009,22 @@ class MainActivity : AppCompatActivity() {
                 engine.setManualFocus(focusFraction)
                 String.format(java.util.Locale.ROOT, "Focus %.2f", focusFraction)
             }
+            // v145: the lens at an exact distance, in dioptres (4.0), centimetres (25cm), millimetres (250mm) or metres (0.25m)
+            "focusd" -> {
+                if (!engine.supportsManualFocus()) return "this lens has fixed focus"
+                val dpt = when {
+                    v.endsWith("mm") -> v.removeSuffix("mm").toFloatOrNull()?.let { 1000f / it }
+                    v.endsWith("cm") -> v.removeSuffix("cm").toFloatOrNull()?.let { 100f / it }
+                    v.endsWith("m") -> v.removeSuffix("m").toFloatOrNull()?.let { 1f / it }
+                    else -> v.removeSuffix("dpt").toFloatOrNull()
+                } ?: return "focusd takes dioptres (4.0), 250mm, 25cm or 0.25m"
+                stopTrack()
+                if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
+                val closest = engine.minimumFocusDistance()
+                focusFraction = (dpt / closest).coerceIn(0f, 1f)
+                engine.setFocusDistance(dpt.coerceIn(0f, closest))
+                String.format(java.util.Locale.ROOT, "Focus %.4f dpt", dpt.coerceIn(0f, closest))
+            }
             // any key of the rails, by the name the link uses (REC, MARK0, a key's label)
             "key" -> { pressKey(v.uppercase()); return "key ${v.uppercase()}" }
             // v143: the circle's mode, a tap on it, the shutter a stop either way
@@ -2016,7 +2035,7 @@ class MainActivity : AppCompatActivity() {
                 "+", "-" -> { stepShutter(if (v == "+") 1 else -1); return lastSaid }
                 else -> return "circle takes iso, wb, tap, + or -"
             }
-            else -> return "unknown command $cmd: state, settings, set, restart, update, lens, torch, exposure, iso, shutter, ev, wb, focus, circle, key"
+            else -> return "unknown command $cmd: state, settings, set, restart, update, lens, torch, exposure, iso, shutter, ev, wb, focus, focusd, circle, key"
         }
         say("ADB: $said")
         refreshZones()
@@ -2052,6 +2071,13 @@ class MainActivity : AppCompatActivity() {
             "circle" to circleLabel().lowercase(),
             "wb_measured" to (if (running) e.measuredKelvin() else null),
             "focus" to (if (focus.mode == FocusDirector.Mode.AUTO) "auto" else String.format(java.util.Locale.ROOT, "%.2f", focusFraction)),
+            // v145: where the lens really is (the capture result), how far it goes, and how far its numbers are true
+            "focus_dpt" to e.lastFocusDistance?.let { String.format(java.util.Locale.ROOT, "%.5f", it) },
+            "focus_at" to e.lastFocusDistance?.let { Mechanism.formatFocusDistance(it) },
+            "focus_closest_dpt" to (if (running) String.format(java.util.Locale.ROOT, "%.4f", e.minimumFocusDistance()) else null),
+            "focus_calibration" to (if (running) e.focusCalibration() else null),
+            "hyperfocal_dpt" to e.hyperfocalDistance()?.let { String.format(java.util.Locale.ROOT, "%.4f", it) },
+            "focus_label" to focusLabel()?.replace('\n', ' '),
             "brightness" to sampleBrightness()?.let { String.format(java.util.Locale.ROOT, "%.2f", it) },
             "rec" to rolling,
             "status" to lastSaid.replace('\n', ' ')
@@ -3491,6 +3517,29 @@ class MainActivity : AppCompatActivity() {
         1 -> if (settings.circleMode == CIRCLE_WB) "WB CIRCLE" + (wbLockedAt?.let { " $it" } ?: "") + "  ·  "
             else "ISO CIRCLE" + (exposureLockedAt?.let { " $it" } ?: "") + "  ·  "
         else -> "FOCUSING SQUARE" + (focusLockedAt?.let { " $it" } ?: "") + "  ·  "
+    }
+
+    /**
+     * v145, under the square (Marko, 26.10.2026: "In the same style as we have ISO under the circle ... focusing auto
+     * ... focusing set ... Then you need to put the meters, which are centimeters or meters, where the focus is actually
+     * adjusted, so we always know the distance"): FOCUSING: AUTO while the camera is measuring, FOCUSING: SET once it
+     * holds (locked, MF or a rack that arrived), and under it where the lens really is, from the capture result.
+     */
+    private val focusLabelTick = object : Runnable {
+        override fun run() {
+            ui.postDelayed(this, 150)
+            focusSquare.label = focusLabel()
+        }
+    }
+
+    private fun focusLabel(): String? {
+        if (!pipeline.isRunning) return null
+        val e = pipeline.engine
+        if (e.minimumFocusDistance() <= 0f) return "FIXED FOCUS"
+        val measuring = focusSquare.state == FocusSquareView.State.SEEKING ||
+            (focus.mode == FocusDirector.Mode.AUTO && focusSquare.state != FocusSquareView.State.LOCKED)
+        val head = if (measuring) "FOCUSING: AUTO" else "FOCUSING: SET"
+        return head + (e.lastFocusDistance?.let { "\n" + Mechanism.formatFocusDistance(it) } ?: "")
     }
 
     private fun focusLockText(): String? {
