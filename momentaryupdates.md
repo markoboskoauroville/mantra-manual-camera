@@ -865,3 +865,7 @@ Needs the GPU stage (Settings → Picture path).
 > "add a keyframe in the pop-up menu. It should be some kind of button so people understand that they need to press the button. Now it looks like normal text, not like an action button" (Marko, 26.10.2026)
 
 83. In the meter's pop-up, ADD KEYFRAME and DELETE KEYFRAME are buttons that look pressable (the app's outlined key style), not lines of text. — **Status:** v151.
+
+> "actually, Cancel looks like a button because it has a different color. Add Keyframe can be the same style" (Marko, 26.10.2026)
+
+84. (Replaces 83's look.) ADD KEYFRAME and DELETE KEYFRAME are the pop-up's own buttons, in the same colour and style as CANCEL. — **Status:** v151.
