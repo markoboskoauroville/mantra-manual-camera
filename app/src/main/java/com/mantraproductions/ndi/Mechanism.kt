@@ -160,6 +160,26 @@ object Mechanism {
         else -> "1/${shutterDenominator(ns)}"
     }
 
+    /** v147: beyond this a dioptre is "far": travel to infinity is counted to here, so a speed still gives a time. */
+    const val FAR_METRES = 10f
+
+    /**
+     * v147: how long a move from [fromDpt] to [toDpt] takes at [mmPerSecond], the distance in front of the camera
+     * (metres, infinity counted as [FAR_METRES]) over the speed. The speed is the average: the eased walk is slower at
+     * both ends and about 1.9 times faster in the middle. Never under 150 ms (a frame or four) nor over 20 s.
+     */
+    fun focusTravelMs(fromDpt: Float, toDpt: Float, mmPerSecond: Int): Long {
+        if (mmPerSecond <= 0) return 0L
+        fun metres(d: Float) = if (d <= 1f / FAR_METRES) FAR_METRES else 1f / d
+        val mm = kotlin.math.abs(metres(fromDpt) - metres(toDpt)) * 1000f
+        return (mm / mmPerSecond * 1000f).toLong().coerceIn(150L, 20_000L)
+    }
+
+    /** v147: a speed slider's 0..100 as millimetres per second: 0 is CAMERA, then 10 to 1000 in steps of 10. */
+    fun speedFromSlider(v: Int): Int = v.coerceIn(0, 100) * 10
+
+    fun speedLabel(mmPerSecond: Int): String = if (mmPerSecond <= 0) "CAMERA (its own glide)" else "$mmPerSecond mm/s"
+
     /**
      * v145: a lens position in dioptres as a distance to read under the square: millimetres under 10 cm, centimetres
      * (one decimal) under a metre, metres (two decimals) beyond, ∞ at zero.

@@ -294,6 +294,19 @@ class Settings(context: Context) {
         set(value) = prefs.edit().putInt("trackFollow", value.coerceIn(10, 100)).apply()
 
     /**
+     * v147: the lens's speed, millimetres of distance in front of the camera per second (Marko, 26.10.2026: "a speed of
+     * tracking and a speed of focusing ... let's put millimeters per second"). 0 is CAMERA: the camera's own glide.
+     */
+    var focusSpeedMmS: Int
+        get() = prefs.getInt("focusSpeedMmS", 0)
+        set(value) = prefs.edit().putInt("focusSpeedMmS", value.coerceIn(0, 1000)).apply()
+
+    /** v147: the same for a tracked subject; 0 is CAMERA. */
+    var trackSpeedMmS: Int
+        get() = prefs.getInt("trackSpeedMmS", 0)
+        set(value) = prefs.edit().putInt("trackSpeedMmS", value.coerceIn(0, 1000)).apply()
+
+    /**
      * v145: the light's brightness, percent of what the lamp can give (Marko, 26.10.2026: "brightness control for the
      * LED"). The Pixel 7's lamp takes 45 levels while the camera runs (FLASH_STRENGTH_LEVEL, Android 15).
      */

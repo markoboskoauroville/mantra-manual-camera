@@ -752,6 +752,8 @@ class MainActivity : AppCompatActivity() {
         val curve = LogCurves.Curve.entries[curveIndex]
         focus.holdMs = settings.focusHoldMs
         focus.rampMs = settings.focusRackMs
+        focus.speedMmS = settings.focusSpeedMmS
+        focus.trackSpeedMmS = settings.trackSpeedMmS
         pipeline.streamBitRate = settings.streamMbps * 1_000_000
         pipeline.start(
             cameraId = lens.id,
@@ -806,6 +808,10 @@ class MainActivity : AppCompatActivity() {
         // v104: back from settings — the marks take their sizes from there, and the light follows its switch
         focusSquare.size = settings.focusBoxSize
         exposureCircle.size = settings.circleSize
+        focus.speedMmS = settings.focusSpeedMmS
+        focus.trackSpeedMmS = settings.trackSpeedMmS
+        focus.holdMs = settings.focusHoldMs
+        focus.rampMs = settings.focusRackMs
         if (pipeline.isRunning && pipeline.engine.hasFlash()) {
             pipeline.engine.setTorchLevel(settings.torchLevel)
             pipeline.engine.setTorch(settings.torch)
@@ -1421,7 +1427,7 @@ class MainActivity : AppCompatActivity() {
         if (Mechanism.trackRefocus(lastFocusX, lastFocusY, nx, ny, settings.trackTolerance / 100f)) {
             lastFocusX = nx
             lastFocusY = ny
-            focus.focusHereAndHold()
+            focus.focusHereAndHold(settings.trackSpeedMmS)     // v147: the tracking speed
         }
     }
 
@@ -1937,6 +1943,10 @@ class MainActivity : AppCompatActivity() {
             applyChanged(was)
             focusSquare.size = settings.focusBoxSize
             exposureCircle.size = settings.circleSize
+            focus.speedMmS = settings.focusSpeedMmS
+            focus.trackSpeedMmS = settings.trackSpeedMmS
+            focus.holdMs = settings.focusHoldMs
+            focus.rampMs = settings.focusRackMs
             if (pipeline.isRunning && pipeline.engine.hasFlash()) {
                 pipeline.engine.setTorchLevel(settings.torchLevel)
                 pipeline.engine.setTorch(settings.torch)
@@ -2050,12 +2060,14 @@ class MainActivity : AppCompatActivity() {
                 if (!engine.supportsManualFocus()) return "this lens has fixed focus"
                 val parts = v.split(' ').filter { it.isNotBlank() }
                 val to = parts.getOrNull(0)?.let { adbDioptres(it) } ?: return "rack takes a distance and ms: rack 40cm 3000"
-                val ms = parts.getOrNull(1)?.toLongOrNull() ?: settings.focusRackMs
                 stopTrack()
                 if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
                 val closest = engine.minimumFocusDistance()
                 val from = engine.lastFocusDistance ?: 0f
                 val target = to.coerceIn(0f, closest)
+                // v147: rack 40cm 3000 is three seconds; rack 40cm alone goes at FOCUS SPEED (or the ramp, at CAMERA)
+                val ms = parts.getOrNull(1)?.toLongOrNull()
+                    ?: Mechanism.focusTravelMs(from, target, settings.focusSpeedMmS).takeIf { it > 0 } ?: settings.focusRackMs
                 val started = android.os.SystemClock.uptimeMillis()
                 val mine = ++rackTicket
                 ui.post(object : Runnable {

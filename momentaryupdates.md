@@ -811,15 +811,15 @@ Needs the GPU stage (Settings → Picture path).
 >
 > Then we need to have a speed of tracking and a speed of focusing. The speed should be in centimeters or millimeters per second, whatever is better. I think let's put millimeters per second. That's the speed of focusing. Our app is going to have that." (Marko, 26.10.2026)
 
-72. The settings get a FOCUS tab with every focus helper in it: peaking ("picking"), tracking, hold and the focus speeds. — **Status:** v147 asked.
+72. The settings get a FOCUS tab with every focus helper in it: peaking ("picking"), tracking, hold and the focus speeds. — **Status:** v147 built and seen on the Pixel 7: FOCUS = SPEED, Focus (hold, ramp), Peaking.
 
-73. Two speeds in millimetres per second: FOCUS SPEED (a tap, a rack, a pull to a point) and TRACKING SPEED (how fast the lens follows a tracked subject). A move's time is its distance over the speed, eased in and out. — **Status:** v147 asked.
+73. Two speeds in millimetres per second: FOCUS SPEED (a tap, a rack, a pull to a point) and TRACKING SPEED (how fast the lens follows a tracked subject). A move's time is its distance over the speed, eased in and out. — **Status:** v147: 0 (leftmost) is CAMERA, the camera's own glide; 10–1000 mm/s. MEASURED at 100 mm/s, 60 cm → the E16 at 22 cm: the camera's search first shows the target for about 0.4 s, then the lens goes back to 60 cm and walks there in 3.6 s (57.1, 46.0, 33.7, 25.5, 22.5, 22.0 cm). That jump is the price of a timed walk: the target is only known by searching. Left at CAMERA until Marko chooses; `mcam rack 22cm` (no time) walks at FOCUS SPEED with no search.
 
 > "Now we have the Focus tab in the settings, and we try to break the settings into more logical tabs. See how we can do this.
 >
 > We have not so much scrolling down. Mostly it's going left or right." (Marko, 26.10.2026)
 
-74. The settings in more, smaller tabs, each short enough to need little scrolling; a swipe left or right goes to the next tab. — **Status:** v147 asked.
+74. The settings in more, smaller tabs, each short enough to need little scrolling; a swipe left or right goes to the next tab. — **Status:** v147, seen on the Pixel 7, all seven swiped through: CAMERA (light, picture path), FOCUS, TRACK, OUTPUTS (the two bit rates, then the switchboard), SOUND, LOOK (was DISPLAY), MORE. A swipe that starts on a slider or a drop-down moves the slider, not the tab.
 
 > "At the end of the day, when I say "close the session," you need to go to Cloudflare and simply update the app with the latest screenshots, and the website should be updated." (Marko, 26.10.2026)
 

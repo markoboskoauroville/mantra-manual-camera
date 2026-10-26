@@ -51,6 +51,10 @@ class FocusDirector(
 
     var holdMs: Long = 2000
     var rampMs: Long = 2000
+    /** v147: millimetres per second for a tap, a rack or a new mark; 0 is the camera's own glide (v125). */
+    var speedMmS: Int = 0
+    /** v147: the same for a tracked subject. */
+    var trackSpeedMmS: Int = 0
 
     private var reference = 0.0
     private var lensPosition = 0f
@@ -82,9 +86,11 @@ class FocusDirector(
      * v125, THE RAMP: with a rack time the lens GLIDES there (the camera's video focus, eased by its own
      * drive) and is locked where it comes to rest; a rack time of zero is the photo search, the snap.
      */
-    fun focusHereAndHold() {
+    fun focusHereAndHold(speed: Int = speedMmS) {
         val c = controls() ?: return
         if (searching && !gliding) return
+        // v147: at a speed, the camera finds the mark, the lens goes back and walks there at that speed
+        if (speed > 0) { searchThenWalk(c, speed) { settled -> lensPosition = settled; reference = currentSharpness; onState(FocusSquareView.State.LOCKED) }; return }
         if (rampMs > 0L) {
             val started = c.glideFocusAtNormalisedPoint(target.first, target.second) { focused ->
                 searching = false
@@ -127,6 +133,7 @@ class FocusDirector(
     }
 
     fun stop() {
+        walkTicket++
         handler.removeCallbacksAndMessages(null)
         racking = false
         searching = false
@@ -165,9 +172,43 @@ class FocusDirector(
      * search dropped it. At a rack time of zero that walk is a single step,
      * which is the snap somebody asked for.
      */
+    /**
+     * v147: one quick search for where the mark is, then back to where the lens was and a walk there at [speed] mm/s,
+     * eased in and out ([Mechanism.focusTravelMs], [Mechanism.rackPosition]). A new tap takes over the walk.
+     */
+    private var walkTicket = 0
+
+    private fun searchThenWalk(c: CaptureEngine, speed: Int, arrived: (Float) -> Unit) {
+        val from = c.lastFocusDistance ?: lensPosition
+        searching = true
+        gliding = false
+        val mine = ++walkTicket
+        onState(FocusSquareView.State.SEEKING)
+        c.focusAtNormalisedPoint(target.first, target.second) { focused ->
+            searching = false
+            if (mine != walkTicket) return@focusAtNormalisedPoint
+            val to = c.lastFocusDistance ?: from
+            if (!focused) { c.setFocusDistance(from); onState(FocusSquareView.State.FAILED); return@focusAtNormalisedPoint }
+            val ms = Mechanism.focusTravelMs(from, to, speed)
+            c.setFocusDistance(from)
+            racking = true
+            val started = android.os.SystemClock.uptimeMillis()
+            handler.post(object : Runnable {
+                override fun run() {
+                    if (mine != walkTicket) { racking = false; return }
+                    val p = ((android.os.SystemClock.uptimeMillis() - started).toFloat() / ms).coerceIn(0f, 1f)
+                    c.setFocusDistance(Mechanism.rackPosition(from, to, p))
+                    if (p >= 1f) { racking = false; arrived(to) } else handler.postDelayed(this, 33)
+                }
+            })
+        }
+    }
+
     private fun rackToNewMark() {
         val c = controls() ?: return
         if (searching) return
+        // v147: at a speed, the walk is timed by the speed
+        if (speedMmS > 0) { searchThenWalk(c, speedMmS) { settle(it) }; return }
         // v125: the glide, so nothing jumps there and back before the walk
         if (rampMs > 0L && c.glideFocusAtNormalisedPoint(target.first, target.second) { _ ->
                 searching = false

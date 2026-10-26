@@ -1598,4 +1598,25 @@ class MechanismTest {
         val path = follow({ 0.8 })
         for (i in 1 until path.size) assertTrue("frame $i", path[i] >= path[i - 1] - 1e-6)
     }
+
+    // v147: focus speed in mm/s
+    @Test fun focusTravelIsDistanceOverSpeed() {
+        // 50 cm (2 dpt) to 15 cm (6.667 dpt) is 350 mm: at 100 mm/s, 3.5 s
+        assertEquals(3500L, Mechanism.focusTravelMs(2f, 100f / 15f, 100))
+        // the same back
+        assertEquals(3500L, Mechanism.focusTravelMs(100f / 15f, 2f, 100))
+        // infinity counts as 10 m: 1 m to infinity is 9 m, at 1000 mm/s 9 s
+        assertEquals(9000L, Mechanism.focusTravelMs(1f, 0f, 1000))
+        // never under 150 ms, never over 20 s, and 0 mm/s is the camera's own glide
+        assertEquals(150L, Mechanism.focusTravelMs(4f, 4.01f, 1000))
+        assertEquals(20_000L, Mechanism.focusTravelMs(0f, 9.5f, 10))
+        assertEquals(0L, Mechanism.focusTravelMs(1f, 2f, 0))
+    }
+
+    @Test fun focusDistanceReadsInMillimetresCentimetresMetres() {
+        assertEquals("∞", Mechanism.formatFocusDistance(0f))
+        assertEquals("95 mm", Mechanism.formatFocusDistance(1000f / 95f))
+        assertEquals("21.7 cm", Mechanism.formatFocusDistance(4.60668f))
+        assertEquals("1.25 m", Mechanism.formatFocusDistance(0.8f))
+    }
 }
