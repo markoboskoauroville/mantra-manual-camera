@@ -814,3 +814,9 @@ Needs the GPU stage (Settings → Picture path).
 72. The settings get a FOCUS tab with every focus helper in it: peaking ("picking"), tracking, hold and the focus speeds. — **Status:** v147 asked.
 
 73. Two speeds in millimetres per second: FOCUS SPEED (a tap, a rack, a pull to a point) and TRACKING SPEED (how fast the lens follows a tracked subject). A move's time is its distance over the speed, eased in and out. — **Status:** v147 asked.
+
+> "Now we have the Focus tab in the settings, and we try to break the settings into more logical tabs. See how we can do this.
+>
+> We have not so much scrolling down. Mostly it's going left or right." (Marko, 26.10.2026)
+
+74. The settings in more, smaller tabs, each short enough to need little scrolling; a swipe left or right goes to the next tab. — **Status:** v147 asked.
