@@ -159,3 +159,9 @@ before calling the picture right or wrong. Ramps (time, smoothness) can be judge
     (`LinkServer.fromMonitorJustNow()`), not the camera's screen.
 21. **Zero frames = a read timeout** (soTimeout 2.5 s) that drops and reopens the socket; the camera answers a new
     monitor with a fresh encoder (a keyframe first).
+22. **Ask EGL for 10-bit without the recordable flag too** (v148, 26.10.2026): the Pixel 7 on Android 17 has no
+    RGBA1010102 config with EGL_RECORDABLE_ANDROID, so the 10-bit GPU stage fell back to the direct path on every open
+    for days, unseen. Without the flag the encoders take its surfaces fine (HEVC Main 10 HLG, 30 fps). Ask a list of
+    configs and trace the one taken; say a fallback on the screen.
+23. **The lens's dioptres are its real distance here** (calibration APPROXIMATE on the Pixel 7 main lens): the motor's
+    finest step is 0.034 dpt, about 280 positions from ∞ to 10.5 cm; L1 and the front lenses are fixed focus.
