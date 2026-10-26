@@ -776,3 +776,27 @@ Needs the GPU stage (Settings → Picture path).
 64. Mantra Monitor (the remote) gets a second way to the camera beside today's (MANTRA LINK over NDI): ADB over wireless debugging, the keys as adb commands and the picture through scrcpy's open-source server, with a switch between the two, to compare which is faster and more precise. — **Status:** asked.
 
 65. In the settings, a guide to set up wireless debugging, so the two phones talk over Wi-Fi and each can control the other. — **Status:** asked.
+
+> "we have a remote controller in two modes: ADB or not ADB. Maybe that can be the difference in the app. There will be some kind of ADB status line that says ADB is enabled, and then it works through ADB. If I disable it, it works through any protocol you decide to use without ADB" (Marko, 26.10.2026)
+
+66. The remote (Mantra Monitor) has two modes, ADB on and ADB off, and a status line that says which: "ADB enabled" and it drives the camera through ADB; off, it works through the way without ADB (today's MANTRA LINK). — **Status:** asked, with 64 and 65.
+
+## 26.10.2026 — built on the Mac, both apps in one release, the manifest every time
+
+> "put in the manifest every time something new is updated. We update two apps: one is the main app camera and the remote app. On the same latest page, the latest version should be both updates, both latest versions I hope you are building this app on this computer and then sending it to GitHub under Releases. We are not using GitHub Actions to build the APK. It's built locally." (Marko, 26.10.2026)
+
+67. Every version is built on the Mac, the camera and Mantra Monitor together, and both APKs go up in the one release marked Latest; GitHub Actions no longer builds on a push (by hand only, workflow_dispatch). Every update is written into the manifest the same turn. — **Status:** from v145.
+
+## 26.10.2026 — FOC: and the number; rack focus; the focus puller's meter on the remote
+
+> "I want the text focusing. It can be shorter. It can be FOC. Then column, then centimeters. The set thing. I don't need to have it. Understand: while it's searching, instead of auto, it goes to display the number. Also, we want to rack focus between different focusing points. Please test rack focusing. It goes easy in, easy out, as the focus puller will do it on the set. We also need to develop a remote control focus-pulling user interface, where the focus puller can mark on the meter, which will be on the screen, different distances, any number, and then with the play button go from one to the other.
+>
+> Actually, this will be like this. Any point he marks is key points or key frames. There will be small circles, like our ISO circle here, which will be the size of the index finger. He can tap on any of these points, and the focus will just slide to that point.
+>
+> There will be one square, one triangle pointing down, in a different color than the key frames. Key frames on the meter will look like an empty triangle looking down, and the current focus will be a full white triangle. When the user clicks on these circles, the triangle will, in this matter of animation, ramp up with the speed and then ramp down and fall on that focusing point where the user presses." (Marko, 26.10.2026)
+
+68. Under the square only "FOC: 21.7 cm": no AUTO, no SET; while it searches the number runs. — **Status:** v145 (replaces 59's words).
+
+69. Rack focus between points, eased in and out like a focus puller on set: tested from the Mac. — **Status:** asked.
+
+70. THE FOCUS PULLER'S METER on the remote: a distance scale on the screen; he marks any distances as key points (empty triangles pointing down, each with a circle the size of a fingertip under it, like the ISO circle); the lens is a full white triangle; a tap on a circle racks the focus there, the white triangle accelerating and easing to land on the point; a play button goes from one key point to the next. — **Status:** asked, for the remote with 64–66.
