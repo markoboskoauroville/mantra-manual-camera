@@ -804,3 +804,13 @@ Needs the GPU stage (Settings → Picture path).
 > "To test the remote controller, you can open up our local Pixel 7 emulator and control the real Pixel 7 from the emulator to test all its functions. Focus pulling is the function of the second phone and on this phone as well. This is in Settings. We can put focus pulling UI, and it must use the longest edge of the phone's UI, not the short one." (Marko, 26.10.2026)
 
 71. The remote is tested from the Pixel 7 emulator on the Mac driving the real Pixel 7. The focus puller's meter (70) is on both: the remote phone and the camera itself, switched on in the settings; the meter runs along the phone's longest edge. — **Status:** asked.
+
+## 26.10.2026 — a FOCUS tab in the settings; focus speed and tracking speed in mm/s
+
+> "Please, in a setting, there should be a special tab for focus, because focus is now becoming very sophisticated with all its helpers. We have some helpers for manual focusing. How do we call this? Picking focus, picking. Yes.
+>
+> Then we need to have a speed of tracking and a speed of focusing. The speed should be in centimeters or millimeters per second, whatever is better. I think let's put millimeters per second. That's the speed of focusing. Our app is going to have that." (Marko, 26.10.2026)
+
+72. The settings get a FOCUS tab with every focus helper in it: peaking ("picking"), tracking, hold and the focus speeds. — **Status:** v147 asked.
+
+73. Two speeds in millimetres per second: FOCUS SPEED (a tap, a rack, a pull to a point) and TRACKING SPEED (how fast the lens follows a tracked subject). A move's time is its distance over the speed, eased in and out. — **Status:** v147 asked.
