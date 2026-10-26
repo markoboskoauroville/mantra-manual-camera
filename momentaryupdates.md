@@ -820,3 +820,7 @@ Needs the GPU stage (Settings → Picture path).
 > We have not so much scrolling down. Mostly it's going left or right." (Marko, 26.10.2026)
 
 74. The settings in more, smaller tabs, each short enough to need little scrolling; a swipe left or right goes to the next tab. — **Status:** v147 asked.
+
+> "At the end of the day, when I say "close the session," you need to go to Cloudflare and simply update the app with the latest screenshots, and the website should be updated." (Marko, 26.10.2026)
+
+75. "Close the session" also updates the app's website on Cloudflare with the latest screenshots and the latest version. — **Status:** the rule is in MANTRA_MANIFEST modules/close-the-session.md.
