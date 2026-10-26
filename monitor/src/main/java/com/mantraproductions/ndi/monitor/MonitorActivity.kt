@@ -112,6 +112,8 @@ class MonitorActivity : Activity() {
             setTextColor(Color.parseColor("#E6E8EA")); textSize = 11f
             typeface = Typeface.MONOSPACE; gravity = Gravity.CENTER
             setBackgroundColor(Color.parseColor("#66000000")); setPadding(dp(6), dp(3), dp(6), dp(3))
+            // v154: while a camera is watched over ADB, a tap on this line steps the picture's scale
+            setOnClickListener { if (adb != null) stepAdbScale() }
         }
         overlay = MarksOverlay(this)
         root.addView(overlay, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
@@ -199,6 +201,8 @@ class MonitorActivity : Activity() {
                 // v150: `--es adb 192.168.1.101:43917` watches over ADB at once (the emulator cannot hear mDNS);
                 // `--es pair 192.168.1.101:37123:123456` pairs first
                 intent?.getStringExtra("adb")?.let { w -> adbHosts["ADB ${w.substringBefore(':')}"] = w; current = "ADB ${w.substringBefore(':')}" }
+                // v154: `--ef scale 0.7` sets the ADB picture's scale (tests from the Mac)
+                if (intent?.hasExtra("scale") == true) prefs.edit().putFloat("adbScale", intent!!.getFloatExtra("scale", 1f)).apply()
                 // v154: `--es tunnel 100.x.y.z:5555` stores the camera's tunnel address (tests from the Mac)
                 intent?.getStringExtra("tunnel")?.let { t -> prefs.edit().putString("adbTunnel", t).apply() }
                 intent?.getStringExtra("pair")?.split(':')?.takeIf { it.size == 3 }?.let { (h, p, c) ->
@@ -347,8 +351,8 @@ class MonitorActivity : Activity() {
             // v150: the ADB status line, with what arrives over it
             adb?.let { a ->
                 val t = a.frames.get() to a.bytes.get()
-                if (a.connected && a.width > 0) status.text = String.format(java.util.Locale.ROOT, "ADB ENABLED · %s · %s:%d · %d fps · %.1f Mbit/s",
-                    a.device.ifEmpty { "camera" }, a.host, a.port, t.first - adbLast.first, (t.second - adbLast.second) * 8 / 1e6)
+                if (a.connected && a.width > 0) status.text = String.format(java.util.Locale.ROOT, "ADB ENABLED · %s · %s:%d · %d fps · %.1f Mbit/s · SCALE %.1f",
+                    a.device.ifEmpty { "camera" }, a.host, a.port, t.first - adbLast.first, (t.second - adbLast.second) * 8 / 1e6, adbScale())
                 adbLast = t
                 return
             }
@@ -562,9 +566,26 @@ class MonitorActivity : Activity() {
             onStatus = { msg -> ui.post { status.visibility = View.VISIBLE; status.text = msg } },
             onSize = { w, h -> ui.post { followCamera(w, h); fit() } },
             onPairingNeeded = { ui.post { pairDialog(host) } },
-            quality = { if (onMobileData()) Triple(2_000_000, 1280, 24) else Triple(8_000_000, 1600, 30) })
+            quality = {
+                // v154 (Marko: "resolution scaling, in fractions of 0.9, 0.8, 0.7, 0.6 and 0.5. It saves bandwidth"):
+                // the longest side times the scale (a multiple of 8, as the encoder wants), the bit rate times its square
+                val (bits, size, fps) = if (onMobileData()) Triple(2_000_000, 1280, 24) else Triple(8_000_000, 1600, 30)
+                val k = adbScale()
+                Triple((bits * k * k).toInt(), ((size * k).toInt() / 8) * 8, fps)
+            })
         adb = a
         a.start()
+    }
+
+    /** v154: the ADB picture's scale, 1.0 down to 0.5 in tenths; a tap on the status line steps it. */
+    private fun adbScale(): Float = prefs.getFloat("adbScale", 1f).coerceIn(0.5f, 1f)
+
+    private fun stepAdbScale() {
+        val now = Math.round(adbScale() * 10)
+        val next = if (now <= 5) 10 else now - 1
+        prefs.edit().putFloat("adbScale", next / 10f).apply()
+        status.text = String.format(java.util.Locale.ROOT, "SCALE %.1f: the picture again", next / 10f)
+        current?.let { if (it.startsWith("ADB ")) watch(it) }
     }
 
     /** v154: is this phone's VPN (the tunnel) up? */
