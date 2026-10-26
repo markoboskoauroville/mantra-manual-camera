@@ -800,3 +800,7 @@ Needs the GPU stage (Settings → Picture path).
 69. Rack focus between points, eased in and out like a focus puller on set: tested from the Mac. — **Status:** asked.
 
 70. THE FOCUS PULLER'S METER on the remote: a distance scale on the screen; he marks any distances as key points (empty triangles pointing down, each with a circle the size of a fingertip under it, like the ISO circle); the lens is a full white triangle; a tap on a circle racks the focus there, the white triangle accelerating and easing to land on the point; a play button goes from one key point to the next. — **Status:** asked, for the remote with 64–66.
+
+> "To test the remote controller, you can open up our local Pixel 7 emulator and control the real Pixel 7 from the emulator to test all its functions. Focus pulling is the function of the second phone and on this phone as well. This is in Settings. We can put focus pulling UI, and it must use the longest edge of the phone's UI, not the short one." (Marko, 26.10.2026)
+
+71. The remote is tested from the Pixel 7 emulator on the Mac driving the real Pixel 7. The focus puller's meter (70) is on both: the remote phone and the camera itself, switched on in the settings; the meter runs along the phone's longest edge. — **Status:** asked.
