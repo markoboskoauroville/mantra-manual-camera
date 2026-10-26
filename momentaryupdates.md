@@ -839,3 +839,7 @@ Needs the GPU stage (Settings → Picture path).
 > "yes, please start the remote" (Marko, 26.10.2026, to 64–66: the remote over wireless ADB with scrcpy's picture, the ADB switch and status line, the guide)
 
 77. The remote over ADB is started (64–66, 65, and the meter on the remote, 70). — **Status:** v150 released; see 64, 65, 66, 71. The Pixel's Wireless debugging now lists "Mantra Monitor (sdk_gphone64_arm64)", the emulator, as a paired device (revocable there).
+
+> "by the way, please release the next version with the icon in the same style as the ttt advanced keyboard icon" (Marko, 26.10.2026)
+
+78. The next version's icon in the style of the TTT Advanced Keyboard's icon. — **Status:** v151 asked.
