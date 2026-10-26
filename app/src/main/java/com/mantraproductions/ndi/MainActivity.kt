@@ -1079,7 +1079,17 @@ class MainActivity : AppCompatActivity() {
             if (pipeline.mode != CameraPipeline.Mode.OFF) pipeline.setMode(CameraPipeline.Mode.OFF)
             return
         }
-        val want = if (settings.ndiKind == 2) CameraPipeline.Mode.FULL else CameraPipeline.Mode.HX
+        var want = if (settings.ndiKind == 2) CameraPipeline.Mode.FULL else CameraPipeline.Mode.HX
+        // v152 (the stress pass, 26.10.2026): FULL refused by the lens left NOTHING streaming (a settings change stops the
+        // stream before asking again). A kind the lens cannot take falls back to the other one, said, rather than to none.
+        // The wire watch asks again every 2 s, so it is said once, when the stream actually changes (it was said every 2 s).
+        if (want == CameraPipeline.Mode.FULL && !pipeline.fullAvailable && pipeline.hxAvailable) {
+            want = CameraPipeline.Mode.HX
+            if (pipeline.mode != want) {
+                say("Full NDI is not possible on this lens (10-bit takes its output) — NDI HX instead")
+                Trace.refused("ndi", "FULL not available on this lens: HX instead")
+            }
+        }
         if (pipeline.mode == want) return
         val possible = if (want == CameraPipeline.Mode.FULL) pipeline.fullAvailable else pipeline.hxAvailable
         if (!possible) {

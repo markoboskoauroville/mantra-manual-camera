@@ -884,7 +884,7 @@ Needs the GPU stage (Settings → Picture path).
 
 87. A stress pass: every output (FILE, NDI HX and FULL, over Wi-Fi and the cable) received on the Mac (NDI Monitor, OBS), the remote over ADB and over MANTRA LINK under load and reconnects, the code read for bugs and waste. — **Status:** in work.
 
-88. BUG found by the stress pass, 26.10.2026: with NDI HX streaming on L2, `set ndiKind 2` (FULL) answered "Full NDI is not possible on this lens" and the HX stream stopped with it; the Mac's probe then found no source at all. A choice the lens cannot take must leave the stream it had running. — **Status:** fixing in v152.
+88. BUG found by the stress pass, 26.10.2026: with NDI HX streaming on L2, `set ndiKind 2` (FULL) answered "Full NDI is not possible on this lens" and the HX stream stopped with it; the Mac's probe then found no source at all. A choice the lens cannot take must leave the stream it had running. — **Status:** v152: FULL that the lens refuses (10-bit takes the extra output) falls back to HX, said once (it was said every 2 s by the wire watch); PROVEN with the probe on the Mac: ndiKind=2 → HX streaming, 30 s, sound 99.87 %, longest gap 120 ms. NDI HX over Wi-Fi, 120 s before it: 30 fps 1080×1920, sound 99.98 %, the six late seconds (137–314 ms) carried picture and sound together (Wi-Fi bursts, the ADB remote on the same Wi-Fi).
 
 > "already developed controlling of this Oxi device A16 over the USB in my computer, so you can animate the LED rings if you want to have some kind of moving picture. You can check for the drop frames or whatever you need to check when the picture is not static. If it's not developed, then you need to develop it." (Marko, 26.10.2026; the Oxi E16 in front of the lens)
 
