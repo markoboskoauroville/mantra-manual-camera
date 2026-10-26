@@ -857,3 +857,7 @@ Needs the GPU stage (Settings → Picture path).
 > "now we need to fix the user interface. The round button, the record button, should still be the record button as before. But this triangle, which is the playing button, should become this round button with the last picture of the last clip. Then when I press it, it plays. We don't have any more square buttons. We don't have any more triangle buttons. Everything is circular. Please make the recording in the place of the lot, in the middle of the screen" (Marko, 26.10.2026)
 
 81. REC is the plain record button again (white disc, red while recording). The PLAY key (a triangle) becomes a round button showing the last capture; a press plays it (a take in the player, a still in the viewer). No square or triangle buttons on the rail: round. REC moves to the LUT's place, the middle of the rail; the LUT key takes REC's old place. — **Status:** v151 asked.
+
+> "long press on the focusing pulling interface should last two seconds" (Marko, 26.10.2026)
+
+82. On the focus puller's meter a long press is two seconds (the white circle's ADD / DELETE KEYFRAME, a key point's DELETE). — **Status:** v151.
