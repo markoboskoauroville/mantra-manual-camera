@@ -824,3 +824,9 @@ Needs the GPU stage (Settings → Picture path).
 > "At the end of the day, when I say "close the session," you need to go to Cloudflare and simply update the app with the latest screenshots, and the website should be updated." (Marko, 26.10.2026)
 
 75. "Close the session" also updates the app's website on Cloudflare with the latest screenshots and the latest version. — **Status:** the rule is in MANTRA_MANIFEST modules/close-the-session.md.
+
+## 26.10.2026 — test it, debug it, finish it
+
+> "go to the camera and test it and debug it and improve it, see what's left with the features and make it perfect" (Marko, 26.10.2026)
+
+76. A full pass over the camera on the Pixel 7: every feature tried from the Mac, the trace read for faults, what is still open listed and built. — **Status:** asked.
