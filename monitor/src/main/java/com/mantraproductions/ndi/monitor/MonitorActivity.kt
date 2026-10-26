@@ -475,13 +475,18 @@ class MonitorActivity : Activity() {
         val sideways = turns % 2 == 1
         val cw = if (sideways) vh else vw
         val ch = if (sideways) vw else vh
-        val scale = minOf(w / cw, h / ch)
+        // v154: over ADB the picture fits between the status line and the quality rail, so neither covers the
+        // camera's own keys (seen 26.10.2026: the rail hid CTRL, the status line the camera's status line)
+        val top = if (a != null) dp(48).toFloat() else 0f
+        val bottom = if (a != null && adbRail.visibility == View.VISIBLE) dp(48 + 56).toFloat() else 0f
+        val ah = (h - top - bottom).coerceAtLeast(h / 2f)
+        val scale = minOf(w / cw, ah / ch)
         val m = Matrix()
         m.setScale(vw / w, vh / h)
         m.postTranslate(-vw / 2f, -vh / 2f)
         m.postRotate(90f * turns)
         m.postScale(scale, scale)
-        m.postTranslate(w / 2f, h / 2f)
+        m.postTranslate(w / 2f, top + ah / 2f)
         surface.setTransform(m)
         fitMatrix = m
         overlay.toScreen = m
@@ -512,7 +517,6 @@ class MonitorActivity : Activity() {
         prefs.edit().putString("source", source).apply()
         say("Connecting…")
         val out = output ?: run { say("No picture surface yet"); return }
-        fillAdbRail(); adbRail.visibility = View.VISIBLE
         val e = MonitorEngine(out,
             onStatus = { msg -> ui.post { say(msg) } },
             onCameraState = { st -> ui.post { onCamera(st) } })
@@ -561,6 +565,7 @@ class MonitorActivity : Activity() {
         status.visibility = View.VISIBLE
         fittedW = 0; fittedH = 0
         val out = output ?: run { say("No picture surface yet"); return }
+        fillAdbRail(); adbRail.visibility = View.VISIBLE
         // v153 (the review): the address is asked again before every try, so a new port announced by mDNS (wireless
         // debugging switched on again) is taken by the running link instead of the dead one being retried forever
         // v154 (Marko: "control this camera from anywhere in the world using the tunnel"): with this phone's VPN up
