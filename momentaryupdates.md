@@ -766,3 +766,13 @@ Needs the GPU stage (Settings → Picture path).
 > "also check if it's possible to adjust the brightness of the LED in the Pixel phone, so in our settings we can have brightness control for the LED" (Marko, 26.10.2026)
 
 63. The light's brightness: find whether the Pixel 7's LED takes a strength level; if it does, a brightness control in the settings. — **Status:** asked.
+
+## 26.10.2026 — the remote over ADB: wireless debugging and scrcpy's picture
+
+> "now, since we have wireless debugging, we can also upgrade my remote control app to use this protocol: wireless debugging to control the app. I'm not sure what is in that remote controller now, but if it's something, whatever is there, we can have a switch between that thing and ADB. You can name it somehow, but the idea is that ADB can probably now... I want to just experiment. I guess ADB can be more precise and faster than what we have there. Remote controller using ADB, and through ADB you transfer the picture using open-source code from screen copy. Our remote controller is using that" (Marko, 26.10.2026)
+
+> "in settings, there must be a guide on how to set up ADB wireless. Then these two phones are talking through Wi-Fi, and they are able to control each other" (Marko, 26.10.2026)
+
+64. Mantra Monitor (the remote) gets a second way to the camera beside today's (MANTRA LINK over NDI): ADB over wireless debugging, the keys as adb commands and the picture through scrcpy's open-source server, with a switch between the two, to compare which is faster and more precise. — **Status:** asked.
+
+65. In the settings, a guide to set up wireless debugging, so the two phones talk over Wi-Fi and each can control the other. — **Status:** asked.
