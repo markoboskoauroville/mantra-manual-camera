@@ -196,6 +196,7 @@ class MainActivity : AppCompatActivity() {
     private val lensKeys = mutableListOf<RailButton>()
     private lateinit var recKey: RecordButtonView
     private lateinit var playKey: RailButton
+    private lateinit var lastKey: RecordButtonView
     private lateinit var shootKey: RailButton
     private lateinit var lutKey: RailButton
     private lateinit var falseKey: RailButton
@@ -286,6 +287,26 @@ class MainActivity : AppCompatActivity() {
         focusMeter.keys = Mechanism.decodeKeys(settings.focusKeys)
         focusMeter.onRack = { dpt -> rackTo(dpt) }
         focusMeter.onPull = { dpt -> pullTo(dpt) }
+        // v151: the long press on a circle asks (Marko: "it's a long press, and then the dialog opens: Add Keyframe or
+        // Delete Keyframe")
+        focusMeter.onLongPress = { onLens, index ->
+            val at = (if (onLens) pipeline.engine.lastFocusDistance else focusMeter.keys.getOrNull(index))
+                ?.let { Mechanism.formatFocusDistance(it) } ?: ""
+            // v151 (Marko: "Add Keyframe and Remove Keyframe, both options. It's the keyframe column, and then two yellow
+            // buttons: Add or Remove"): ADD where the lens is, REMOVE the keyframe pressed or the one the lens stands on
+            val d = android.app.AlertDialog.Builder(this)
+                .setTitle("KEYFRAME:  $at")
+                .setNeutralButton("ADD") { _, _ -> focusMeter.addKeyAtLens() }
+                .setPositiveButton("REMOVE") { _, _ -> focusMeter.deleteKey(index) }
+                .show()
+            val yellow = RailButton.AMBER
+            d.getButton(android.app.AlertDialog.BUTTON_NEUTRAL)?.apply { setTextColor(yellow); textSize = 16f }
+            d.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.apply {
+                textSize = 16f
+                isEnabled = index >= 0
+                setTextColor(if (index >= 0) yellow else RailButton.GREY)
+            }
+        }
         focusMeter.onKeysChanged = { keys ->
             settings.focusKeys = Mechanism.encodeKeys(keys)
             Trace.control("focus puller", "key points", keys.joinToString { Mechanism.formatFocusDistance(it) })
@@ -545,18 +566,26 @@ class MainActivity : AppCompatActivity() {
         // the free space and how much time we can still record."* The eleven
         // LUT slots went to settings; one key here switches between the ones
         // loaded there.
-        recKey = RecordButtonView(this).also {
-            it.setOnClickListener { toggleRecording() }
+        // v151 (Marko, 26.10.2026: "the record button, should still be the record button as before. But this triangle,
+        // which is the playing button, should become this round button with the last picture of the last clip ...
+        // Everything is circular. Please make the recording in the place of the lot, in the middle of the screen"):
+        // LUT where REC was, PLAY as a round key with the last capture, REC in the middle where the LUT was.
+        recKey = RecordButtonView(this).also { it.setOnClickListener { toggleRecording() } }
+        lutKey = newKey("LUT") { nextLut() }.also {
+            it.setOnLongClickListener { openSettings(); true }
             railRight.addView(it)
         }
-        // v145: the last capture inside it, kept from the run before
+        // the PLAY key the link and adb press by name ("play"); on the rail it is the round lastKey
+        playKey = newKey("") { playLastCapture() }.also { it.glyph = RailButton.Glyph.PLAY }
+        lastKey = RecordButtonView(this).also {
+            it.playMode = true
+            it.setOnClickListener { playLastCapture() }
+            railRight.addView(it)
+        }
+        // v145: the last capture, kept from the run before
         stillWriter.execute {
             val kept = runCatching { android.graphics.BitmapFactory.decodeFile(lastCaptureFile().path) }.getOrNull()
-            if (kept != null) ui.post { if (recKey.thumbnail == null) recKey.thumbnail = kept }
-        }
-        playKey = newKey("") { playLastTake() }.also {
-            it.glyph = RailButton.Glyph.PLAY
-            railRight.addView(it)
+            if (kept != null) ui.post { if (lastKey.thumbnail == null) lastKey.thumbnail = kept }
         }
         // SNAP is the app's own icon (v88): the still is this camera's picture.
         snapKey = newKey("") { takeSnap() }.also {
@@ -564,10 +593,7 @@ class MainActivity : AppCompatActivity() {
             railRight.addView(it)
         }
         shootKey = newKey("PORTRAIT") { nextShoot() }.also { railRight.addView(it) }
-        lutKey = newKey("LUT") { nextLut() }.also {
-            it.setOnLongClickListener { openSettings(); true }
-            railRight.addView(it)
-        }
+        railRight.addView(recKey)
         peakKey = newKey("PEAK") { togglePeaking() }.also { railRight.addView(it) }
         falseKey = newKey("FALSE") { falseColour = !falseColour; applyLook(); refreshKeys() }
             .also { railRight.addView(it) }
@@ -1150,6 +1176,7 @@ class MainActivity : AppCompatActivity() {
         val drops = pipeline.recordedDrops
         val where = pipeline.stopRecording()
         takeThumb?.let { t -> if (where != null) stillWriter.execute { keepLastCapture(t) } }
+        if (where != null) settings.lastIsStill = false      // v151: PLAY plays the take now
         takeThumb = null
         refreshStorage()
         say(
@@ -1504,7 +1531,12 @@ class MainActivity : AppCompatActivity() {
         Trace.control("still", "${w}x$h", "PNG", "read in ${android.os.SystemClock.uptimeMillis() - t0} ms")
         stillWriter.execute {
             val where = Recordings.savePng(this, bitmap, at = at, folder = settings.recordFolder)
-            if (where != null) keepLastCapture(bitmap)
+            if (where != null) {
+                keepLastCapture(bitmap)
+                // v151: PLAY opens this still now
+                Recordings.lastStillUri?.let { settings.lastStill = it.toString() }
+                settings.lastIsStill = true
+            }
             // One buffer is kept for the next snap; the others go back, so idle memory stays at one picture.
             if (!keptStill.compareAndSet(null, bitmap)) bitmap.recycle()
             stillsWaiting.decrementAndGet()
@@ -3414,7 +3446,7 @@ class MainActivity : AppCompatActivity() {
             val h = (THUMB_PX * picture.height / maxOf(1, picture.width)).coerceAtLeast(1)
             val small = android.graphics.Bitmap.createScaledBitmap(picture, THUMB_PX, h, true)
             lastCaptureFile().outputStream().use { small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
-            ui.post { recKey.thumbnail = small }
+            ui.post { lastKey.thumbnail = small }
         }.onFailure { Trace.fault("last capture", it) }
     }
 
@@ -3434,6 +3466,18 @@ class MainActivity : AppCompatActivity() {
         } else {
             say("No player on this phone opens the take")
         }
+    }
+
+    /** v151: the round PLAY key: whatever was captured last — a still in the phone's viewer, else the last take. */
+    private fun playLastCapture() {
+        val still = settings.lastStill?.let { Uri.parse(it) }
+        if (settings.lastIsStill && still != null) {
+            val view = Intent(Intent.ACTION_VIEW).setDataAndType(still, "image/png").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (runCatching { startActivity(view); true }.getOrDefault(false)) { Trace.control("play", still.toString(), "still opened"); return }
+            say("No viewer on this phone opens the still")
+            return
+        }
+        playLastTake()
     }
 
     /**

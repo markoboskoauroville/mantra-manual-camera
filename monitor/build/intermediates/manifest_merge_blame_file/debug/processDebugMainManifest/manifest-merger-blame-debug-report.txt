@@ -1,8 +1,8 @@
 1<?xml version="1.0" encoding="utf-8"?>
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="com.mantraproductions.ndi.monitor"
-4    android:versionCode="150"
-5    android:versionName="150" >
+4    android:versionCode="151"
+5    android:versionName="151" >
 6
 7    <uses-sdk
 8        android:minSdkVersion="26"
@@ -46,8 +46,8 @@
 29-->[androidx.core:core:1.13.1] /Users/markobosko/.gradle/caches/8.14.2/transforms/381ee265ec7548c23263fea15567fa21/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
 30        android:debuggable="true"
 31        android:extractNativeLibs="false"
-32        android:icon="@drawable/ic_monitor"
-32-->/Users/markobosko/Developer/MANTRA_NDI/monitor/src/main/AndroidManifest.xml:13:9-44
+32        android:icon="@mipmap/ic_monitor"
+32-->/Users/markobosko/Developer/MANTRA_NDI/monitor/src/main/AndroidManifest.xml:13:9-42
 33        android:label="Mantra Monitor"
 33-->/Users/markobosko/Developer/MANTRA_NDI/monitor/src/main/AndroidManifest.xml:12:9-39
 34        android:theme="@style/Theme.MantraMonitor" >

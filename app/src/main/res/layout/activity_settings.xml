@@ -309,7 +309,7 @@
             android:textSize="13sp"
             android:textColor="@color/sand"
             android:text="FOCUS PULLER" />
-        <TextView android:tag="hint" style="@style/MantraHint" android:text="A meter along the picture's long edge: the lens is the white triangle. Tap the scale to mark a key point, tap its circle to rack there at FOCUS SPEED (or over the ramp at CAMERA), hold the circle to remove it, ▶ goes to the next key point, drag the white triangle to pull by hand." />
+        <TextView android:tag="hint" style="@style/MantraHint" android:text="A meter along the picture's long edge. The lens is the white triangle with its white circle: drag the circle up and down to pull focus by hand, hold it for ADD KEYFRAME or DELETE KEYFRAME. Tap a keyframe's amber circle to rack there at FOCUS SPEED (or over the ramp at CAMERA), hold it to delete it. ▶ goes to the next keyframe." />
         <!-- v147: the speeds in millimetres per second (Marko, 26.10.2026: "a speed of tracking and a speed of focusing ...
              let's put millimeters per second") -->
         <TextView style="@style/MantraLabel" android:text="SPEED" />

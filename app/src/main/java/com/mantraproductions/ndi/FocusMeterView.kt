@@ -19,10 +19,11 @@ import android.view.View
  *
  * A strip along the picture's long edge: down the right side upright, along the bottom sideways. The scale is in
  * dioptres, the lens's own steps ([Mechanism.meterPosition]): the near distances, where a pull is fine, get the room.
- * The lens is a full white triangle where the capture result says it is, so a rack is seen easing in and out. A tap on
- * the scale marks a key point there (an empty triangle and a fingertip circle); a tap on its circle racks to it; a long
- * press on the circle removes it; ▶ racks to the next key point in the order they were marked; the white triangle,
- * dragged, pulls focus by hand. Every move goes through [onRack] or [onPull]; the view itself never touches the camera.
+ * The lens is a full white triangle where the capture result says it is, so a rack is seen easing in and out, with its
+ * own white finger circle (v151): pressed and dragged, it pulls focus by hand; held, it asks ADD KEYFRAME (an empty
+ * triangle and an amber circle where the lens is) or DELETE KEYFRAME. A tap on a key point's circle racks to it; held, it
+ * asks DELETE KEYFRAME; ▶ racks to the next key point in the order they were marked. Every move goes through [onRack] or
+ * [onPull] and every question through [onLongPress]; the view itself never touches the camera.
  */
 class FocusMeterView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyle: Int = 0
@@ -41,6 +42,31 @@ class FocusMeterView @JvmOverloads constructor(
     var onRack: ((Float) -> Unit)? = null
     var onPull: ((Float) -> Unit)? = null
     var onKeysChanged: ((List<Float>) -> Unit)? = null
+    /**
+     * v151: a long press on a circle. [lens] true: the white one (the screen offers ADD KEYFRAME, and DELETE KEYFRAME
+     * when [keyIndex] ≥ 0, a key point standing where the lens is); false: a key point's (DELETE KEYFRAME).
+     */
+    var onLongPress: ((lens: Boolean, keyIndex: Int) -> Unit)? = null
+
+    /** v151: a key point where the lens is now, the one at the lens's own place (the screen's ADD KEYFRAME). */
+    fun addKeyAtLens() {
+        val l = lens ?: return
+        keys = keys + l.coerceIn(0f, closest)
+        onKeysChanged?.invoke(keys)
+    }
+
+    fun deleteKey(index: Int) {
+        if (index !in keys.indices) return
+        keys = keys.filterIndexed { i, _ -> i != index }
+        onKeysChanged?.invoke(keys)
+    }
+
+    /** The key point standing where the lens is (within its circle), or -1. */
+    fun keyAtLens(): Int {
+        val l = lens ?: return -1
+        val at = along(l.coerceIn(0f, closest))
+        return keys.indexOfFirst { kotlin.math.abs(along(it) - at) <= circleR }
+    }
 
     private val density = resources.displayMetrics.density
     private val scaled = resources.displayMetrics.scaledDensity
@@ -62,6 +88,9 @@ class FocusMeterView @JvmOverloads constructor(
     }
     private val lensFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL; color = RailButton.WHITE; setShadowLayer(3f, 0f, 0f, Color.BLACK)
+    }
+    private val lensRing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE; color = RailButton.WHITE; strokeWidth = 2f * density; setShadowLayer(2f, 0f, 0f, Color.BLACK)
     }
     private val playPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = RailButton.GREEN }
     private val path = Path()
@@ -130,8 +159,13 @@ class FocusMeterView @JvmOverloads constructor(
             val (cx, cy) = circleCentre(k)
             canvas.drawCircle(cx, cy, circleR, keyLine)
         }
-        // the lens, a full white triangle
-        lens?.let { triangle(canvas, along(it.coerceIn(0f, closest)), lensFill) }
+        // the lens, a full white triangle, and (v151) its own white finger circle: press it and drag to pull focus
+        lens?.let {
+            val d = it.coerceIn(0f, closest)
+            triangle(canvas, along(d), lensFill)
+            val (cx, cy) = circleCentre(d)
+            canvas.drawCircle(cx, cy, circleR, lensRing)
+        }
 
         // ▶, the next key point
         val (px, py) = playCentre()
@@ -156,19 +190,25 @@ class FocusMeterView @JvmOverloads constructor(
 
     // --- the hand -------------------------------------------------------------------------------------------------
 
-    private enum class Grab { NONE, KEY, LENS, SCALE, PLAY }
+    // v151 (Marko, 26.10.2026): the lens's own white circle — pressed and dragged up and down, it pulls focus; held, it
+    // asks ADD KEYFRAME / DELETE KEYFRAME. A key point's circle: a tap racks there, held it asks DELETE KEYFRAME. Key
+    // points are no longer added by a tap on the scale (the long press on the white circle is the way).
+    private enum class Grab { NONE, KEY, LENS, PLAY }
     private var grab = Grab.NONE
     private var grabbedKey = -1
     private var longFired = false
+    private var dragging = false
     private var downX = 0f
     private var downY = 0f
+    /** Where along the scale the finger held the lens's circle, against the circle's own place, so it does not jump. */
+    private var grabOffset = 0f
     private val longPress = Runnable {
-        if (grab == Grab.KEY && grabbedKey in keys.indices) {
-            longFired = true
-            keys = keys.filterIndexed { i, _ -> i != grabbedKey }
-            onKeysChanged?.invoke(keys)
-            performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        when (grab) {
+            Grab.LENS -> { longFired = true; onLongPress?.invoke(true, keyAtLens()) }
+            Grab.KEY -> if (grabbedKey in keys.indices) { longFired = true; onLongPress?.invoke(false, grabbedKey) }
+            else -> return@Runnable
         }
+        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
     }
     private var next = 0
 
@@ -176,38 +216,40 @@ class FocusMeterView @JvmOverloads constructor(
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
         if (closest <= 0f) return false
+        val pos = if (vertical) e.y else e.x
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 if (!inStrip(e.x, e.y)) return false           // not ours: on to the marks and the square underneath
-                downX = e.x; downY = e.y; longFired = false
+                downX = e.x; downY = e.y; longFired = false; dragging = false
                 val reach = circleR * 1.2f
                 val (px, py) = playCentre()
+                val onLens = lens?.let { l -> circleCentre(l.coerceIn(0f, closest)).let { (cx, cy) -> dist(e.x, e.y, cx, cy) <= reach } } == true
                 grabbedKey = keys.indexOfFirst { k -> circleCentre(k).let { (cx, cy) -> dist(e.x, e.y, cx, cy) <= reach } }
-                val lensAt = lens?.let { along(it.coerceIn(0f, closest)) }
                 grab = when {
                     dist(e.x, e.y, px, py) <= playR * 1.3f -> Grab.PLAY
+                    onLens -> Grab.LENS                        // the white circle wins where a key point lies under it
                     grabbedKey >= 0 -> Grab.KEY
-                    lensAt != null && kotlin.math.abs((if (vertical) e.y else e.x) - lensAt) <= 16f * density -> Grab.LENS
-                    else -> Grab.SCALE
+                    else -> return false                       // the empty strip: the picture's
                 }
-                if (grab == Grab.KEY) postDelayed(longPress, 550L)
+                if (grab == Grab.LENS) grabOffset = along(lens!!.coerceIn(0f, closest)) - pos
+                // Marko: "long press on the focusing pulling interface should last two seconds"
+                if (grab == Grab.LENS || grab == Grab.KEY) postDelayed(longPress, LONG_PRESS_MS)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                if (grab == Grab.LENS) onPull?.invoke(dptAt(e.x, e.y))
-                else if (grab == Grab.KEY && dist(e.x, e.y, downX, downY) > 12f * density) removeCallbacks(longPress)
+                val moved = dist(e.x, e.y, downX, downY) > 10f * density
+                if (moved && !dragging) { dragging = true; removeCallbacks(longPress) }
+                if (grab == Grab.LENS && dragging && !longFired) {
+                    val at = pos + grabOffset
+                    onPull?.invoke(if (vertical) dptAt(0f, at) else dptAt(at, 0f))
+                }
                 return true
             }
             MotionEvent.ACTION_UP -> {
                 removeCallbacks(longPress)
-                val still = dist(e.x, e.y, downX, downY) <= 12f * density
                 when (grab) {
-                    Grab.KEY -> if (!longFired && still) keys.getOrNull(grabbedKey)?.let { onRack?.invoke(it) }
-                    Grab.SCALE -> if (still) {
-                        keys = keys + dptAt(e.x, e.y)
-                        onKeysChanged?.invoke(keys)
-                    }
+                    Grab.KEY -> if (!longFired && !dragging) keys.getOrNull(grabbedKey)?.let { onRack?.invoke(it) }
                     Grab.PLAY -> if (keys.isNotEmpty()) {
                         // the next key point in marking order, past any the lens already stands on
                         for (i in keys.indices) {
@@ -227,4 +269,6 @@ class FocusMeterView @JvmOverloads constructor(
     }
 
     private fun dist(ax: Float, ay: Float, bx: Float, by: Float) = kotlin.math.hypot(ax - bx, ay - by)
+
+    private companion object { const val LONG_PRESS_MS = 2000L }
 }

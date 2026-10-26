@@ -10,7 +10,7 @@
 
     <application
         android:label="Mantra Monitor"
-        android:icon="@drawable/ic_monitor"
+        android:icon="@mipmap/ic_monitor"
         android:theme="@style/Theme.MantraMonitor">
         <activity
             android:name=".MonitorActivity"

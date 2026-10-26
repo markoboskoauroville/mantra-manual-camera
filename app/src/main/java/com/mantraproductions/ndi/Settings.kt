@@ -293,6 +293,14 @@ class Settings(context: Context) {
         get() = prefs.getInt("trackFollow", 60)
         set(value) = prefs.edit().putInt("trackFollow", value.coerceIn(10, 100)).apply()
 
+    /** v151: the still written last, and whether the last capture was a still (the round PLAY key opens it) or a take. */
+    var lastStill: String?
+        get() = prefs.getString("lastStill", null)
+        set(value) = prefs.edit().putString("lastStill", value).apply()
+    var lastIsStill: Boolean
+        get() = prefs.getBoolean("lastIsStill", false)
+        set(value) = prefs.edit().putBoolean("lastIsStill", value).apply()
+
     /** v149: the focus puller's meter on the camera's screen (FOCUS → FOCUS PULLER). */
     var focusPuller: Boolean
         get() = prefs.getBoolean("focusPuller", false)

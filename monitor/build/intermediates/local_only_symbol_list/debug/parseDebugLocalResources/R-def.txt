@@ -1,4 +1,6 @@
 R_DEF: Internal format may change without notice
 local
-drawable ic_monitor
+drawable ic_monitor_background
+drawable ic_monitor_foreground
+mipmap ic_monitor
 style Theme.MantraMonitor

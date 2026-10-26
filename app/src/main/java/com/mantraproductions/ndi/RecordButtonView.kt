@@ -38,7 +38,16 @@ class RecordButtonView @JvmOverloads constructor(
     var dead: Boolean = false
         set(value) { if (field != value) { field = value; invalidate() } }
 
-    /** v145: the last capture, cropped to the disc; null is the white disc of before. */
+    /**
+     * v151 (Marko, 26.10.2026: "The round button, the record button, should still be the record button as before. But
+     * this triangle, which is the playing button, should become this round button with the last picture of the last
+     * clip. Then when I press it, it plays"): the same round key as PLAY — the last capture in the disc, never red, a dark
+     * disc when there is nothing yet. REC itself is the white disc again and carries no picture.
+     */
+    var playMode = false
+        set(value) { field = value; contentDescription = if (value) "Play the last capture" else "Record"; invalidate() }
+
+    /** v145: the last capture, cropped to the disc (v151: on the PLAY key only); null is the plain disc. */
     var thumbnail: Bitmap? = null
         set(value) {
             field = value
@@ -68,6 +77,7 @@ class RecordButtonView @JvmOverloads constructor(
         ringPaint.color = if (dead) Color.parseColor("#3A3E42") else Color.parseColor("#C8CDD2")
         fillPaint.color = when {
             dead -> Color.parseColor("#3A3E42")
+            playMode -> Color.parseColor("#22262B")          // PLAY with nothing to play yet
             recording -> Color.parseColor("#FF1F0F")
             else -> Color.WHITE
         }
@@ -76,7 +86,7 @@ class RecordButtonView @JvmOverloads constructor(
         canvas.drawCircle(cx, cy, radius, ringPaint)
         val inner = radius - 3f * density
         val thumb = thumbnail
-        if (thumb != null && !dead && !recording && inner > 0f) {
+        if (thumb != null && !dead && (playMode || !recording) && inner > 0f) {
             // centre-crop the picture into the disc
             val k = (2f * inner) / minOf(thumb.width, thumb.height)
             thumbMatrix.setScale(k, k)

@@ -1,6 +1,18 @@
 [
     {
-        "merged": "com.mantraproductions.ndi.monitor-debug-23:/drawable_ic_monitor.xml.flat",
-        "source": "com.mantraproductions.ndi.monitor-main-25:/drawable/ic_monitor.xml"
+        "merged": "/Users/markobosko/.gradle/daemon/8.14.2/com.mantraproductions.ndi.monitor-debug-24:/drawable_ic_monitor_background.xml.flat",
+        "source": "/Users/markobosko/.gradle/daemon/8.14.2/com.mantraproductions.ndi.monitor-main-26:/drawable/ic_monitor_background.xml"
+    },
+    {
+        "merged": "com.mantraproductions.ndi.monitor-debug-24:/drawable_ic_monitor_foreground.xml.flat",
+        "source": "com.mantraproductions.ndi.monitor-generated-21:/drawable/ic_monitor_foreground.xml"
+    },
+    {
+        "merged": "/Users/markobosko/.gradle/daemon/8.14.2/com.mantraproductions.ndi.monitor-debug-24:/drawable_ic_monitor_foreground.xml.flat",
+        "source": "/Users/markobosko/.gradle/daemon/8.14.2/com.mantraproductions.ndi.monitor-generated-21:/drawable/ic_monitor_foreground.xml"
+    },
+    {
+        "merged": "/Users/markobosko/.gradle/daemon/8.14.2/com.mantraproductions.ndi.monitor-debug-24:/mipmap-anydpi-v26_ic_monitor.xml.flat",
+        "source": "/Users/markobosko/.gradle/daemon/8.14.2/com.mantraproductions.ndi.monitor-main-26:/mipmap-anydpi-v26/ic_monitor.xml"
     }
 ]

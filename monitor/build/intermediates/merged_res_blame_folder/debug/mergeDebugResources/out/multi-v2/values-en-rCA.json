@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.mantraproductions.ndi.monitor-mergeDebugResources-21:/values-en-rCA/values-en-rCA.xml",
+            "outputFile": "com.mantraproductions.ndi.monitor-mergeDebugResources-22:/values-en-rCA/values-en-rCA.xml",
             "map": [
                 {
                     "source": "/Users/markobosko/.gradle/caches/8.14.2/transforms/2926cc061ab6550a5df9ee4877d2cc52/transformed/appcompat-1.7.0/res/values-en-rCA/values-en-rCA.xml",
