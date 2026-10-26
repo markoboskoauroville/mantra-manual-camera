@@ -294,3 +294,16 @@ lists them — and when the source is this camera it becomes its remote control:
 marks, a key tap presses it on the camera, a picture tap goes to the camera's armed mark, HX − / + set the stream's bit
 rate live, and its own line shows the fps and Mbit/s it receives. Nothing is recorded on the monitor. Shared code:
 `shared/kotlin` (CameraCommand/CameraState, RailButton). Stress test: `scripts/stress.py <serial>`.
+
+## The remote over ADB (v150)
+
+Mantra Monitor reaches a camera phone over **wireless debugging** as well as over MANTRA LINK and NDI: ADB ON in its
+sources, PAIR once with the six digits the camera phone shows, then choose `ADB <address>`. The camera phone's whole
+screen comes as H.264 from scrcpy's server, and every touch goes back as scrcpy's own touch event. The guide is in both
+apps (`shared/kotlin/AdbGuide.kt`).
+
+Third-party code shipped in Mantra Monitor, each under the Apache License 2.0:
+- **scrcpy** server 4.1 (Genymobile, https://github.com/Genymobile/scrcpy), `monitor/src/main/assets/scrcpy-server.jar`
+- **libadb-android** 3.1.1 (Muntashir Akon) and spake2-android, ADB pairing and TLS
+- **Conscrypt** 2.5.3 (Google)
+- **Bouncy Castle** 1.81 (MIT-style Bouncy Castle licence), the monitor's own certificate
