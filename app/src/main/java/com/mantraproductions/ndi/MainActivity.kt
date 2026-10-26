@@ -202,6 +202,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var falseKey: RailButton
     private lateinit var zebraKey: RailButton
     private lateinit var storageKey: RailButton
+    /** v155: the POWER MONITOR, beside the drive's time left (Marko, 26.10.2026). */
+    private lateinit var powerMonitor: PowerMonitor
+    private lateinit var powerRing: PowerRingView
+    private var lastPower: PowerMonitor.Reading? = null
     private lateinit var timecode: TextView
 
     /** The two exposure tools beside peaking. Monitor only, like peaking. */
@@ -603,6 +607,10 @@ class MainActivity : AppCompatActivity() {
         // v145: no gear (Marko, 26.10.2026: "remove this settings icon, and clicking on the free space will open the
         // settings. That's why you need to color this free space thing in yellow"). The readout is the way in.
         storageKey = newKey("—") { openSettings() }.also { it.tint = STORAGE_YELLOW; railRight.addView(it) }
+        // v155 (Marko, 26.10.2026: "two points of reference that tell me how long I can keep working"): the drive's
+        // time left, and under it the battery's, on the ring of the POWER MONITOR; a tap opens all of its numbers
+        powerMonitor = PowerMonitor(this)
+        powerRing = PowerRingView(this).also { v -> v.setOnClickListener { showPower() }; railRight.addView(v) }
     }
 
     /** v130: the lens drawer opens over the whole left rail (wider in landscape, taller upright) and closes again. */
@@ -1001,6 +1009,7 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             if (pipeline.isRunning) pipeline.sampleRate()
             if (++storageTicks % 5 == 0) refreshStorage()
+            runCatching { powerMonitor.read() }.getOrNull()?.let { lastPower = it; powerRing.reading = it }
             if (storageTicks % 2 == 0) watchWire()
             // v136: the stream watchdog, and the service that keeps the stream alive behind other apps
             pipeline.watchStream()?.let { Trace.refused("stream watch", it) }
@@ -2209,6 +2218,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** v149: the meter shown when the settings say so and the lens focuses; its lens triangle follows the capture result. */
+    /** v155: the POWER MONITOR's numbers, in words, as a V-mount's menu shows them. */
+    private fun showPower() {
+        val r = lastPower ?: return
+        val time = when (r.flow) {
+            PowerMonitor.Flow.CHARGING -> "Full in ${PowerMonitor.Calc.format(r.seconds)} h"
+            PowerMonitor.Flow.DISCHARGING -> "Empty in ${PowerMonitor.Calc.format(r.seconds)} h at this draw"
+            PowerMonitor.Flow.BALANCED -> "In balance: the charger gives what the camera takes"
+            PowerMonitor.Flow.FULL -> "Full"
+        }
+        val lines = listOf(
+            time,
+            "${r.level} %" + (r.chargeMah?.let { "  ·  $it mAh in the cell" } ?: ""),
+            "${PowerRingView.signed(r.netMa)}  ·  " + String.format(java.util.Locale.ROOT, "%.2f V  ·  %.1f W", r.volts, r.watts),
+            if (r.plugged.isEmpty()) "On battery" else "Plugged in: ${r.plugged}",
+            String.format(java.util.Locale.ROOT, "Battery %.1f °C", r.tempC),
+            if (r.measured) "Measured: the cell's own charge counter over the last minutes"
+            else "First estimate from the current now; measured after two minutes"
+        )
+        android.app.AlertDialog.Builder(this).setTitle("POWER MONITOR").setMessage(lines.joinToString("\n"))
+            .setPositiveButton("OK", null).show()
+    }
+
     private fun showMeter() {
         val closest = if (pipeline.isRunning) pipeline.engine.minimumFocusDistance() else 0f
         val on = settings.focusPuller && closest > 0f && !fullScreen
@@ -2263,6 +2294,14 @@ class MainActivity : AppCompatActivity() {
             "focus_label" to focusLabel()?.replace('\n', ' '),
             "brightness" to sampleBrightness()?.let { String.format(java.util.Locale.ROOT, "%.2f", it) },
             "rec" to rolling,
+            // v155: the POWER MONITOR, for the Mac and the remote
+            "power" to lastPower?.let { PowerRingView.describe(it) },
+            "power_level" to lastPower?.level,
+            "power_flow" to lastPower?.flow?.name?.lowercase(),
+            "power_ma" to lastPower?.netMa,
+            "power_w" to lastPower?.let { String.format(java.util.Locale.ROOT, "%.2f", it.watts) },
+            "power_time" to lastPower?.let { PowerMonitor.Calc.format(it.seconds) },
+            "power_measured" to lastPower?.measured,
             "status" to lastSaid.replace('\n', ' ')
         )
         return m.entries.joinToString("\n") { "${it.key}=${it.value ?: "-"}" }
