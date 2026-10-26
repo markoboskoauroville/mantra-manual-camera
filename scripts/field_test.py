@@ -201,9 +201,17 @@ m = re.search(r"(\d+)x(\d+)", size)
 sh("shell", "uiautomator", "dump", "/sdcard/ui.xml")
 ui = sh("shell", "cat", "/sdcard/ui.xml")
 rec = re.search(r'content-desc="[^"]*(?:[Rr]ecord)[^"]*"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', ui)
-if rec:
-    x = (int(rec.group(1)) + int(rec.group(3))) // 2; y = (int(rec.group(2)) + int(rec.group(4))) // 2
-    sh("shell", "input", "tap", str(x), str(y)); time.sleep(10); sh("shell", "input", "tap", str(x), str(y)); time.sleep(3)
+# Android 17's uiautomator returns "null root node" over a live camera (26.10.2026): then REC through the app's own
+# ADB control (scripts/mcam key REC), which presses the same key
+MCAM = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcam")]
+def press_rec():
+    if rec:
+        x = (int(rec.group(1)) + int(rec.group(3))) // 2; y = (int(rec.group(2)) + int(rec.group(4))) // 2
+        sh("shell", "input", "tap", str(x), str(y))
+    else:
+        subprocess.run(MCAM + ["key", "REC"], env={**os.environ, "MCAM_SERIAL": TARGET}, capture_output=True, timeout=30)
+if True:
+    press_rec(); time.sleep(10); press_rec(); time.sleep(3)
     t = trace()
     snd = re.findall(r"take's sound: ([\d.]+) s, (\d)ch", t)
     record("7 the take has sound", bool(snd) and float(snd[-1][0]) > 8, f"{snd[-1][0]} s, {snd[-1][1]}ch" if snd else "no sound line")
@@ -216,7 +224,7 @@ if rec:
                                 "-of", "compact", local], capture_output=True, text=True).stdout
         record("7 ffprobe finds an audio track", "codec_type=audio" in probe, probe.replace("\n", " | ")[:200])
 else:
-    record("7 record key found on screen", False, "not in the uiautomator dump; tap it by hand")
+    pass
 
 # --- 8. the Mac sees the source ------------------------------------------------------------------------------------
 launch(ndi_arm=1, ndi_kind=1, ndi_transport="WIFI", ndi_audio=1, audio_source="auto", audio_stereo=0)
