@@ -88,7 +88,9 @@ def moving():
 
 
 def launch(**extras):
-    args = ["shell", "am", "start", "-S", "-W", "-n", f"{PKG}/.MainActivity"]
+    # the activity is com.mantraproductions.ndi.MainActivity, not under the package's own name: ".MainActivity" made
+    # -S stop the app and the start fail, so every scenario read the dead app's old trace (8/23, 26.10.2026)
+    args = ["shell", "am", "start", "-S", "-W", "-n", f"{PKG}/com.mantraproductions.ndi.MainActivity"]
     for k, v in extras.items():
         args += ["--es", k, str(v)]
     sh(*args)

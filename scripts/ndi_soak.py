@@ -111,12 +111,12 @@ def judge(name, start, end, settle=(), want_portrait=None):
 
 
 def launch_hx(kind=1):
-    sh("shell", "am", "start", "-S", "-W", "-n", f"{PKG}/.MainActivity", "--es", "ndi_arm", "1", "--es", "ndi_kind",
+    sh("shell", "am", "start", "-S", "-W", "-n", f"{PKG}/com.mantraproductions.ndi.MainActivity", "--es", "ndi_arm", "1", "--es", "ndi_kind",
        str(kind), "--es", "ndi_audio", "1", "--es", "audio_source", "auto")
 
 
 def front():
-    sh("shell", "am", "start", "-W", "-n", f"{PKG}/.MainActivity")
+    sh("shell", "am", "start", "-W", "-n", f"{PKG}/com.mantraproductions.ndi.MainActivity")
 
 
 def orient(portrait):
