@@ -909,3 +909,7 @@ Needs the GPU stage (Settings → Picture path).
 > "After this update, I can debug my remote app over ADB through the tunnel." / "The new feature is resolution scaling, in fractions of 0.9, 0.8, 0.7, 0.6 and 0.5. It saves bandwidth with the new setting, and the status line shows the new number." (Marko, 26.10.2026)
 
 95. Resolution scaling for the remote's ADB picture: 1.0, 0.9, 0.8, 0.7, 0.6, 0.5 of the picture's size; a smaller picture costs less bandwidth; the status line shows the scale. — **Status:** in work.
+
+> "to the camera remote you can add the black and white screen, same as we have in our remote app" (Marko, 26.10.2026)
+
+96. The black-and-white screen of Mantra Remote in the camera remote's ADB picture. — **Status:** asked.
