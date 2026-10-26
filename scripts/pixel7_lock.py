@@ -17,7 +17,15 @@ def take(minutes, what, wait=False):
     """Exit 0 from the lock script: the phone is ours. Exit 1: someone else has it (printed); we stop here."""
     global _held
     if not os.path.exists(LOCK):
-        sys.exit(f"{LOCK} not found: the Pixel 7 is shared, and without the lock this script will not touch it.")
+        # 26.10.2026: the sharing lock is no longer on this Mac (no ~/pixel7, no PIXEL7_SHARING.md). The phone is
+        # still never taken from DJ Mantra: its app running there stops the test.
+        adb = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
+        serial = os.environ.get("ANDROID_SERIAL", "")
+        cmd = [adb] + (["-s", serial] if serial else []) + ["shell", "pidof", "com.djmantra.app"]
+        if subprocess.run(cmd, capture_output=True, text=True).stdout.strip():
+            sys.exit("No lock script, and com.djmantra.app is running on the Pixel: another project has the phone. Stopping.")
+        print(f"pixel7 lock: {LOCK} is not on this Mac; DJ Mantra's app is not running: going on", flush=True)
+        return
     r = subprocess.run([LOCK, "wait" if wait else "take", PROJECT, str(int(minutes)), what], text=True)
     if r.returncode != 0:
         sys.exit("The Pixel 7 is in use by another project (see above). Try again later, or run with --wait.")
