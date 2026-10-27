@@ -43,6 +43,53 @@ object LinkServer {
     @Volatile private var client: Socket? = null
     @Volatile var clean = false
         private set
+
+    /** v161: MODE 2: the Mac app wants the camera's own stream (see Link); [onStreamWanted] tells the pipeline. */
+    @Volatile var streamMode = false
+    @Volatile var windowToo = false
+    var onStreamWanted: ((Boolean) -> Unit)? = null
+
+    /**
+     * v161: the stream's frames go out on their own thread through a bounded queue: a slow cable drops frames (then
+     * waits for a keyframe), it never holds the encoder.
+     */
+    private val streamQueue = java.util.concurrent.LinkedBlockingQueue<Pair<Byte, ByteArray>>(90)
+    @Volatile private var waitForKey = true
+    private var lastConfig: ByteArray? = null
+
+    fun streamConfig(hevc: Boolean, w: Int, h: Int, vps: ByteArray?, sps: ByteArray, pps: ByteArray?) {
+        val b = java.io.ByteArrayOutputStream()
+        DataOutputStream(b).apply {
+            writeByte(if (hevc) 1 else 0); writeInt(w); writeInt(h)
+            for (a in listOf(vps, sps, pps)) { writeInt(a?.size ?: 0); a?.let { write(it) } }
+        }
+        lastConfig = b.toByteArray()
+        if (streamMode) { streamQueue.clear(); waitForKey = true; streamQueue.offer(Link.SCONFIG to lastConfig!!) }
+    }
+
+    fun streamFrame(data: ByteArray, keyframe: Boolean, ptsUs: Long) {
+        if (!streamMode || out == null) return
+        if (waitForKey && !keyframe) return
+        waitForKey = false
+        val b = ByteArray(9 + data.size)
+        b[0] = if (keyframe) 1 else 0
+        for (i in 0 until 8) b[1 + i] = (ptsUs ushr (56 - 8 * i)).toByte()
+        System.arraycopy(data, 0, b, 9, data.size)
+        if (!streamQueue.offer(Link.SFRAME to b)) {
+            streamQueue.clear(); waitForKey = true                  // the cable fell behind: start again on a keyframe
+            lastConfig?.let { streamQueue.offer(Link.SCONFIG to it) }
+            Trace.refused("link stream", "fell 90 frames behind, waiting for a keyframe")
+        }
+    }
+
+    private fun switchStream(on: Boolean) {
+        if (streamMode == on) return
+        streamMode = on
+        streamQueue.clear(); waitForKey = true
+        if (on) lastConfig?.let { streamQueue.offer(Link.SCONFIG to it) }
+        Trace.control("link", "stream", if (on) "on (the Mac takes the camera's stream)" else "off")
+        ui.post { onStreamWanted?.invoke(on) }
+    }
     /** When the last touch from the monitor was played (the FULL key asks: was this the monitor's finger?). */
     @Volatile var lastRemoteTouch = 0L
         private set
@@ -106,6 +153,15 @@ object LinkServer {
         Trace.control("link", "monitor connected", s.inetAddress.hostAddress ?: "?")
         val enc = Encoder(o)
         enc.start()
+        // v161: the stream's writer, for as long as this client is here
+        val writer = thread(name = "link-stream", isDaemon = true) {
+            try {
+                while (out === o) {
+                    val (t, b) = streamQueue.poll(500, java.util.concurrent.TimeUnit.MILLISECONDS) ?: continue
+                    Link.write(o, t, b)
+                }
+            } catch (e: Exception) { Trace.control("link", "stream writer ended", e.javaClass.simpleName) }
+        }
         // what comes back
         thread(name = "link-read", isDaemon = true) {
             val inp = DataInputStream(BufferedInputStream(s.getInputStream()))
@@ -115,7 +171,12 @@ object LinkServer {
                     when (t) {
                         Link.TOUCH -> touch(b)
                         Link.KEY -> String(b).let { k -> ui.post { key(k) } }
-                        Link.MODE -> { clean = b.firstOrNull() == 1.toByte(); enc.keyframe(); ui.post { onModeChanged?.invoke() } }
+                        Link.MODE -> {
+                            val m = b.firstOrNull()?.toInt() ?: 0
+                            switchStream(m == 2 || m == 3)
+                            windowToo = m == 3          // v161: MODE 3, the stream for the webcam AND the window for the remote
+                            clean = m == 1; enc.keyframe(); ui.post { onModeChanged?.invoke() }
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -123,6 +184,8 @@ object LinkServer {
             } finally {
                 enc.stop()
                 if (out === o) out = null
+                switchStream(false)
+                writer.interrupt()
                 runCatching { s.close() }
                 if (clean) { clean = false; ui.post { onModeChanged?.invoke() } }
             }
@@ -194,6 +257,7 @@ object LinkServer {
         }
 
         private fun frame() {
+            if (streamMode && !windowToo) return        // v161: the camera's own stream goes instead
             val a = top ?: return
             val win = a.window ?: return
             val dv = win.decorView

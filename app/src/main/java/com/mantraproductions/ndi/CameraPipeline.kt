@@ -451,7 +451,7 @@ class CameraPipeline(private val context: Context) {
                 recordEncoder = take
                 stage.setOutput(GpuStage.Output.PREVIEW, previewSurface, enabled = true)
                 stage.setOutput(GpuStage.Output.RECORD, takeSurface, enabled = false)
-                stage.setOutput(GpuStage.Output.STREAM, surface, enabled = false)
+                stage.setOutput(GpuStage.Output.STREAM, surface, enabled = linkWanted)   // v161: a Mac watching keeps it on
                 // v136: the orientation asked for before the camera opened (the activity sets it on every start)
                 if (streamTurns != 0) { val t = streamTurns; streamTurns = 0; applyStreamTurns(t) }
                 Trace.state(
@@ -519,6 +519,26 @@ class CameraPipeline(private val context: Context) {
     private fun onStreamFormat(sps: ByteArray, pps: ByteArray?, vps: ByteArray?) {
         parameterSets = Triple(sps, pps, vps)
         NdiSender.setVideoInfo(sps, pps, vps)
+        if (linkWanted) linkConfig()
+    }
+
+    /**
+     * v161: the Mac app (Mantra Camera, over the USB cable) takes the stream encoder's frames through Mantra Link;
+     * the GPU stage keeps drawing the stream while it watches, NDI on or off.
+     */
+    @Volatile var linkWanted = false
+        private set
+
+    fun setLinkStream(on: Boolean) {
+        linkWanted = on
+        gpu?.setEnabled(GpuStage.Output.STREAM, on || mode == Mode.HX)
+        if (on) { linkConfig(); encoder?.requestKeyframe() }
+        Trace.control("stream", if (on) "to the Mac over the cable" else "not to the Mac", if (gpu != null) "GPU stage" else "direct path: not offered")
+    }
+
+    private fun linkConfig() {
+        val (sps, pps, vps) = parameterSets ?: return
+        LinkServer.streamConfig(encoder?.isHevc ?: true, encoderSize.width, encoderSize.height, vps, sps, pps)
     }
 
     /**
@@ -543,6 +563,7 @@ class CameraPipeline(private val context: Context) {
                 onStreamFormat(sps, pps, vps)
             }
         }
+        if (linkWanted) LinkServer.streamFrame(data, keyframe, ptsUs)
         if (mode == Mode.HX) {
             NdiVideo.offer(data, keyframe, ptsUs, hevc)
             frames++
@@ -621,7 +642,7 @@ class CameraPipeline(private val context: Context) {
         encoderSurface = surface
         encoderSize = dims
         NdiSender.setVideoFormat(dims.width, dims.height, fps, 1)
-        stage.setOutput(GpuStage.Output.STREAM, surface, enabled = mode == Mode.HX)
+        stage.setOutput(GpuStage.Output.STREAM, surface, enabled = mode == Mode.HX || linkWanted)
         stage.setTurns(GpuStage.Output.STREAM, streamTurns)
         lastEncodedAt = SystemClock.elapsedRealtime()
         c.requestKeyframe()
@@ -721,7 +742,7 @@ class CameraPipeline(private val context: Context) {
         when (mode) {
             // Left live if a take is running: the file is fed by the encoder,
             // and stopping the stream must never stop the recording.
-            Mode.HX -> if (gpu != null) gpu?.setEnabled(GpuStage.Output.STREAM, false)
+            Mode.HX -> if (gpu != null) gpu?.setEnabled(GpuStage.Output.STREAM, linkWanted)
                 else if (!isRecording) encoderSurface?.let { engine.setTargetLive(it, false) }
             Mode.FULL -> fullSurface?.let { engine.setTargetLive(it, false) }
             Mode.OFF -> Unit

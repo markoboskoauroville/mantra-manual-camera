@@ -6,6 +6,16 @@ working state of *this* app.
 
 ---
 
+## 27.10.2026, 08:05–09:20: v161, the camera's stream over the USB cable for the Mac app Mantra Camera
+
+- Marko: NDI to the webcam "drops frames ... a big lag": Mantra Link (port 48100) has MODE 2 (the camera's own
+  hardware stream, the frames NDI HX used, untouched) and MODE 3 (that stream AND the window for the remote) for the
+  new Mac app Mantra Camera (repo mantra-camera-mac), which reaches it through `adb forward` on the cable. The pipeline
+  keeps the GPU stream output on while the Mac watches, NDI on or off; frames go out through a bounded queue (a slow
+  cable drops to the next keyframe, never holds the encoder). Measured: H.265 720x1280 at his 24 fps, 16 Mbit/s;
+  on the Mac: webcam 24 fps (live), remote 25 fps.
+
+
 ## 27.10.2026, 07:35–08:00: v160, libmv (Blender's tracker) as TRK; NDI kept through settings changes
 
 - **libmv's TrackRegion** (MIT) with Ceres 2.2.0 (BSD-3) and Eigen 3.4.0 (MPL-2, MPL2-only) in cpp/third_party, a

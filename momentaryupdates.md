@@ -1104,3 +1104,5 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 > our interface for the webcam, our swift app, should also work as a remote controller for this camera, so i can adjust everything from the computer with my keyboard and mouse
 
 **Plan:** Link MODE 3 = the camera's stream (webcam) and its window (remote) on the one cable connection; the Mac app shows the camera's own window, the mouse is the finger, the keyboard presses its keys.
+
+**Status 27.10.2026, 09:20: v161.** Mantra Link MODE 2/3: the camera's stream (and its window) over the USB cable for the Mac app Mantra Camera; no NDI in that path.

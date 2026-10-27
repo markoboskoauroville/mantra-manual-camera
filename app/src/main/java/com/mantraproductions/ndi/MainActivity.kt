@@ -645,6 +645,7 @@ class MainActivity : AppCompatActivity() {
         startAdbControl()
         LinkServer.onKey = { name -> pressKey(name) }
         LinkServer.onModeChanged = { refreshKeys() }
+        LinkServer.onStreamWanted = { on -> pipeline.setLinkStream(on) }   // v161: the Mac app over the cable
         LinkServer.stateProvider = {
             mapOf(
                 "rec" to if (rolling) "1" else "0",
