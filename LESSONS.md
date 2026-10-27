@@ -210,3 +210,16 @@ receiver still attached, through the change, with the frozen check.
 ffmpeg reading avfoundation into a raw pipe handed the same frame over and over (the screen capture and, once, the
 NDI camera), and a focus sweep "measured" a constant. Every measuring script checks first that its own feed moves
 when the lens moves, and stops with FROZEN FEED rather than produce numbers.
+
+## 32. One phone, two networks, one name (27.10.2026)
+
+An Android phone is "Android.local" on every network it is on. With the USB tether AND Wi-Fi up, a Mac resolves the
+name to either address. A sender pinned to the cable's address then gives the receivers that chose the other one
+sound and no picture: it looks like a decoder freeze, comes and goes with reconnects, and an app restart "cures" it
+by chance. Look at `netstat` (which address), the bytes per interface, and `dns-sd -G v4 Android.local` first.
+
+## 33. A value nobody sets (27.10.2026)
+
+FocusDirector.currentSharpness was documented as "set by the screen" and set nowhere, so the AF watch (the hold that
+refocuses when the subject moves) never fired, for a whole version history. A watch is tested by moving the subject
+and seeing it act, never by reading the code that says it would.

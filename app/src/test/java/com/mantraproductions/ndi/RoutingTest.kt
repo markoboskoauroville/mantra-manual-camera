@@ -106,4 +106,9 @@ class RoutingTest {
         val waiting = Mechanism.telemetry(false, false, 0.0, true, 1, false, 0.0, 0, wire = "USB: no cable — turn USB tethering on")
         assertEquals("USB: no cable — turn USB tethering on", waiting[2].detail)
     }
+
+    @Test fun onTheCableTheSenderAlsoAnswersOnItsOtherAddresses() {
+        assertEquals("{\"ndi\":{\"adapters\":{\"allowed\":[\"172.22.112.72\",\"192.168.1.101\"]}}}",
+            Routing.ndiConfig("172.22.112.72", listOf("192.168.1.101", "172.22.112.72")))
+    }
 }

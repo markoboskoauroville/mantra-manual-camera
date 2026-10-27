@@ -6,6 +6,30 @@ working state of *this* app.
 
 ---
 
+## 27.10.2026, 07:05–07:30: v159, the freeze found, the square's TRACK made to work, the distance meter calibrated
+
+- **THE FREEZE (open since the morning), MEASURED:** the phone is "Android.local" on the cable (172.22.112.72) and on
+  its Wi-Fi (192.168.1.101); the Mac resolved it either way at random. The sender sent video only from the cable's
+  address, so a receiver that took the Wi-Fi address got sound and control (100–200 kB/s) and no picture: NDI Virtual
+  Input and OBS froze, a fresh NDI SDK receiver got nothing. v159: on the cable the sender also answers on the
+  phone's other addresses. Proven: live again by itself without picking the source, live through 4 lens changes,
+  8-bit and 10-bit, and straight after an install. Left: a receiver may then pull the picture over Wi-Fi (measured
+  1.7 MB/s on en0 for NDI Virtual Input alone); settings → NETWORK says to turn the phone's Wi-Fi off for the cable
+  only (an app cannot switch Wi-Fi off).
+- **THE SQUARE'S TRACK did nothing:** FocusDirector's watch compared the square's sharpness with its best, and
+  nothing ever set that sharpness (0 forever), and a tap never started the watch. v159 samples the square twice a
+  second (variance of the Laplacian on the preview as shown), arms the watch after every focus found, takes a fresh
+  best after a lock, and never watches during a search. MEASURED: noise on a still ball ±7 %, so the 25 % delta
+  holds still (90–107 %); his ball moved 30 cm: focus followed in one step each time. A square does not travel with
+  its subject (his ball left the square; TRACK then focused the floor where the square was): that is the motion
+  tracker's job (libmv, next).
+- **THE DISTANCE METER, CALIBRATED with his tape:** ball 70 cm, fan and ball 2.14 m, cloth 3.00 m against where each
+  was sharpest (sweeps up and down, 0.05 dpt): the lens says too far; real dpt = 1.10 x lens + 0.12 (its "infinity"
+  is about 8 m). FOC:, the meter's marks (5 m added, ∞ only when reachable) and adb distances use it; keyframes stay
+  in lens units. Proven on the phone: 70 cm shows 70.1 cm, 3 m shows 3.02 m, 2.14 m shows 2.23 m (one motor step).
+- **No recordings of tests** (his rule): the live check now measures from a pipe and keeps nothing; OBS closed again.
+
+
 ## 27.10.2026, 06:00–07:00: v158, TRACK for the square and the circle; NDI keeps its source; the tracker measured
 
 - **TRACK (Marko: "tracking mode is a long press and then on or off, for both the rectangle and the circle ... every

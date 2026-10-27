@@ -787,7 +787,8 @@ class CameraPipeline(private val context: Context) {
                 Trace.refused("stream", Routing.wireLabel(transport, null))
                 return false
             }
-            if (!NdiSender.create(sourceName, Routing.ndiConfig(adapter.ip))) {
+            val others = if (transport == Routing.Transport.USB) UsbLink.nics().map { it.ip }.filter { it != "127.0.0.1" } else emptyList()
+            if (!NdiSender.create(sourceName, Routing.ndiConfig(adapter.ip, others))) {
                 listener?.onError("NDI source could not be opened")
                 return false
             }

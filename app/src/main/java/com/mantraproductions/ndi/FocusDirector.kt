@@ -46,7 +46,7 @@ class FocusDirector(
     /** The box, for measuring sharpness only inside it. */
     var bounds: FloatArray = floatArrayOf(0.4f, 0.4f, 0.6f, 0.6f)
 
-    /** Set by the screen each time it samples the preview. */
+    /** Set by the screen each time it samples the preview (v159: MainActivity.sharpnessTick; it never was before). */
     @Volatile var currentSharpness: Double = 0.0
 
     var holdMs: Long = 2000
@@ -64,6 +64,15 @@ class FocusDirector(
     var holdFraction = 0.75
 
     private var watchAlive = false
+
+    /**
+     * v159 (27.10.2026, measured on his tennis ball: moved 30 cm closer, focus never followed): a tap, a glide or a
+     * walk that found focus never started the watch; only switching AF on did. Every focus found arms it now.
+     */
+    private fun armWatch() {
+        if (!watching || mode != Mode.AUTO) return
+        handler.postDelayed({ if (!watchAlive && !racking) watch() }, holdMs.coerceAtLeast(200))
+    }
 
     /** v158: the watch started again (TRACK turned on with focus held), once. */
     private fun watchAgain() {
@@ -106,9 +115,10 @@ class FocusDirector(
      */
     fun focusHereAndHold(speed: Int = speedMmS) {
         val c = controls() ?: return
+        reference = 0.0                 // v159: a new place: what was best at the old one says nothing here
         if (searching && !gliding) return
         // v147: at a speed, the camera finds the mark, the lens goes back and walks there at that speed
-        if (speed > 0) { searchThenWalk(c, speed) { settled -> lensPosition = settled; reference = currentSharpness; onState(FocusSquareView.State.LOCKED) }; return }
+        if (speed > 0) { searchThenWalk(c, speed) { settled -> lensPosition = settled; reference = 0.0; onState(FocusSquareView.State.LOCKED); armWatch() }; return }
         if (rampMs > 0L) {
             val started = c.glideFocusAtNormalisedPoint(target.first, target.second) { focused ->
                 searching = false
@@ -116,8 +126,9 @@ class FocusDirector(
                 // locked either way: a lens left in a continuous mode keeps hunting, on the recording
                 c.lockFocusHere()
                 lensPosition = c.lastFocusDistance ?: lensPosition
-                reference = currentSharpness
+                reference = 0.0   // v159: the next watch reads it fresh (sampled twice a second, the old value may be another place)
                 onState(if (focused) FocusSquareView.State.LOCKED else FocusSquareView.State.FAILED)
+                if (focused) armWatch()
             }
             if (started) {
                 searching = true
@@ -134,8 +145,9 @@ class FocusDirector(
             if (focused) {
                 c.lockFocusHere()
                 lensPosition = c.lastFocusDistance ?: lensPosition
-                reference = currentSharpness
+                reference = 0.0   // v159: the next watch reads it fresh (sampled twice a second, the old value may be another place)
                 onState(FocusSquareView.State.LOCKED)
+                armWatch()
             } else {
                 onState(FocusSquareView.State.FAILED)
             }
@@ -171,7 +183,11 @@ class FocusDirector(
     private fun watch() {
         if (mode != Mode.AUTO || racking || !watching) { watchAlive = false; return }
         watchAlive = true
+        // v159: never while focus is being found (a tap's search or glide): the square may have just moved
+        if (searching || gliding) { handler.postDelayed({ watch() }, holdMs.coerceAtLeast(200)); return }
 
+        Trace.state(String.format(java.util.Locale.ROOT, "square watch: sharpness %.1f, best %.1f (%.0f %%)",
+            currentSharpness, reference, if (reference > 0) 100 * currentSharpness / reference else 0.0))
         if (Mechanism.focusHasDrifted(reference, currentSharpness, holdFraction)) {
             Trace.state(String.format(java.util.Locale.ROOT, "square track: sharpness %.1f of best %.1f (below %.0f %%), focus moves",
                 currentSharpness, reference, holdFraction * 100))
@@ -283,7 +299,7 @@ class FocusDirector(
 
     private fun settle(distance: Float) {
         lensPosition = distance
-        reference = currentSharpness
+        reference = 0.0   // v159: the next watch reads it fresh (sampled twice a second, the old value may be another place)
         onState(FocusSquareView.State.LOCKED)
         handler.postDelayed({ watch() }, holdMs.coerceAtLeast(200))
     }

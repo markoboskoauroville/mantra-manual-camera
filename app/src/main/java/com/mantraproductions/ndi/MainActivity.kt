@@ -352,8 +352,10 @@ class MainActivity : AppCompatActivity() {
         // v158: the square's long press (held still) and both TRACKs as they were left
         focusSquare.onLongPressed = { openSquareMenu() }
         focus.watching = settings.squareTrack
+        Mechanism.focusCal = floatArrayOf(settings.focusCalA, settings.focusCalB)   // v159: the calibrated distance meter
         focus.holdFraction = settings.trackFocusHold.toDouble()
         if (settings.circleTrack) ui.postDelayed(circleTrackTick, TRACK_EVERY_MS)
+        ui.postDelayed(sharpnessTick, 500)
         focusSquare.onStateChanged = { refreshKeys() }
         exposureCircle.onStateChanged = { refreshKeys() }
         focusSquare.onTapFor = { x, y -> tapAt(x, y) }
@@ -2390,11 +2392,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** v145: 4.0 (dioptres), 250mm, 25cm, 0.25m or inf as dioptres. */
+    /** Plain dioptres are the lens's own; a distance (mm, cm, m) is a REAL one, through the calibration (v159). */
     private fun adbDioptres(v: String): Float? = when {
         v == "inf" || v == "∞" -> 0f
-        v.endsWith("mm") -> v.removeSuffix("mm").toFloatOrNull()?.let { 1000f / it }
-        v.endsWith("cm") -> v.removeSuffix("cm").toFloatOrNull()?.let { 100f / it }
-        v.endsWith("m") -> v.removeSuffix("m").toFloatOrNull()?.let { 1f / it }
+        v.endsWith("mm") -> v.removeSuffix("mm").toFloatOrNull()?.let { Mechanism.lensDioptres(1000f / it) }
+        v.endsWith("cm") -> v.removeSuffix("cm").toFloatOrNull()?.let { Mechanism.lensDioptres(100f / it) }
+        v.endsWith("m") -> v.removeSuffix("m").toFloatOrNull()?.let { Mechanism.lensDioptres(1f / it) }
         else -> v.removeSuffix("dpt").toFloatOrNull()
     }
 
@@ -2736,6 +2739,43 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { setSquareTrack(!settings.squareTrack); popup.dismiss() }
         })
         showMenuAt(popup, box, focusSquare, focusSquare.normalisedBounds(), focusSquare.centreX)
+    }
+
+    /**
+     * v159 (27.10.2026): THE SQUARE'S SHARPNESS. FocusDirector's watch compares the sharpness in the square with the
+     * best it has been, and nothing ever set it (it stayed 0, so the watch never saw a subject go soft). Twice a
+     * second, while AF holds with TRACK on: the variance of the Laplacian of the luma inside the square, on the
+     * preview as shown at a quarter of its size.
+     */
+    private val sharpnessTick = object : Runnable {
+        override fun run() {
+            if (focus.mode == FocusDirector.Mode.AUTO && settings.squareTrack && preview.isAvailable)
+                runCatching { squareSharpness() }.getOrNull()?.let { focus.currentSharpness = it }
+            ui.postDelayed(this, 500)
+        }
+    }
+
+    private fun squareSharpness(): Double? {
+        val w = (preview.width / 4).coerceAtLeast(64)
+        val h = (preview.height / 4).coerceAtLeast(64)
+        val bmp = shownBitmap(w, h) ?: return null
+        val b = focusSquare.normalisedBounds()
+        val x0 = (b[0] * w).toInt().coerceIn(0, w - 3); val x1 = (b[2] * w).toInt().coerceIn(x0 + 3, w)
+        val y0 = (b[1] * h).toInt().coerceIn(0, h - 3); val y1 = (b[3] * h).toInt().coerceIn(y0 + 3, h)
+        val cw = x1 - x0; val ch = y1 - y0
+        val px = IntArray(cw * ch)
+        bmp.getPixels(px, 0, cw, x0, y0, cw, ch)
+        bmp.recycle()
+        val l = DoubleArray(px.size) { val c = px[it]; 0.299 * ((c shr 16) and 255) + 0.587 * ((c shr 8) and 255) + 0.114 * (c and 255) }
+        var sum = 0.0; var sum2 = 0.0; var n = 0
+        for (y in 1 until ch - 1) for (x in 1 until cw - 1) {
+            val i = y * cw + x
+            val v = l[i - 1] + l[i + 1] + l[i - cw] + l[i + cw] - 4 * l[i]
+            sum += v; sum2 += v * v; n++
+        }
+        if (n == 0) return null
+        val mean = sum / n
+        return sum2 / n - mean * mean
     }
 
     private fun setSquareTrack(on: Boolean) {
@@ -4161,6 +4201,8 @@ class MainActivity : AppCompatActivity() {
         // Android cut the camera ("disabled by policy") and the picture froze.
         ui.removeCallbacks(rateTick)
         ui.removeCallbacks(remoteTick)
+        ui.removeCallbacks(sharpnessTick)
+        ui.removeCallbacks(circleTrackTick)
         keptRunning = false
         pipeline.stop()
         meter?.stop()

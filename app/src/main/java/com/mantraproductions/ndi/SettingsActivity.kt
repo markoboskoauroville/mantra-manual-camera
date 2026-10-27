@@ -189,8 +189,12 @@ class SettingsActivity : AppCompatActivity() {
         val t = settings.ndiTransport
         val adapter = Routing.adapterFor(t, UsbLink.nics())
         findViewById<TextView>(R.id.ndiWire).apply {
+            // v159: on the cable with the Wi-Fi up, the phone is one name on two networks; a receiver may take either
+            val wifiToo = t == Routing.Transport.USB && adapter != null && UsbLink.nics().any { it.kind == Routing.Kind.WIFI }
             text = Routing.wireLabel(t, adapter) +
-                (if (adapter != null) "\nIn the receiver, if the source is not listed, add this address by hand." else "")
+                (if (adapter != null) "\nIn the receiver, if the source is not listed, add this address by hand." else "") +
+                (if (wifiToo) "\nThe phone's Wi-Fi is on too: a receiver may take the picture over it. For the cable only, " +
+                    "turn the phone's Wi-Fi off." else "")
             setTextColor(if (adapter != null) RailButton.GREEN else resources.getColor(R.color.sand, theme))
         }
     }

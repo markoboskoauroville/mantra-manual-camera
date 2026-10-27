@@ -138,9 +138,13 @@ class FocusMeterView @JvmOverloads constructor(
         if (vertical) canvas.drawLine(l, near, l, far, line) else canvas.drawLine(near, l, far, l, line)
 
         // the distances worth a word, from the closest the lens goes to infinity
+        // v159: the marks are REAL distances, placed where the calibrated lens has them (Mechanism.lensDioptres)
         val marks = listOf(1000f / 100f to "10", 100f / 15f to "15", 100f / 20f to "20", 100f / 30f to "30",
-            100f / 50f to "50cm", 1f to "1m", 0.5f to "2m", 0f to "∞")
-        for ((dpt, word) in marks) {
+            100f / 50f to "50cm", 1f to "1m", 0.5f to "2m", 0.2f to "5m", 0f to "∞")
+        for ((real, word) in marks) {
+            // a mark beyond where the lens's far end really is (its "infinity" is about 8 m) is not drawn
+            if (Mechanism.realDioptres(0f) > real + 0.001f) continue
+            val dpt = if (real == 0f) 0f else Mechanism.lensDioptres(real)
             if (dpt > closest + 0.01f) continue
             val a = along(dpt)
             val t = 6f * density

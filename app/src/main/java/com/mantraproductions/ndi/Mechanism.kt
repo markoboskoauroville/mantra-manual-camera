@@ -200,9 +200,25 @@ object Mechanism {
      * v145: a lens position in dioptres as a distance to read under the square: millimetres under 10 cm, centimetres
      * (one decimal) under a metre, metres (two decimals) beyond, ∞ at zero.
      */
+    /**
+     * v159 (27.10.2026): THE DISTANCE METER CALIBRATED. The Pixel 7's main lens says its focus distance only
+     * "approximately", and it says too far: MEASURED on Marko's scene with his tape (ball 70 cm, fan and ball 2.14 m,
+     * cloth 3.00 m) against where each was sharpest, real dioptres = 1.10 x lens + 0.12 (residuals 0.005–0.04 dpt);
+     * the lens's "infinity" is about 8 m. [focusCal] is (a, b); identity until the settings give it.
+     */
+    @Volatile var focusCal: FloatArray = floatArrayOf(1f, 0f)
+
+    /** v159: the lens's dioptres as real dioptres (the distance shown). */
+    fun realDioptres(lens: Float): Float = (focusCal[0] * lens + focusCal[1]).coerceAtLeast(0f)
+
+    /** v159: a real distance's dioptres as the lens's (what is sent to the lens). */
+    fun lensDioptres(real: Float): Float = ((real - focusCal[1]) / focusCal[0]).coerceAtLeast(0f)
+
+    /** [dioptres] are the LENS's (as the camera reports and takes them); shown as the real distance (v159). */
     fun formatFocusDistance(dioptres: Float): String {
-        if (dioptres <= 0.001f) return "∞"
-        val m = 1f / dioptres
+        val real = realDioptres(dioptres)
+        if (real <= 0.001f) return "∞"
+        val m = 1f / real
         return when {
             m < 0.1f -> String.format(java.util.Locale.ROOT, "%.0f mm", m * 1000f)
             m < 1f -> String.format(java.util.Locale.ROOT, "%.1f cm", m * 100f)

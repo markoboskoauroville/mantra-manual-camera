@@ -1068,3 +1068,17 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 > (answer) Test first, then libmv
 
 > don't record any tests in any application or OBS. Nothing
+
+> I am telling you the right distance from the lens for these objects on the screen, so you can calibrate also the distance meter first ball: 66 centimeters a fan distance is two hundred and fourteen second tennis ball is similar distance because they are next to each other the background cloth is 3 meters in distance. These elephants and other Indian symbols
+
+> I move the ball closer
+
+> the distance of the first ball is changed, of course
+
+> please repeat the last voice command you were saying. There was some voicing
+
+> it is moved exactly 30 centimeters
+
+> ball distance now is 70 centimeters. But the meter I was dragging from the lens to the ball goes on an angle because the ball is not aligned directly with the lens. It's not the same height, so angled meter giving that much
+
+**Status 27.10.2026, 07:30: v159.** The freeze found (two networks, one name) and fixed; the square's TRACK made to work (the sharpness was never measured); the distance meter calibrated with his distances (70 cm shows 70.1 cm, 3 m shows 3.02 m). Next: libmv.

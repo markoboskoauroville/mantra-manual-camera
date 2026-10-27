@@ -1637,4 +1637,15 @@ class MechanismTest {
         assertEquals(emptyList<Float>(), Mechanism.decodeKeys(null))
         assertEquals(listOf(1.5f), Mechanism.decodeKeys("x, 1.5,,-3"))
     }
+
+    @Test fun theDistanceMeterIsCalibrated() {
+        val was = Mechanism.focusCal
+        try {
+            Mechanism.focusCal = floatArrayOf(1.10f, 0.12f)
+            assertEquals("70.0 cm", Mechanism.formatFocusDistance(1.1900f))          // his ball, 70 cm
+            assertEquals("3.00 m", Mechanism.formatFocusDistance(0.1939f))           // his cloth, 3 m
+            assertEquals(1f / 0.7f, Mechanism.realDioptres(Mechanism.lensDioptres(1f / 0.7f)), 1e-5f)
+            assertEquals("8.33 m", Mechanism.formatFocusDistance(0f))                // the lens's far end is not infinity
+        } finally { Mechanism.focusCal = was }
+    }
 }

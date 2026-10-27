@@ -188,6 +188,15 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("squareTrack", true)
         set(value) = prefs.edit().putBoolean("squareTrack", value).apply()
 
+    /** v159: the distance meter's calibration, real dioptres = focusCalA x lens + focusCalB (see Mechanism.focusCal). */
+    var focusCalA: Float
+        get() = prefs.getFloat("focusCalA", 1.10f)
+        set(value) = prefs.edit().putFloat("focusCalA", value.coerceIn(0.5f, 2f)).apply()
+
+    var focusCalB: Float
+        get() = prefs.getFloat("focusCalB", 0.12f)
+        set(value) = prefs.edit().putFloat("focusCalB", value.coerceIn(-1f, 1f)).apply()
+
     /** v158: white balance moves only past this, the larger of |ln r/g| and |ln b/g| in the circle (0.04 ≈ 4 %). */
     var trackDeltaWb: Float
         get() = prefs.getFloat("trackDeltaWb", 0.04f)
