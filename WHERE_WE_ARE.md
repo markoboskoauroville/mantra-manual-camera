@@ -6,6 +6,15 @@ working state of *this* app.
 
 ---
 
+## 27.10.2026, 09:20–10:15: v162, the Link stream race; the Nothing as a second camera
+
+- **v162:** an old Mantra Link client closing after a new one had arrived switched the NEW client's stream off (the
+  Mac got the window but no picture). Only the current client takes the stream away now.
+- **The Nothing Phone 2a (A142)** has the camera (v162, permissions granted by adb), on its selfie lens (L2 Front Wide
+  25 mm). Proven directly from the Mac over Wi-Fi: the stream 29 fps 15.7 Mbit/s and the window 7.7 Mbit/s. Android
+  stops a backgrounded app's network: with the camera in Recents its port 48100 was unreachable (camera in front: open).
+
+
 ## 27.10.2026, 08:05–09:20: v161, the camera's stream over the USB cable for the Mac app Mantra Camera
 
 - Marko: NDI to the webcam "drops frames ... a big lag": Mantra Link (port 48100) has MODE 2 (the camera's own

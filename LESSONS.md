@@ -230,3 +230,10 @@ libmv was built as a 60-line Mac program and run on the live NDI picture against
 line of Android code: it showed LOC holds and AFFINE diverges on a small subject, and gave the numbers to beat on the
 phone. On the phone two costs then stood out: reading the whole luma copy back (read only the search area) and a
 debug build of Ceres (native code is now always built optimised; 6–17 ms became 2.4–7.7 ms).
+
+## 35. A server with one client must let only the current one clean up (27.10.2026)
+
+LinkServer closes the old client when a new one connects; the old reader's `finally` then ran after the new client had
+switched the stream on and switched it off again. Cleanup that touches shared state checks it is still the current
+client (`if (out === o)`). And a test that opens its own connection (nc, a probe) to a one-client server kicks the
+real client off: probe with the app's own status, not with a second connection.

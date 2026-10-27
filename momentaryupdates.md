@@ -1106,3 +1106,5 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 **Plan:** Link MODE 3 = the camera's stream (webcam) and its window (remote) on the one cable connection; the Mac app shows the camera's own window, the mouse is the finger, the keyboard presses its keys.
 
 **Status 27.10.2026, 09:20: v161.** Mantra Link MODE 2/3: the camera's stream (and its window) over the USB cable for the Mac app Mantra Camera; no NDI in that path.
+
+**Status 27.10.2026, 10:15: v162 released** (the Link stream race). The Nothing has the camera on its selfie lens; its stream reaches the Mac over Wi-Fi (29 fps, measured directly); Mantra Virtual Cam's own connection to it was stopped by Little Snitch (see mantra_virtual_cam).

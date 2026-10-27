@@ -183,8 +183,9 @@ object LinkServer {
                 Trace.control("link", "monitor gone", e.javaClass.simpleName)
             } finally {
                 enc.stop()
-                if (out === o) out = null
-                switchStream(false)
+                // v162 (27.10.2026, the Nothing gave the Mac no picture): only the client still current takes the stream
+                // away; an old one closing after a new one arrived switched the NEW client's stream off
+                if (out === o) { out = null; switchStream(false) }
                 writer.interrupt()
                 runCatching { s.close() }
                 if (clean) { clean = false; ui.post { onModeChanged?.invoke() } }
