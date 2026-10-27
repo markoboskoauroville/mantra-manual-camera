@@ -1026,3 +1026,17 @@ white paper, neutral. Focus key points deleted. The still now comes out the righ
 > So this is total focus pulling. You invent all the tests to prove that focusing is working correctly in this app.
 
 **Status:** started.
+
+**During the focus test (27.10.2026, 06:20):**
+
+> please record the whole test with the camera on the phone at the same time
+
+> Please also record the test with OBS. You need to record the screen.
+
+> you need to test the focus pulling with all lenses which support focusing
+
+> But before you do the focus, please test the tracking algorithm. The ball is swinging like a pendulum. See if you can get a sample of it and track it. tracking is also for focusing
+
+> Please find on GitHub the best application that replaces something like Houdini or After Effects, or any app like Mocha, which has tracking. You need to get the code from there, to see how to track objects for special effects. It should be open source, so please find it. We need the same user interface and the same quality of tracking.
+
+**So far:** v158 fixes "NDI source could not be opened" after a lens change (the old sender held the name). Only L2 and L3 (the main sensor) focus. The tracking square must be small to take a small subject (focusBoxSize 0.06).
