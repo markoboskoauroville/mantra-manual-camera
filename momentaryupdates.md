@@ -1082,3 +1082,9 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 > ball distance now is 70 centimeters. But the meter I was dragging from the lens to the ball goes on an angle because the ball is not aligned directly with the lens. It's not the same height, so angled meter giving that much
 
 **Status 27.10.2026, 07:30: v159.** The freeze found (two networks, one name) and fixed; the square's TRACK made to work (the sharpness was never measured); the distance meter calibrated with his distances (70 cm shows 70.1 cm, 3 m shows 3.02 m). Next: libmv.
+
+## 27.10.2026, 07:35: libmv, then Blender's design
+
+> let's do that. Blender designs its next
+
+**Status:** started (v160: libmv TrackRegion as the camera's motion tracker; then the interface after Blender's).
