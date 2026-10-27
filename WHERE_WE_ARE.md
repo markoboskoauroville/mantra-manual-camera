@@ -6,6 +6,40 @@ working state of *this* app.
 
 ---
 
+## 27.10.2026, 06:00–07:00: v158, TRACK for the square and the circle; NDI keeps its source; the tracker measured
+
+- **TRACK (Marko: "tracking mode is a long press and then on or off, for both the rectangle and the circle ... every
+  2 seconds it updates and smoothly transitions ... It also needs a delta"):** the circle's long-press menu has a
+  TRACK ON/OFF line; the square has a menu of its own (a still hold of 0.9 s; a hold that moves is still a drag).
+  Circle TRACK reads every 2 s; past the delta it glides one step over 1.5 s (in ratios), then waits 1.5 s for the
+  picture to show it before reading again. Square TRACK is AF's 2-second watch made a switch (off: focus held).
+- **The deltas, MEASURED on his scene:** WB jitter on a steady picture 0.5 % → delta **0.04** (4 %, ~8 mired, 8x the
+  noise, about the smallest shift the eye sees); ISO jitter 0.02–0.05 stops → delta **0.2 stops**. Proven: ISO glided
+  once per change of light and stayed still (+0.03..+0.05) after; WB went 12 % → 4 % → 2 % and held 30 s under 0.04.
+  Focus keeps 0.75 (focus moves when sharpness falls 25 %). Settings: trackDeltaWb, trackDeltaIso, trackFocusHold.
+- **NDI after a lens change:** "NDI source could not be opened" every 2 s (the old sender held the name). v158 keeps a
+  sender asked for again with the same name on the same wire (NDI Virtual Input does not follow a source closed and
+  opened again: it froze); a changed name or wire closes the old one and makes the new one.
+- **The tracker on the swinging ball (trace scores):** held 0.9 while the ball hung still, LOST (0.26–0.42 < 0.60) for
+  the whole swing and never found it again: the ball is ~6 px in the tracker's 256-px luma, the search is ±7 px, no
+  prediction, no new search after LOST. On the still tapestry it held 0.99. The research for a better one (libmv,
+  Blender's tracker, MIT) is in ~/Developer/TRACKER_RESEARCH/REPORT.md.
+- **Lenses that focus:** L2 (25 mm) and L3 (50 mm), the main sensor; L1, L4, L5 fixed.
+- **THE FOCUS PULLER, MEASURED (his scene: a ball on a stand, a ball hanging, the tapestry; sharpness from the NDI
+  picture, the truth from a 0.1-dpt sweep).** L3: near 1.266 dpt (79 cm), far 0.185 (5.4 m), tapestry 0.171.
+  L2: near 1.158 (86 cm), far 0.485 (2.06 m), tapestry 0.125 (8 m). Keyframes racked with ▶, 9 racks a lens: landed
+  within **±0.007 dpt** every time, the same every time; sharpness 97–105 % of the truth (the hanging ball swings in
+  the fan's air, so its numbers wander 86–138 %). Time to sharp = the rack time + 0.2–0.4 s (adb and NDI delay):
+  0.5 s → 0.87–1.04 s, 1 s → 1.20–1.38 s, 2 s → 1.83–2.10 s. No overshoot and no hunting on the fixed ball (97–105 %
+  after arrival). AF, by a tap: L3 near −0.04 dpt (97 %) but far missed (0.44 instead of 0.19, 51 %); L2 far +0.03
+  (95 %) but near missed (1.65 instead of 1.16, 62 %): AF on a small subject is right about half the time; keyframes
+  set by the puller are exact. scripts in the session's scratchpad: focustest.py, lag.py, sharp.py.
+- **OPEN:** twice NDI Virtual Input and OBS froze while the phone went on sending (30 fps, 2 watching), after lens
+  changes; a fresh NDI SDK receiver got no picture either; restarting the camera app cured it. Cause not found.
+- **Recorded:** OBS ~/Movies/2026-10-27 06-16-51.mov (06:16 to the end); the phone's take covers 06:16–06:26 only
+  (the app was closed then and REC was not pressed again).
+
+
 ## 27.10.2026, 05:00–05:50: v157, the camera as a webcam in Zoom (NDI Virtual Input over the USB cable)
 
 - **The way:** Pixel 7 with USB tethering (ncm0 172.22.112.72, Mac en19 172.22.112.50) → settings OUTPUTS → NDI,

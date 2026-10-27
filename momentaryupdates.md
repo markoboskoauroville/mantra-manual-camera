@@ -1052,3 +1052,9 @@ white paper, neutral. Focus key points deleted. The still now comes out the righ
 > It also needs a delta, meaning how much difference there must be between the old and the new situation, so it doesn't start to pulsate. You need to find the right delta.
 
 **Status:** started (v158 in progress).
+
+**Status 27.10.2026, 07:00: v158 released.** TRACK for the square and the circle (long press, ON/OFF), every 2 s,
+glides past the delta (WB 0.04, ISO 0.2 stops, focus 25 %), measured and proven without pulsing. NDI keeps its source
+through lens changes. The focus puller measured on L2 and L3: keyframes land within ±0.007 dpt, on time, no overshoot;
+AF on small subjects right about half the time. The tracker loses the swinging ball (research for libmv in
+~/Developer/TRACKER_RESEARCH/REPORT.md). Open: a receiver freeze after lens changes (app restart cures it).

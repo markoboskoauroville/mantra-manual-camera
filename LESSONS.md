@@ -197,3 +197,16 @@ the circles measured another place than where they are drawn. Read the preview t
 A Runnable re-posted in onPause to keep a stream alive behind other apps is still running after onDestroy unless
 onDestroy removes it. The dead activity's tick then fought the live one (its service stopped every second), and
 behind other apps Android cut the camera. Ticks are removed in onDestroy and act only in a live activity.
+
+## 30. A receiver may not follow a source that is closed and opened again (27.10.2026)
+
+v158's first cure for "NDI source could not be opened" closed the old sender and made a new one of the same name. The
+error went, and NDI Virtual Input froze on its last frame after every lens change: it does not reconnect. A sender
+asked for again with the same name on the same wire is now KEPT. Every change to a picture path is tested with the
+receiver still attached, through the change, with the frozen check.
+
+## 31. A measuring tool can freeze too (27.10.2026)
+
+ffmpeg reading avfoundation into a raw pipe handed the same frame over and over (the screen capture and, once, the
+NDI camera), and a focus sweep "measured" a constant. Every measuring script checks first that its own feed moves
+when the lens moves, and stops with FROZEN FEED rather than produce numbers.

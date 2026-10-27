@@ -349,6 +349,11 @@ class MainActivity : AppCompatActivity() {
         exposureCircle.onMoved = { x, y -> settings.circleX = x; settings.circleY = y; exposureCircle.state = MarkView.State.IDLE }
         exposureCircle.onTapped = { fireCircle(); alsoUnder(exposureCircle.tapX, exposureCircle.tapY, 1) }
         exposureCircle.onLongPressed = { openCircleMenu() }
+        // v158: the square's long press (held still) and both TRACKs as they were left
+        focusSquare.onLongPressed = { openSquareMenu() }
+        focus.watching = settings.squareTrack
+        focus.holdFraction = settings.trackFocusHold.toDouble()
+        if (settings.circleTrack) ui.postDelayed(circleTrackTick, TRACK_EVERY_MS)
         focusSquare.onStateChanged = { refreshKeys() }
         exposureCircle.onStateChanged = { refreshKeys() }
         focusSquare.onTapFor = { x, y -> tapAt(x, y) }
@@ -2681,20 +2686,154 @@ class MainActivity : AppCompatActivity() {
         row.addView(shutter)
         row.addView(chip("+", false) { stepShutter(+1); showShutter() })
         box.addView(row)
-        // above the circle, or below it when there is no room above; inside the screen either way
+        // v158: TRACK, whatever the circle does: every 2 s it reads again and glides past the delta
+        box.addView(chip(if (settings.circleTrack) "TRACK ON" else "TRACK OFF", settings.circleTrack) {
+            setCircleTrack(!settings.circleTrack); popup.dismiss()
+        })
+        showMenuAt(popup, box, exposureCircle, exposureCircle.normalisedBounds(), exposureCircle.centreX)
+    }
+
+    /** v158: a mark's menu above it, or below it when there is no room above; inside the screen either way. */
+    private fun showMenuAt(popup: android.widget.PopupWindow, box: LinearLayout, anchor: View, b: FloatArray, centreX: Float) {
+        val dp = resources.displayMetrics.density
         box.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val at = IntArray(2)
-        exposureCircle.getLocationOnScreen(at)
-        val b = exposureCircle.normalisedBounds()
-        val cx = at[0] + exposureCircle.width * exposureCircle.centreX
-        val top = at[1] + exposureCircle.height * b[1]
-        val bottom = at[1] + exposureCircle.height * b[3]
+        anchor.getLocationOnScreen(at)
+        val cx = at[0] + anchor.width * centreX
+        val top = at[1] + anchor.height * b[1]
+        val bottom = at[1] + anchor.height * b[3]
         val screen = resources.displayMetrics
         val x = (cx - box.measuredWidth / 2f).toInt().coerceIn(0, (screen.widthPixels - box.measuredWidth).coerceAtLeast(0))
         val above = (top - box.measuredHeight - 8 * dp).toInt()
         val y = (if (above >= 0) above else (bottom + 22 * dp).toInt())
             .coerceIn(0, (screen.heightPixels - box.measuredHeight).coerceAtLeast(0))
-        popup.showAtLocation(exposureCircle, android.view.Gravity.NO_GRAVITY, x, y)
+        popup.showAtLocation(anchor, android.view.Gravity.NO_GRAVITY, x, y)
+    }
+
+    /**
+     * v158: the square's long press (held still): TRACK on or off. On, focus found is watched every 2 s and walks to
+     * the new mark only when the square's sharpness falls past the delta; off, it is held where it was found.
+     */
+    private fun openSquareMenu() {
+        val dp = resources.displayMetrics.density
+        val green = android.graphics.Color.parseColor("#33D17A")
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((8 * dp).toInt(), (6 * dp).toInt(), (8 * dp).toInt(), (6 * dp).toInt())
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xE6101010.toInt()); cornerRadius = 10 * dp; setStroke((1 * dp).toInt(), 0x55FFFFFF)
+            }
+        }
+        val popup = android.widget.PopupWindow(box, android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT, true).apply { isOutsideTouchable = true; elevation = 8 * dp }
+        box.addView(TextView(this).apply {
+            text = if (settings.squareTrack) "TRACK ON" else "TRACK OFF"
+            textSize = 15f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(if (settings.squareTrack) green else android.graphics.Color.WHITE)
+            gravity = android.view.Gravity.CENTER
+            setPadding((12 * dp).toInt(), (10 * dp).toInt(), (12 * dp).toInt(), (10 * dp).toInt())
+            setOnClickListener { setSquareTrack(!settings.squareTrack); popup.dismiss() }
+        })
+        showMenuAt(popup, box, focusSquare, focusSquare.normalisedBounds(), focusSquare.centreX)
+    }
+
+    private fun setSquareTrack(on: Boolean) {
+        settings.squareTrack = on
+        focus.watching = on
+        Trace.control("square track", if (on) "on" else "off", "long press")
+        say(if (on) "Square: TRACK — focus is checked every 2 s and glides when the subject moves"
+            else "Square: TRACK off — focus stays where it was found")
+    }
+
+    private fun setCircleTrack(on: Boolean) {
+        settings.circleTrack = on
+        ui.removeCallbacks(circleTrackTick)
+        if (on) ui.postDelayed(circleTrackTick, TRACK_EVERY_MS)
+        Trace.control("circle track", if (on) "on" else "off", circleLabel())
+        say(if (on) "Circle: TRACK ${circleLabel()} — read every 2 s, glides when the light changes"
+            else "Circle: TRACK off — ${circleLabel()} stays")
+        refreshKeys()
+    }
+
+    /**
+     * v158: THE CIRCLE'S TRACK. Every [TRACK_EVERY_MS] the circle is read once; past the delta (trackDeltaWb,
+     * trackDeltaIso) one step is taken, eased over [TRACK_GLIDE_MS] in ratios, so a change of light becomes a slow
+     * cinematic drift over a few steps and a steady picture never moves. Nothing while a tap's own rounds run.
+     */
+    private val circleTrackTick = object : Runnable {
+        override fun run() {
+            if (!settings.circleTrack) return
+            runCatching { circleTrackStep() }.onFailure { Trace.fault("circle track", it) }
+            ui.postDelayed(this, TRACK_EVERY_MS)
+        }
+    }
+
+    /** v158: when the last TRACK glide ended; the picture shows it a moment later (MEASURED: a reading 0.5 s after a
+     * glide still saw the old light and stepped again, a small overshoot), so the next reading waits [TRACK_SETTLE_MS]. */
+    private var trackGlideDoneAt = 0L
+
+    private fun circleTrackStep() {
+        if (!pipeline.isRunning || wbRamp.running || exposureRamp.running) return
+        if (android.os.SystemClock.uptimeMillis() - trackGlideDoneAt < TRACK_SETTLE_MS) return
+        if (exposureCircle.state == MarkView.State.MEASURING) return
+        val engine = pipeline.engine
+        if (settings.circleMode == CIRCLE_WB) {
+            val rgb = sampleSpotRgb(choose = true) ?: return
+            val gains = engine.currentGains() ?: return
+            val off = maxOf(kotlin.math.abs(kotlin.math.ln(rgb[0] / rgb[1])), kotlin.math.abs(kotlin.math.ln(rgb[2] / rgb[1])))
+            val moves = off > settings.trackDeltaWb
+            Trace.state(String.format(java.util.Locale.ROOT, "circle track WB: r/g %.3f b/g %.3f, off %.3f, delta %.3f%s",
+                rgb[0] / rgb[1], rgb[2] / rgb[1], off, settings.trackDeltaWb, if (moves) " → glide" else ""))
+            if (!moves) return
+            val learn = WhiteBalance.SpotLearn(spotResponse[curveIndex]
+                ?: doubleArrayOf(WhiteBalance.CAUTIOUS_RESPONSE, WhiteBalance.CAUTIOUS_RESPONSE))
+            val next = learn.next(gains, rgb)
+            wbAuto = false
+            wbRamp.run(TRACK_GLIDE_MS,
+                step = { p ->
+                    settings.circleTrack && engine.setWhiteBalanceGains(
+                        FloatArray(4) { Mechanism.rampLog(gains[it].toDouble(), next[it].toDouble(), p).toFloat() },
+                        0, trace = p >= 1f)
+                },
+                done = {
+                    trackGlideDoneAt = android.os.SystemClock.uptimeMillis()
+                    engine.adoptSpotAsAnchor()?.let { wbKelvin = it }; wbLockedAt = wbLockText(); refreshZones()
+                })
+        } else {
+            val range = engine.isoRange() ?: return
+            if (isoAuto || shutterAuto) {
+                iso = (if (isoAuto) engine.lastIso else iso) ?: return
+                shutterNs = (if (shutterAuto) engine.lastExposureNs else shutterNs) ?: return
+                isoAuto = false; shutterAuto = false
+                applyExposure()
+                return                                  // read again once the camera holds these by hand
+            }
+            val linear = sampleCircleLinear() ?: return
+            val error = Mechanism.circleExposureError(linear)
+            val moves = kotlin.math.abs(error) > settings.trackDeltaIso
+            Trace.state(String.format(java.util.Locale.ROOT, "circle track ISO: light %.3f, %+.2f stops, delta %.2f%s",
+                linear, error, settings.trackDeltaIso, if (moves) " → glide" else ""))
+            if (!moves) return
+            val response = exposureResponse[curveIndex] ?: 1.0
+            val iso0 = iso
+            val (iso1, _) = Mechanism.splitExposure((error / response).coerceIn(-2.0, 2.0),
+                iso0, shutterNs, range.lower, range.upper, shutterNs, shutterNs)
+            if (iso1 == iso0) return
+            exposureRamp.run(TRACK_GLIDE_MS,
+                step = { p ->
+                    settings.circleTrack && run {
+                        iso = Math.round(Mechanism.rampLog(iso0.toDouble(), iso1.toDouble(), p)).toInt()
+                        engine.setManualExposure(iso, shutterNs, trace = p >= 1f)
+                    }
+                },
+                done = {
+                    trackGlideDoneAt = android.os.SystemClock.uptimeMillis()
+                    exposureLockedAt = "track ISO $iso · " + Mechanism.formatShutter(shutterNs)
+                    isoPosition = Mechanism.positionOfValue(iso.toDouble(), range.lower.toDouble(), range.upper.toDouble())
+                    refreshZones()
+                })
+        }
     }
 
     /**
@@ -4062,3 +4201,7 @@ private const val CIRCLE_SETTLE_MS = 300L
 private const val CIRCLE_ISO = 0
 private const val CIRCLE_WB = 1
 private const val SPOT_TOLERANCE = 0.03
+/** v158: the TRACK of the square and the circle reads every 2 s and glides over most of that. */
+private const val TRACK_EVERY_MS = 2000L
+private const val TRACK_GLIDE_MS = 1500L
+private const val TRACK_SETTLE_MS = 1500L

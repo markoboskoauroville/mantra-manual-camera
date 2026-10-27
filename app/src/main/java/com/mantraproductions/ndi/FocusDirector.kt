@@ -56,6 +56,20 @@ class FocusDirector(
     /** v147: the same for a tracked subject. */
     var trackSpeedMmS: Int = 0
 
+    /** v158: the square's TRACK: off, a found focus is held and never looked at again; on, the 2-second watch. */
+    var watching = true
+        set(value) { field = value; if (value) watchAgain() }
+
+    /** v158: how far sharpness may fall before focus moves (the delta), a fraction of the best it has been. */
+    var holdFraction = 0.75
+
+    private var watchAlive = false
+
+    /** v158: the watch started again (TRACK turned on with focus held), once. */
+    private fun watchAgain() {
+        if (!watchAlive && mode == Mode.AUTO && !racking) handler.postDelayed({ watch() }, holdMs.coerceAtLeast(200))
+    }
+
     private var reference = 0.0
     private var lensPosition = 0f
     private var racking = false
@@ -155,9 +169,13 @@ class FocusDirector(
      * continuous autofocus.
      */
     private fun watch() {
-        if (mode != Mode.AUTO || racking) return
+        if (mode != Mode.AUTO || racking || !watching) { watchAlive = false; return }
+        watchAlive = true
 
-        if (Mechanism.focusHasDrifted(reference, currentSharpness)) {
+        if (Mechanism.focusHasDrifted(reference, currentSharpness, holdFraction)) {
+            Trace.state(String.format(java.util.Locale.ROOT, "square track: sharpness %.1f of best %.1f (below %.0f %%), focus moves",
+                currentSharpness, reference, holdFraction * 100))
+            watchAlive = false
             onState(FocusSquareView.State.SEEKING)
             rackToNewMark()
         } else {

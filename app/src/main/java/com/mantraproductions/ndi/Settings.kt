@@ -174,6 +174,35 @@ class Settings(context: Context) {
         get() = prefs.getFloat(CIRCLE_SIZE, 0.16f)
         set(value) = prefs.edit().putFloat(CIRCLE_SIZE, value.coerceIn(0.06f, 0.5f)).apply()
 
+    /**
+     * v158 (Marko, 27.10.2026: "tracking mode is a long press and then on or off, for both the rectangle and the circle
+     * ... every 2 seconds it updates and smoothly transitions to the new situation"): the circle's TRACK (off until he
+     * turns it on) and the square's TRACK (on: the held focus watch AF always had). The deltas are how far the new
+     * situation must be from the old before anything moves, so a steady picture never pulsates.
+     */
+    var circleTrack: Boolean
+        get() = prefs.getBoolean("circleTrack", false)
+        set(value) = prefs.edit().putBoolean("circleTrack", value).apply()
+
+    var squareTrack: Boolean
+        get() = prefs.getBoolean("squareTrack", true)
+        set(value) = prefs.edit().putBoolean("squareTrack", value).apply()
+
+    /** v158: white balance moves only past this, the larger of |ln r/g| and |ln b/g| in the circle (0.04 ≈ 4 %). */
+    var trackDeltaWb: Float
+        get() = prefs.getFloat("trackDeltaWb", 0.04f)
+        set(value) = prefs.edit().putFloat("trackDeltaWb", value.coerceIn(0.005f, 0.5f)).apply()
+
+    /** v158: ISO moves only past this many stops of error in the circle. */
+    var trackDeltaIso: Float
+        get() = prefs.getFloat("trackDeltaIso", 0.2f)
+        set(value) = prefs.edit().putFloat("trackDeltaIso", value.coerceIn(0.05f, 2f)).apply()
+
+    /** v158: focus moves only when the square's sharpness falls below this fraction of its best (0.75 = 25 % lower). */
+    var trackFocusHold: Float
+        get() = prefs.getFloat("trackFocusHold", 0.75f)
+        set(value) = prefs.edit().putFloat("trackFocusHold", value.coerceIn(0.3f, 0.98f)).apply()
+
     /** v143: what a tap on the circle does: 0 exposure by ISO alone, 1 white balance. A long press changes it. */
     var circleMode: Int
         get() = prefs.getInt(CIRCLE_MODE, 0)

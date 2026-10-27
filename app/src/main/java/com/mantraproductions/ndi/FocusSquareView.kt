@@ -184,6 +184,9 @@ class FocusSquareView @JvmOverloads constructor(
         /** Long enough to be a decision, short enough not to feel stuck. */
         const val HOLD_TO_DRAG_MS = 260L
         const val FAR_SLOP = 44f
+        /** v158: held this long without moving more than [MENU_SLOP] dp, the box asks for its menu. */
+        const val HOLD_FOR_MENU_MS = 900L
+        const val MENU_SLOP = 10f
     }
 
     /** The colour it is drawn in now; its rail key wears the same one (v107). */
@@ -287,6 +290,17 @@ class FocusSquareView @JvmOverloads constructor(
      * and it becomes a drag; let go before that and it was a tap, however much
      * the finger wandered.
      */
+    /** v158: a still hold on the box (no drag after it) asks for the square's menu (TRACK on or off). */
+    var onLongPressed: (() -> Unit)? = null
+    private var menuFired = false
+    private val holdForMenu = Runnable {
+        if (!grabbed || pinching) return@Runnable
+        menuFired = true
+        dragging = false
+        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        onLongPressed?.invoke()
+    }
+
     private val holdToDrag = Runnable {
         if (pinching) return@Runnable
         takePending()
@@ -310,6 +324,7 @@ class FocusSquareView @JvmOverloads constructor(
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 pinching = true
                 removeCallbacks(holdToDrag)
+                removeCallbacks(holdForMenu)
                 pendingX = Float.NaN
                 pendingY = Float.NaN
                 dragging = false
@@ -369,6 +384,8 @@ class FocusSquareView @JvmOverloads constructor(
                 downY = event.y
                 dragging = false
                 postDelayed(holdToDrag, HOLD_TO_DRAG_MS)
+                menuFired = false
+                if (insideBox && onLongPressed != null) postDelayed(holdForMenu, HOLD_FOR_MENU_MS)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 return true
             }
@@ -377,6 +394,7 @@ class FocusSquareView @JvmOverloads constructor(
                 // A second finger is a pinch, never a tap or a drag.
                 pinching = true
                 removeCallbacks(holdToDrag)
+                removeCallbacks(holdForMenu)
                 pendingX = Float.NaN
                 pendingY = Float.NaN
                 dragging = false
@@ -385,6 +403,10 @@ class FocusSquareView @JvmOverloads constructor(
 
             MotionEvent.ACTION_MOVE -> {
                 if (!grabbed || pinching) return grabbed
+                if (menuFired) return true
+                // v158: a finger that moves after the hold is dragging, not asking for the menu
+                if (Math.abs(event.x - downX) > MENU_SLOP * density || Math.abs(event.y - downY) > MENU_SLOP * density)
+                    removeCallbacks(holdForMenu)
                 // A long, deliberate sweep is a drag even without the wait.
                 if (!dragging &&
                     (Math.abs(event.x - downX) > FAR_SLOP * density ||
@@ -406,6 +428,8 @@ class FocusSquareView @JvmOverloads constructor(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 parent?.requestDisallowInterceptTouchEvent(false)
                 removeCallbacks(holdToDrag)
+                removeCallbacks(holdForMenu)
+                if (menuFired) { menuFired = false; grabbed = false; dragging = false; pinching = false; return true }
                 val wasGrabbed = grabbed
                 val wasDragging = dragging
                 val wasPinching = pinching
