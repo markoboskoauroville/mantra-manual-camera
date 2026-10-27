@@ -94,6 +94,9 @@ android {
             externalNativeBuild {
                 cmake {
                     cppFlags += "-std=c++17"
+                    // v160: the native code optimised in every build (the releases are debug builds, and Ceres at -O0
+                    // took 6-17 ms a frame on the Pixel against 0.4 ms optimised on the Mac)
+                    arguments += "-DCMAKE_BUILD_TYPE=Release"
                 }
             }
         }

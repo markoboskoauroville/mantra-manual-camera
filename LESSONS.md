@@ -223,3 +223,10 @@ by chance. Look at `netstat` (which address), the bytes per interface, and `dns-
 FocusDirector.currentSharpness was documented as "set by the screen" and set nowhere, so the AF watch (the hold that
 refocuses when the subject moves) never fired, for a whole version history. A watch is tested by moving the subject
 and seeing it act, never by reading the code that says it would.
+
+## 34. Prove a borrowed engine on the Mac first (27.10.2026)
+
+libmv was built as a 60-line Mac program and run on the live NDI picture against the ball's real position before a
+line of Android code: it showed LOC holds and AFFINE diverges on a small subject, and gave the numbers to beat on the
+phone. On the phone two costs then stood out: reading the whole luma copy back (read only the search area) and a
+debug build of Ceres (native code is now always built optimised; 6–17 ms became 2.4–7.7 ms).

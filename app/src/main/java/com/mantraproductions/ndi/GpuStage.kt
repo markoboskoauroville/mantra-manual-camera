@@ -384,7 +384,8 @@ class GpuStage private constructor(
     private var centreX = 0f
     private var centreY = 0f
 
-    private val lumaW = 256
+    /** v160: 640 across for libmv (the tracker sees a subject 2.5x larger than at 256), 256 for the NCC fallback. */
+    private val lumaW = if (LibmvTracker.available) 640 else 256
     private val lumaH get() = maxOf(16, Math.round(lumaW * height.toFloat() / width))
     private var lumaTex = 0
     private var lumaFbo = 0
@@ -403,8 +404,17 @@ class GpuStage private constructor(
      * the stream, 0..1 from the top left. [every] frames between searches, the
      * search zone [search] times the pattern, below [confidence] it is LOST.
      */
-    fun startTracking(x: Float, y: Float, w: Float, h: Float, every: Int, search: Float, confidence: Float) = onGpu {
+    /** v160: the libmv tracker (null: the NCC search); [trackModel] is libmv's motion model (LibmvTracker.MODEL_*). */
+    private var libmv: LibmvTracker? = null
+    private var trackModel = LibmvTracker.MODEL_LOC
+    private var patternHalf = 8.0
+    private var greyRgba: ByteBuffer? = null
+
+    fun startTracking(x: Float, y: Float, w: Float, h: Float, every: Int, search: Float, confidence: Float,
+                      model: Int = LibmvTracker.MODEL_LOC) = onGpu {
         if (!ensureTracker()) return@onGpu
+        trackModel = model
+        patternHalf = (minOf(w * lumaW, h * lumaH) / 2f).toDouble().coerceIn(4.0, 64.0)
         trackEvery = every.coerceIn(1, 10).toLong()
         trackSearch = search.coerceIn(1.2f, 4f)
         trackConfidence = confidence.coerceIn(0.1f, 0.99f)
@@ -422,6 +432,50 @@ class GpuStage private constructor(
         if (trackActive) Trace.control("tracking", "stop", "off")
         trackActive = false
         pendingPattern = null
+        libmv?.release(); libmv = null
+    }
+
+    /** v160: a part of the luma copy read back as RGBA (grey in the first byte), clamped to the copy; its origin. */
+    private fun readCrop(x0: Int, y0: Int, x1: Int, y1: Int, lw: Int, lh: Int): IntArray {
+        val ax = x0.coerceIn(0, lw - 1); val ay = y0.coerceIn(0, lh - 1)
+        val bx = x1.coerceIn(ax + 1, lw); val by = y1.coerceIn(ay + 1, lh)
+        val w = bx - ax; val h = by - ay
+        val buf = greyRgba?.takeIf { it.capacity() >= w * h * 4 }
+            ?: ByteBuffer.allocateDirect(lw * lh * 4).order(ByteOrder.nativeOrder()).also { greyRgba = it }
+        buf.clear()
+        GLES20.glReadPixels(ax, ay, w, h, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, buf)
+        return intArrayOf(ax, ay, w, h)
+    }
+
+    /** v160: one libmv step on the luma copy (bound and drawn by the caller); only the subject's area is read. */
+    private fun libmvStep(lw: Int, lh: Int) {
+        val t0 = android.os.SystemClock.elapsedRealtimeNanos()
+        pendingPattern?.let { (x, y) ->
+            centreX = x * lw
+            centreY = (1f - y) * lh
+            val m = patternHalf.toInt() + 8
+            val c = readCrop(centreX.toInt() - m, centreY.toInt() - m, centreX.toInt() + m + 1, centreY.toInt() + m + 1, lw, lh)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+            libmv?.release()
+            libmv = LibmvTracker(greyRgba!!, c[2], c[3], c[0], c[1], centreX.toDouble(), centreY.toDouble(), patternHalf,
+                trackModel, trackConfidence.toDouble(), (patternHalf * (trackSearch - 1f) + 16).toInt())
+            pendingPattern = null
+            Trace.state(String.format(java.util.Locale.ROOT, "tracker: libmv %s, pattern half %.1f px of %dx%d",
+                LibmvTracker.MODEL_NAMES[trackModel], patternHalf, lw, lh))
+            trackListener?.onTrack(x, y, 1f)
+            return
+        }
+        val t = libmv ?: run { GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0); return }
+        val b = t.searchBox()
+        val c = readCrop(b[0], b[1], b[2], b[3], lw, lh)
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+        val readMs = (android.os.SystemClock.elapsedRealtimeNanos() - t0) / 1e6
+        val r = t.trackRgba(greyRgba!!, c[2], c[3], c[0], c[1])
+        if (r.usable) { centreX = r.cx.toFloat(); centreY = r.cy.toFloat() }
+        if (++trackSearches % 150 == 1L) Trace.state(String.format(java.util.Locale.ROOT,
+            "tracker: libmv correlation %.3f%s, read %dx%d in %.1f ms, solve %.1f ms", r.correlation, if (r.usable) "" else " LOST",
+            c[2], c[3], readMs, r.ms))
+        trackListener?.onTrack((centreX / lw), (1f - centreY / lh), if (r.usable) r.correlation.toFloat() else 0f)
     }
 
     private fun ensureTracker(): Boolean {
@@ -467,6 +521,7 @@ class GpuStage private constructor(
 
         val lw = lumaW
         val lh = lumaH
+        if (LibmvTracker.available) { libmvStep(lw, lh); return }
         pendingPattern?.let { (x, y) ->
             // 2a. A new pattern: the whole luma frame is kept as the reference
             //     (drawn again into its own texture — a copy between textures

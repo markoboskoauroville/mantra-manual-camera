@@ -986,7 +986,10 @@ class MainActivity : AppCompatActivity() {
         val sound = (10..12).any { now[it] != was[it] }
         Trace.state("back in front: settings changed (camera=$camera, sound=$sound)")
         if (camera) {
-            pipeline.stop()
+            // v159 (27.10.2026, measured: his 720p/24 fps/8-bit change froze NDI Virtual Input, which does not follow a
+            // source closed and opened again): kept open as a lens change keeps it, the mode put back when ready
+            restoreMode = pipeline.mode
+            pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
             if (preview.isAvailable) openCamera()
         } else {
             NdiAudio.wanted = settings.ndiAudio
@@ -1490,7 +1493,7 @@ class MainActivity : AppCompatActivity() {
         val search = settings.trackSearch / 10f
         if (!pipeline.startTracking(
                 cx, cy, kotlin.math.abs(s[2] - s[0]), kotlin.math.abs(s[3] - s[1]),
-                settings.trackEvery, search, settings.trackConfidence / 100f
+                settings.trackEvery, search, settings.trackConfidence / 100f, settings.trackModel
             )
         ) {
             say("Tracking needs the GPU stage — Settings, Picture path")

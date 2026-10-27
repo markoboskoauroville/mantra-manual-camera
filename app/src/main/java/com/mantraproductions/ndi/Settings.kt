@@ -307,6 +307,11 @@ class Settings(context: Context) {
     // --- tracking focus (v99): every parameter, so he can experiment ---------------
 
     /** The search zone, as a multiple of the pattern (the pinched box), x10: 15..40. */
+    /** v160: libmv's motion model for TRK (LibmvTracker.MODEL_*): LOC unless he chooses, as in Blender. */
+    var trackModel: Int
+        get() = prefs.getInt("trackModel", LibmvTracker.MODEL_LOC)
+        set(value) = prefs.edit().putInt("trackModel", value.coerceIn(0, 5)).apply()
+
     var trackSearch: Int
         get() = prefs.getInt("trackSearch", 25)
         set(value) = prefs.edit().putInt("trackSearch", value.coerceIn(15, 40)).apply()

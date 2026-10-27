@@ -1088,3 +1088,5 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 > let's do that. Blender designs its next
 
 **Status:** started (v160: libmv TrackRegion as the camera's motion tracker; then the interface after Blender's).
+
+**Status 27.10.2026, 08:00: v160 released.** libmv (Blender's tracker) is the camera's TRK: it holds the swinging ball where the old one lost it (Mac: 0 of 477 frames lost, 1.25 px; phone: never lost, 24 fps kept). NDI stays live through settings changes. Next: Blender's interface.

@@ -6,6 +6,21 @@ working state of *this* app.
 
 ---
 
+## 27.10.2026, 07:35–08:00: v160, libmv (Blender's tracker) as TRK; NDI kept through settings changes
+
+- **libmv's TrackRegion** (MIT) with Ceres 2.2.0 (BSD-3) and Eigen 3.4.0 (MPL-2, MPL2-only) in cpp/third_party, a
+  JNI library libmantra_tracker.so (2.7 MB, always built optimised). First proven on the Mac against his swinging
+  ball on the live NDI picture: LOC held 477/477 frames, median 1.25 px from the ball's real centre, worst 3.25 px,
+  correlation 0.98; the old NCC tracker lost the same ball for the whole swing. AFFINE on that small smooth ball
+  diverged (so LOC is the default, as in Blender). On the Pixel: the luma copy is 640 across, only the search area is
+  read back (91x91 in 1.0–1.8 ms), solve 2.4–7.7 ms, correlation 0.96–0.995, never lost, the square seen on the ball
+  through the swing, 23.9 fps at his 24. Setting trackModel (LOC ... PERSP), the NCC search stays as the fallback.
+- **NDI kept through settings changes** (his 720p/24 fps/8-bit change had frozen NDI Virtual Input): the camera is
+  rebuilt with the source kept open, as a lens change does. Proven through the settings screen, both ways.
+- **Next:** Blender's tracking interface (pattern box inside the search box, MODEL, correlation, the track path, a
+  red LOST marker re-keyed by dragging) and a licences screen.
+
+
 ## 27.10.2026, 07:05–07:30: v159, the freeze found, the square's TRACK made to work, the distance meter calibrated
 
 - **THE FREEZE (open since the morning), MEASURED:** the phone is "Android.local" on the cable (172.22.112.72) and on
