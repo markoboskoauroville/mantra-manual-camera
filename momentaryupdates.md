@@ -1090,3 +1090,9 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 **Status:** started (v160: libmv TrackRegion as the camera's motion tracker; then the interface after Blender's).
 
 **Status 27.10.2026, 08:00: v160 released.** libmv (Blender's tracker) is the camera's TRK: it holds the swinging ball where the old one lost it (Mac: 0 of 477 frames lost, 1.25 px; phone: never lost, 24 fps kept). NDI stays live through settings changes. Next: Blender's interface.
+
+## 27.10.2026, 08:05: a Mac app, the virtual camera "Mantra Camera" with remote control
+
+> can we somehow build the virtual camera, which will directly communicate with my camera on my Mac? Same as NDI has an app, we can also have an app, same as Eigen has an app. We can have an app for this camera specifically. Maybe we can get the code from OBS for your camera, so it's easy to connect and configure without too much hassle. You just open that app, which is going to be a Swift app, and it just receives the feed from my cameras and makes it shareable on the local system via virtual webcam, and the webcam has the name Mantra Camera. That's the thing. Let's build that another app, so we have remote control for another phone. Now we have remote control and virtual camera in one
+
+**Status:** started: feasibility (a camera extension needs Apple's signing).
