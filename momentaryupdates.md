@@ -1064,3 +1064,7 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 > please continue testing everything which is not tested. Yes, do that, please
 
 **Status:** started.
+
+> (answer) Test first, then libmv
+
+> don't record any tests in any application or OBS. Nothing
