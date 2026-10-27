@@ -997,3 +997,19 @@ Needs the GPU stage (Settings → Picture path).
 > your task this morning is to first install on my computer the NDI program, which is free on NDI pages, which can convert NDI to webcam. Then, through USB tethering, our camera, which is now on emulator on Pixel 7, should send the image to that plugin. I have it as Zoom in Zoom call. I have it as webcam. That's the deal. Please make it work. It's a simple task from camera to NDI plugin. I need a program for webcam through USB tethering. Everything is connected. Please make it work. You need to download that from NDI I have it installed, but it's not installed. Please take the screenshot. You will understand what I'm talking about.
 
 **Status:** 27.10.2026, started. NDI Tools 6.3.2 are installed; the NDI Camera Extension is "activated waiting for user" (macOS approval, Marko's hand). USB tethering up: Mac en19 172.22.112.50, Pixel ncm0 172.22.112.72.
+
+**Later the same morning (27.10.2026), while the work ran:**
+
+> Please experiment with 8-bit and 10-bit output from the camera. But both must work: 8-bit and 10-bit, at the end.
+
+> You always need to check if the feed is right or the image is frozen. The image should not be frozen.
+
+> When you are testing if the image is frozen, you can ask me to wave the hand.
+
+> Also test if the camera is working when it's in the background.
+
+> Also, by the way, delete all keyframes from the focus polling. I tried to press with the mouse or screen copy to get a pop-up menu to delete keyframes, and nothing popped up. Maybe that's also the bug, by the way.
+
+> The goal is to get the same picture which I have on the Pixel 7 emulator screen copy right now, and what's coming through NDI. Please compare. You can take a screenshot of the Pixel 7 which is right here on my computer, and with NDI virtual input. If there's a difference, then it's not good. Please make it the same.
+
+**Found so far (v157, not released):** 10-bit HX froze in Zoom: NDI Virtual Input decodes no HEVC Main10. v157 draws the stream 8-bit SDR (HLG BT.2020 to BT.709) in its own RGB888 context; 8-bit and 10-bit both live over USB. In the background the sender is made again and fails ("NDI source could not be opened"): being fixed.
