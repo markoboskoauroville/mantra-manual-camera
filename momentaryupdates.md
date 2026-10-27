@@ -1013,3 +1013,8 @@ Needs the GPU stage (Settings → Picture path).
 > The goal is to get the same picture which I have on the Pixel 7 emulator screen copy right now, and what's coming through NDI. Please compare. You can take a screenshot of the Pixel 7 which is right here on my computer, and with NDI virtual input. If there's a difference, then it's not good. Please make it the same.
 
 **Found so far (v157, not released):** 10-bit HX froze in Zoom: NDI Virtual Input decodes no HEVC Main10. v157 draws the stream 8-bit SDR (HLG BT.2020 to BT.709) in its own RGB888 context; 8-bit and 10-bit both live over USB. In the background the sender is made again and fails ("NDI source could not be opened"): being fixed.
+
+**Status 27.10.2026, 05:51: done, v157 released and installed.** Zoom gets the camera over the cable (NDI Virtual Input,
+source LOCALHOST (Pixel 7 Camera)); 8-bit and 10-bit both live, every curve, the background, and Marko's hand wave.
+Screen, clean still and NDI match (still vs NDI 0.4–3.7/255 in the log curves and 8-bit, 3–7.5 in HLG). WB on the
+white paper, neutral. Focus key points deleted. The still now comes out the right way up.
