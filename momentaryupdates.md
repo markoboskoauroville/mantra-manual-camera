@@ -1096,3 +1096,7 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 > can we somehow build the virtual camera, which will directly communicate with my camera on my Mac? Same as NDI has an app, we can also have an app, same as Eigen has an app. We can have an app for this camera specifically. Maybe we can get the code from OBS for your camera, so it's easy to connect and configure without too much hassle. You just open that app, which is going to be a Swift app, and it just receives the feed from my cameras and makes it shareable on the local system via virtual webcam, and the webcam has the name Mantra Camera. That's the thing. Let's build that another app, so we have remote control for another phone. Now we have remote control and virtual camera in one
 
 **Status:** started: feasibility (a camera extension needs Apple's signing).
+
+> the issue is the NDI camera doesn't work well. It's not smooth. It drops frames. It's a big lag and delay. So NDI, I don't want to do that. You must find, maybe through ADB, a way to send the picture quickly and then forward it through the webcam
+
+**Status:** started: a USB (adb) link from the camera straight to the Mac app, decoded in hardware, out as the webcam.
