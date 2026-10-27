@@ -1018,3 +1018,11 @@ Needs the GPU stage (Settings → Picture path).
 source LOCALHOST (Pixel 7 Camera)); 8-bit and 10-bit both live, every curve, the background, and Marko's hand wave.
 Screen, clean still and NDI match (still vs NDI 0.4–3.7/255 in the log curves and 8-bit, 3–7.5 in HLG). WB on the
 white paper, neutral. Focus key points deleted. The still now comes out the right way up.
+
+## 27.10.2026, 06:00: the focus puller tested on a prepared scene
+
+> Now there is a scene prepared for you. I have 2 tennis balls and 1 background. You need to test focus pulling, emulate focus pulling, make keyframes, and check if it lands correctly and how the focus is behaving. Does it focus quickly, precisely, and well?
+>
+> So this is total focus pulling. You invent all the tests to prove that focusing is working correctly in this app.
+
+**Status:** started.
