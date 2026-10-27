@@ -70,7 +70,24 @@ class GpuStage private constructor(
     lateinit var inputSurface: Surface
         private set
 
-    private class Target(val surface: Surface, var egl: EGLSurface, var enabled: Boolean, var turns: Int = 0)
+    /**
+     * v157 (27.10.2026, THE 10-BIT STREAM FROZE IN ZOOM: NDI Virtual Input on the Mac decodes no HEVC Main10, so a
+     * 10-bit HX stream showed the last 8-bit frame, held): in 10-bit the stream is drawn in its own 8-bit context
+     * (RGB888, sharing the camera's texture with the main one) through [FRAGMENT_TEN_BIT_TO_SDR], HLG BT.2020 to
+     * SDR BT.709, and goes to an 8-bit encoder. The take and the monitor keep the 10-bit HLG path untouched.
+     */
+    private var sdrConfig: EGLConfig? = null
+    private var sdrContext: EGLContext = EGL14.EGL_NO_CONTEXT
+    private var sdrPbuffer: EGLSurface = EGL14.EGL_NO_SURFACE
+    private var sdrProgram = 0
+
+    /** v157: the stream is drawn 8-bit SDR while the stage is 10-bit, so its encoder must be 8-bit. */
+    val streamEightBit: Boolean get() = sdrContext != EGL14.EGL_NO_CONTEXT
+
+    private class Target(
+        val surface: Surface, var egl: EGLSurface, var enabled: Boolean, var turns: Int = 0,
+        val ctx: EGLContext, val program: Int
+    )
     private val targets = HashMap<Output, Target>()
 
     /** Frames drawn, for the trace and the rate readout. */
@@ -186,11 +203,48 @@ class GpuStage private constructor(
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
 
+        if (tenBit) setUpSdr(surfaceless)?.let { Trace.refused("gpu stage", "8-bit stream: $it — the stream stays 10-bit") }
+
         val st = SurfaceTexture(texture)
         st.setDefaultBufferSize(width, height)
         st.setOnFrameAvailableListener({ draw() }, handler)
         input = st
         inputSurface = Surface(st)
+        return null
+    }
+
+    /** v157: the stream's 8-bit context beside the 10-bit one (see [sdrContext]); null when it is up, else why not. */
+    private fun setUpSdr(surfaceless: Boolean): String? {
+        val surfaces = if (surfaceless) EGL14.EGL_WINDOW_BIT else EGL14.EGL_WINDOW_BIT or EGL14.EGL_PBUFFER_BIT
+        val configs = arrayOfNulls<EGLConfig>(1)
+        val count = IntArray(1)
+        val attributes = intArrayOf(
+            EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8, EGL14.EGL_ALPHA_SIZE, 0,
+            EGL14.EGL_RENDERABLE_TYPE, EGLExt.EGL_OPENGL_ES3_BIT_KHR,
+            EGL14.EGL_SURFACE_TYPE, surfaces, EGL_RECORDABLE_ANDROID, 1, EGL14.EGL_NONE
+        )
+        if (!EGL14.eglChooseConfig(display, attributes, 0, configs, 0, 1, count, 0) || count[0] == 0) {
+            return "no RGB888 recordable config"
+        }
+        val ctx = EGL14.eglCreateContext(
+            display, configs[0], context, intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE), 0
+        )
+        if (ctx == EGL14.EGL_NO_CONTEXT) return "no shared context (EGL 0x" + Integer.toHexString(EGL14.eglGetError()) + ")"
+        val pb = if (surfaceless) EGL14.EGL_NO_SURFACE else EGL14.eglCreatePbufferSurface(
+            display, configs[0], intArrayOf(EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE), 0
+        )
+        val p = if (EGL14.eglMakeCurrent(display, pb, pb, ctx)) link(VERTEX, FRAGMENT_TEN_BIT_TO_SDR) else null
+        EGL14.eglMakeCurrent(display, pbuffer, pbuffer, context)
+        if (p == null) {
+            if (pb != EGL14.EGL_NO_SURFACE) EGL14.eglDestroySurface(display, pb)
+            EGL14.eglDestroyContext(display, ctx)
+            return "the SDR shader would not compile"
+        }
+        sdrConfig = configs[0]
+        sdrContext = ctx
+        sdrPbuffer = pb
+        sdrProgram = p
+        Trace.state("gpu stage: the stream is 8-bit SDR (HLG BT.2020 to BT.709) in its own RGB888 context")
         return null
     }
 
@@ -233,15 +287,21 @@ class GpuStage private constructor(
     fun setOutput(output: Output, surface: Surface?, enabled: Boolean = true) = onGpu {
         targets.remove(output)?.let { EGL14.eglDestroySurface(display, it.egl) }
         if (surface == null || !surface.isValid) return@onGpu
-        val attribs = if (tenBit) intArrayOf(EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_BT2020_HLG_EXT, EGL14.EGL_NONE)
+        val sdr = output == Output.STREAM && streamEightBit
+        val attribs = if (tenBit && !sdr) intArrayOf(EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_BT2020_HLG_EXT, EGL14.EGL_NONE)
             else intArrayOf(EGL14.EGL_NONE)
-        val egl = runCatching { EGL14.eglCreateWindowSurface(display, config, surface, attribs, 0) }.getOrNull()
+        val egl = runCatching {
+            EGL14.eglCreateWindowSurface(display, if (sdr) sdrConfig else config, surface, attribs, 0)
+        }.getOrNull()
         if (egl == null || egl == EGL14.EGL_NO_SURFACE) {
             Trace.refused("gpu stage", "no window surface for $output (EGL error 0x" +
                 Integer.toHexString(EGL14.eglGetError()) + ")")
             return@onGpu
         }
-        targets[output] = Target(surface, egl, enabled)
+        targets[output] = Target(
+            surface, egl, enabled,
+            ctx = if (sdr) sdrContext else context, program = if (sdr) sdrProgram else program
+        )
         Trace.control("gpu output", output.name, if (enabled) "attached, on" else "attached, off")
     }
 
@@ -275,7 +335,7 @@ class GpuStage private constructor(
         lastFrameAt = android.os.SystemClock.elapsedRealtime()
         for ((output, target) in targets) {
             if (!target.enabled) continue
-            if (!EGL14.eglMakeCurrent(display, target.egl, target.egl, context)) {
+            if (!EGL14.eglMakeCurrent(display, target.egl, target.egl, target.ctx)) {
                 Trace.refused("gpu stage", "$output lost its surface")
                 target.enabled = false
                 continue
@@ -284,7 +344,7 @@ class GpuStage private constructor(
             EGL14.eglQuerySurface(display, target.egl, EGL14.EGL_WIDTH, size, 0)
             EGL14.eglQuerySurface(display, target.egl, EGL14.EGL_HEIGHT, size, 1)
             GLES20.glViewport(0, 0, size[0], size[1])
-            drawQuad(target.turns)
+            drawQuad(target.turns, target.program)
             EGLExt.eglPresentationTimeANDROID(display, target.egl, timestamp)
             if (!EGL14.eglSwapBuffers(display, target.egl)) {
                 // v136: a window that went away (the preview, with the app in the background) answers with an error
@@ -500,17 +560,20 @@ class GpuStage private constructor(
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
     }
 
-    private fun drawQuad(turns: Int = 0) {
+    private fun drawQuad(turns: Int = 0, p: Int = program) {
         val q = turnedQuads[turns and 3]
-        GLES20.glUseProgram(program)
+        // both programs share VERTEX, but a location belongs to its program
+        val pos = if (p == program) aPosition else GLES20.glGetAttribLocation(p, "aPosition")
+        val tex = if (p == program) aTexCoord else GLES20.glGetAttribLocation(p, "aTexCoord")
+        GLES20.glUseProgram(p)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, texture)
         q.position(0)
-        GLES20.glVertexAttribPointer(aPosition, 2, GLES20.GL_FLOAT, false, 16, q)
-        GLES20.glEnableVertexAttribArray(aPosition)
+        GLES20.glVertexAttribPointer(pos, 2, GLES20.GL_FLOAT, false, 16, q)
+        GLES20.glEnableVertexAttribArray(pos)
         q.position(2)
-        GLES20.glVertexAttribPointer(aTexCoord, 2, GLES20.GL_FLOAT, false, 16, q)
-        GLES20.glEnableVertexAttribArray(aTexCoord)
+        GLES20.glVertexAttribPointer(tex, 2, GLES20.GL_FLOAT, false, 16, q)
+        GLES20.glEnableVertexAttribArray(tex)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
     }
 
@@ -524,11 +587,14 @@ class GpuStage private constructor(
                 for (t in targets.values) EGL14.eglDestroySurface(display, t.egl)
                 targets.clear()
                 if (program != 0) GLES20.glDeleteProgram(program)
+                if (sdrProgram != 0) GLES20.glDeleteProgram(sdrProgram)
                 if (texture != 0) GLES20.glDeleteTextures(1, intArrayOf(texture), 0)
                 input?.release()
                 if (::inputSurface.isInitialized) inputSurface.release()
                 EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
                 if (pbuffer != EGL14.EGL_NO_SURFACE) EGL14.eglDestroySurface(display, pbuffer)
+                if (sdrPbuffer != EGL14.EGL_NO_SURFACE) EGL14.eglDestroySurface(display, sdrPbuffer)
+                if (sdrContext != EGL14.EGL_NO_CONTEXT) EGL14.eglDestroyContext(display, sdrContext)
                 if (context != EGL14.EGL_NO_CONTEXT) EGL14.eglDestroyContext(display, context)
                 EGL14.eglTerminate(display)
             }.onFailure { Trace.fault("gpu stage release", it) }
@@ -674,6 +740,60 @@ const vec3 OFFSET = vec3(0.0625, 0.5, 0.5);
 void main() {
     vec3 yuv = texture(uTexture, vTexCoord).xyz;
     outColour = vec4(clamp(YUV_TO_RGB * (yuv - OFFSET), 0.0, 1.0), 1.0);
+}
+"""
+
+        /**
+         * v157: the same HLG R'G'B' as [FRAGMENT_TEN_BIT], then to SDR for the 8-bit stream (BT.2100 throughout):
+         * the HLG inverse OETF to scene light, the OOTF with system gamma 1.2 (1000 nits peak), HLG reference white
+         * (75 %, 203 nits, 0.203 of the peak) as 1.0, BT.2020 to BT.709 primaries. Then not a textbook SDR curve but
+         * the one the Pixel's own screen draws this HLG with (Marko: "the same picture which I have on the Pixel ...
+         * and what's coming through NDI ... If there's a difference, then it's not good"): MEASURED 27.10.2026 from
+         * the camera key's clean stills and NDI Virtual Camera frames of the same moments, in HLG and all six log
+         * curves, 36 000 points a channel: log screen = cubic(log L) through bin medians (P3..P0), rms 3.5 to 5.2 of
+         * 255; carried on straight past the measured ends (X_LOW, X_TOP) so black stays black and highlights still
+         * rise; a soft shoulder only above 0.85.
+         */
+        private const val FRAGMENT_TEN_BIT_TO_SDR = """#version 300 es
+#extension GL_OES_EGL_image_external_essl3 : require
+#extension GL_EXT_YUV_target : require
+precision highp float;
+uniform __samplerExternal2DY2YEXT uTexture;
+in vec2 vTexCoord;
+out vec4 outColour;
+const mat3 YUV_TO_RGB = mat3(
+    1.1678, 1.1678, 1.1678,
+    0.0, -0.1878, 2.1481,
+    1.6836, -0.6523, 0.0);
+const vec3 OFFSET = vec3(0.0625, 0.5, 0.5);
+const mat3 BT2020_TO_BT709 = mat3(
+    1.6605, -0.1246, -0.0182,
+    -0.5876, 1.1329, -0.1006,
+    -0.0728, -0.0083, 1.1187);
+const float A = 0.17883277;
+const float B = 0.28466892;
+const float C = 0.55991073;
+const vec3 P3 = vec3(-0.00449, 0.00398, -0.00139);
+const vec3 P2 = vec3(-0.02577, 0.00894, -0.03496);
+const vec3 P1 = vec3(0.38956, 0.40983, 0.3628);
+const vec3 P0 = vec3(-0.58146, -0.59226, -0.61698);
+const float X_TOP = 0.3;
+const float X_LOW = -4.0;
+void main() {
+    vec3 yuv = texture(uTexture, vTexCoord).xyz;
+    vec3 hlg = clamp(YUV_TO_RGB * (yuv - OFFSET), 0.0, 1.0);
+    vec3 scene = mix(hlg * hlg / 3.0, (exp((hlg - C) / A) + B) / 12.0, step(0.5, hlg));
+    float ys = dot(scene, vec3(0.2627, 0.6780, 0.0593));
+    vec3 light = scene * pow(max(ys, 1e-6), 0.2) / 0.203;
+    vec3 l = max(BT2020_TO_BT709 * light, 0.0);
+    vec3 x = log(max(l, vec3(1e-5)));
+    vec3 xc = clamp(x, vec3(X_LOW), vec3(X_TOP));
+    vec3 y = ((P3 * xc + P2) * xc + P1) * xc + P0;
+    y += ((3.0 * P3 * X_TOP + 2.0 * P2) * X_TOP + P1) * max(x - X_TOP, 0.0);
+    y += ((3.0 * P3 * X_LOW + 2.0 * P2) * X_LOW + P1) * min(x - X_LOW, 0.0);
+    vec3 v = exp(y);
+    vec3 shoulder = 0.85 + 0.15 * (1.0 - exp(-(v - 0.85) / 0.15));
+    outColour = vec4(mix(v, shoulder, step(0.85, v)), 1.0);
 }
 """
     }

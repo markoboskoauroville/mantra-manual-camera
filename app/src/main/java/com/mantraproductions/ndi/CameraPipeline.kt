@@ -61,6 +61,10 @@ class CameraPipeline(private val context: Context) {
         private set
     val isTenBit: Boolean get() = engine.isTenBit
 
+    /** v157: the stream encoder's depth; 8-bit beside a 10-bit take when the GPU stage draws the stream SDR. */
+    @Volatile var streamTenBit = false
+        private set
+
     /** The stream's encoder (NDI HX); in the direct path it also feeds the take. */
     private var encoder: HdrVideoEncoder? = null
     private var encoderSurface: Surface? = null
@@ -356,22 +360,26 @@ class CameraPipeline(private val context: Context) {
             listener?.onError("No 10-bit HEVC encoder here, falling back to 8-bit")
         }
 
-        val codec = HdrVideoEncoder(
-            width = size.width,
-            height = size.height,
-            fps = fps,
-            bitRate = bitRate,
-            tenBit = tenBit,
-            onFormat = ::onStreamFormat,
-            onFrame = ::onStreamFrame
-        )
-        // The muxer needs the encoder's own format, and the encoder announces
-        // it exactly once, long before anybody presses record. So it is kept.
         // THE GPU STAGE, tried first unless settings say direct. Built before
         // the camera opens, so the session is given either its one surface or
         // the old ones, never a mixture.
         val stage = if (useGpuStage) GpuStage.create(size.width, size.height, tenBit) else null
         gpu = stage
+        // v157: the stream's encoder is 8-bit when the stage draws the stream SDR (a 10-bit HX stream froze in Zoom);
+        // on the direct path it is also the take's, so it keeps the take's depth.
+        streamTenBit = tenBit && stage?.streamEightBit != true
+
+        var codec = HdrVideoEncoder(
+            width = size.width,
+            height = size.height,
+            fps = fps,
+            bitRate = bitRate,
+            tenBit = streamTenBit,
+            onFormat = ::onStreamFormat,
+            onFrame = ::onStreamFrame
+        )
+        // The muxer needs the encoder's own format, and the encoder announces
+        // it exactly once, long before anybody presses record. So it is kept.
 
         if (stage == null) {
             // The direct path: one encoder, fed by the camera, for the take
@@ -385,7 +393,7 @@ class CameraPipeline(private val context: Context) {
         if (stage != null) codec.setBitRate(streamBitRate)
         // v124: on the direct path, once the monitor has chosen a stream rate, a restarted encoder starts at it
         else if (directUsesStreamRate) codec.setBitRate(streamBitRate)
-        val surface = codec.start()
+        var surface = codec.start()
         if (surface == null) {
             listener?.onError("This phone will not encode ${size.width}x${size.height}")
             stage?.release()
@@ -417,6 +425,21 @@ class CameraPipeline(private val context: Context) {
                 Trace.refused("gpu stage", "no second encoder at this size — the direct path is used")
                 stage.release()
                 gpu = null
+                if (streamTenBit != tenBit) {
+                    // v157: the 8-bit stream encoder would now carry the take: made again at the take's 10 bits
+                    codec.stop()
+                    streamTenBit = tenBit
+                    codec = HdrVideoEncoder(
+                        width = size.width, height = size.height, fps = fps, bitRate = bitRate, tenBit = tenBit,
+                        onFormat = ::onStreamFormat, onFrame = ::onStreamFrame
+                    )
+                    surface = codec.start() ?: run {
+                        listener?.onError("This phone will not encode ${size.width}x${size.height}")
+                        return false
+                    }
+                    encoder = codec
+                    encoderSurface = surface
+                }
                 codec.setBitRate(bitRate)
                 codec.onEncodedFormat = { format ->
                     encodedVideoFormat = format
@@ -582,7 +605,7 @@ class CameraPipeline(private val context: Context) {
         NdiSender.clearVideoInfo()
         lateinit var c: HdrVideoEncoder
         c = HdrVideoEncoder(
-            width = dims.width, height = dims.height, fps = fps, bitRate = streamBitRate, tenBit = isTenBit,
+            width = dims.width, height = dims.height, fps = fps, bitRate = streamBitRate, tenBit = streamTenBit,
             onFormat = { sps, pps, vps -> if (newestEncoder === c) onStreamFormat(sps, pps, vps) },
             onFrame = { data, key, pts, hevc -> if (newestEncoder === c) onStreamFrame(data, key, pts, hevc) }
         )

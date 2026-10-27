@@ -178,3 +178,22 @@ The Pixel switched itself off in the middle of an NDI test (`getprop sys.boot.re
 drew more than that charger gives. Its last minutes looked exactly like the bug being hunted (picture stall, sound
 on, then nothing). Before any long or NDI test: `adb shell dumpsys battery` (level, Max charging voltage); under
 50 % or a 5 V charger, the result is not evidence. The torch off unless the test needs it.
+
+## 27. A webcam receiver may not take what the monitor takes (27.10.2026)
+
+NDI Virtual Input (the Mac's NDI webcam) decodes no HEVC Main10. A 10-bit HX stream did not fail: it FROZE on the
+last 8-bit frame, which looks like a live picture in a still room. Every test of a picture path checks that it moves
+(frame-to-frame difference over seconds, or Marko waving), never only that it is not black. A webcam is 8-bit SDR:
+the stream to it is drawn 8-bit, the take stays 10-bit.
+
+## 28. getBitmap() is the texture, not the screen (27.10.2026)
+
+TextureView.getBitmap ignores setTransform. Once the GPU stage made the texture the sensor's raw orientation, every
+reader of the preview (the still, the WB and exposure circles, the remote's picture) got it turned and squeezed, and
+the circles measured another place than where they are drawn. Read the preview through its transform (asShown).
+
+## 29. A handler tick outlives its activity (27.10.2026)
+
+A Runnable re-posted in onPause to keep a stream alive behind other apps is still running after onDestroy unless
+onDestroy removes it. The dead activity's tick then fought the live one (its service stopped every second), and
+behind other apps Android cut the camera. Ticks are removed in onDestroy and act only in a live activity.

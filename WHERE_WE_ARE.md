@@ -6,6 +6,35 @@ working state of *this* app.
 
 ---
 
+## 27.10.2026, 05:00–05:50: v157, the camera as a webcam in Zoom (NDI Virtual Input over the USB cable)
+
+- **The way:** Pixel 7 with USB tethering (ncm0 172.22.112.72, Mac en19 172.22.112.50) → settings OUTPUTS → NDI,
+  NETWORK **USB CABLE** → on the Mac **NDI Virtual Input** (NDI Tools 6.3.2; its camera extension needed his approval
+  in System Settings → Login Items & Extensions → Camera Extensions) → source LOCALHOST (Pixel 7 Camera) →
+  "NDI Virtual Camera" in Zoom. Every connection on the cable, none on Wi-Fi.
+- **10-bit froze in Zoom.** NDI Virtual Input decodes no HEVC Main10: a 10-bit HX stream showed the last 8-bit frame,
+  held (black when there was none). v157: in 10-bit the GPU stage draws the STREAM in its own RGB888 context (sharing
+  the camera texture) through a new shader to 8-bit SDR, into an 8-bit encoder; the take stays 10-bit HLG Main10.
+- **The same picture as the screen.** The SDR curve is not the textbook one but the Pixel screen's own, MEASURED from
+  the camera key's clean stills against NDI Virtual Camera frames of the same moment, per channel, in HLG and all six
+  log curves. Still vs NDI after: HLG 3.2–3.7, S-Log3 0.9, V-Log 1.1, LogC3 1.3, LogC4 0.4, Film Gen5 2.3, 8-bit 2.5
+  (mean difference of 255). scripts in the session's scratchpad: three.sh (still, screen, NDI), fit3.py.
+- **The background froze too** (found on his word "test if the camera is working when it's in the background"):
+  an activity swiped away kept its once-a-second tick, which stopped the next activity's stream service every
+  second; behind other apps Android then cut the camera ("disabled by policy"). onDestroy now stops the ticks.
+  Proven: Home, live after 5 s and 25 s.
+- **The still, the thumbnail, the remote's picture and both circles read the texture unturned** (getBitmap ignores
+  setTransform; on the GPU stage the texture is in the sensor's orientation): the still came out turned and squeezed,
+  and the WB circle on his white paper measured the tapestry beside it. All go through asShown() now. WB on the paper:
+  neutral after 4 steps.
+- **Focus puller:** his three key points deleted (50.4, 30, 15 cm). The menu works with a 2-second hold that does not
+  move more than 10 dp (his v151 rule); a shorter press with the mouse in scrcpy shows nothing.
+- **Proven live** with the frozen-picture check (frame-to-frame change over 3 s) after every change, and by Marko
+  waving his hand: 10-bit, 8-bit, every curve, switches both ways, background.
+- **Not done:** FULL NDI in 10-bit is still refused by the lens (falls back to HX, said); switching FULL → HX while
+  running once left `NDIlib_send_create failed` until the app was restarted (not reproduced since).
+
+
 
 
 ## 2.10.2026, morning: v113 → v117, the sister app and remote control

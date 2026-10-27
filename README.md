@@ -250,6 +250,11 @@ receiver could be pointed at, the cable first, because NDI discovers by mDNS
 and a link made thirty seconds ago is exactly where a receiver is most likely
 not to hear it.
 
+**Into Zoom (v157, 27.10.2026):** NETWORK → USB CABLE on the phone, then NDI Tools' **NDI Virtual Input** on the Mac,
+source LOCALHOST (Pixel 7 Camera); Zoom sees "NDI Virtual Camera". In 10-bit the stream is drawn 8-bit SDR for it
+(the receiver cannot decode HEVC Main10), with the Pixel screen's own measured curve, so Zoom shows what the phone
+shows. The take stays 10-bit.
+
 **This app cannot be the phone's "Webcam" USB option, and no third-party app
 can be.** That is `com.android.DeviceAsWebcam`, which lives in
 `/system/priv-app` with the SYSTEM flag; presenting the phone as a UVC camera

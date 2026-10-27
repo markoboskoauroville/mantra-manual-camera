@@ -655,7 +655,7 @@ class MainActivity : AppCompatActivity() {
                 b = runCatching {
                     if (!preview.isAvailable || preview.width <= 0) null else {
                         val k = minOf(w.toFloat() / preview.width, h.toFloat() / preview.height)
-                        preview.getBitmap((preview.width * k).toInt().coerceAtLeast(2), (preview.height * k).toInt().coerceAtLeast(2))
+                        shownBitmap((preview.width * k).toInt().coerceAtLeast(2), (preview.height * k).toInt().coerceAtLeast(2))
                     }
                 }.getOrNull()
                 done.countDown()
@@ -1223,7 +1223,7 @@ class MainActivity : AppCompatActivity() {
             ?: run { refreshKeys(); return false }
         pipeline.lastTakeUri?.let { settings.lastTake = it.toString() }
         // v145: the take's first picture, for the record button once the take is saved
-        takeThumb = runCatching { if (preview.isAvailable) preview.getBitmap(THUMB_PX, THUMB_PX * preview.height / maxOf(1, preview.width)) else null }.getOrNull()
+        takeThumb = runCatching { if (preview.isAvailable) shownBitmap(THUMB_PX, THUMB_PX * preview.height / maxOf(1, preview.width)) else null }.getOrNull()
         say("Recording → $where")
         return true
     }
@@ -1545,6 +1545,28 @@ class MainActivity : AppCompatActivity() {
     private val keptStill = java.util.concurrent.atomic.AtomicReference<android.graphics.Bitmap?>()
 
     /**
+     * v157 (27.10.2026): THE PREVIEW AS THE SCREEN SHOWS IT. TextureView.getBitmap gives the texture without the
+     * preview's transform, and on the GPU stage the texture is in the sensor's raw orientation (the screen turns it
+     * with setTransform). So every reader got the picture turned and squeezed: the still, its thumbnail, the remote's
+     * picture, and the circle and the square, which measured another place than the one they are drawn on (Marko's
+     * white balance on a white paper read the tapestry beside it). [bitmap] is drawn through the same transform.
+     */
+    private fun asShown(bitmap: android.graphics.Bitmap): android.graphics.Bitmap = runCatching {
+        val w = bitmap.width; val h = bitmap.height
+        val m = preview.getTransform(android.graphics.Matrix())
+        if (m.isIdentity) return bitmap
+        val sx = w.toFloat() / preview.width; val sy = h.toFloat() / preview.height
+        m.preScale(1f / sx, 1f / sy); m.postScale(sx, sy)
+        android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888).also {
+            android.graphics.Canvas(it).drawBitmap(bitmap, m, android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+        }
+    }.onFailure { Trace.fault("preview as shown", it) }.getOrDefault(bitmap)
+
+    /** v157: [w] x [h] of the preview as the screen shows it (see [asShown]). */
+    private fun shownBitmap(w: Int, h: Int): android.graphics.Bitmap? =
+        preview.getBitmap(w, h)?.let { raw -> asShown(raw).also { if (it !== raw) raw.recycle() } }
+
+    /**
      * SNAP: the picture as a PNG, beside the takes.
      *
      * Taken from the preview at the camera's own resolution rather than the
@@ -1585,17 +1607,20 @@ class MainActivity : AppCompatActivity() {
             say("The picture could not be read")
             return
         }
+        // v157: the picture as the screen shows it (see [asShown]); the raw one stays the kept buffer
+        val upright = asShown(bitmap)
         Trace.control("still", "${w}x$h", "PNG", "read in ${android.os.SystemClock.uptimeMillis() - t0} ms")
         stillWriter.execute {
-            val where = Recordings.savePng(this, bitmap, at = at, folder = settings.recordFolder)
+            val where = Recordings.savePng(this, upright, at = at, folder = settings.recordFolder)
             if (where != null) {
-                keepLastCapture(bitmap)
+                keepLastCapture(upright)
                 // v151: PLAY opens this still now
                 Recordings.lastStillUri?.let { settings.lastStill = it.toString() }
                 settings.lastIsStill = true
             }
             // One buffer is kept for the next snap; the others go back, so idle memory stays at one picture.
             if (!keptStill.compareAndSet(null, bitmap)) bitmap.recycle()
+            if (upright !== bitmap) upright.recycle()
             stillsWaiting.decrementAndGet()
             ui.post { say(if (where != null) "Still → $where" else "The still was not written, see the trace") }
         }
@@ -1861,7 +1886,7 @@ class MainActivity : AppCompatActivity() {
         if (!preview.isAvailable) return null
         val w = 48
         val h = 27
-        val bmp = runCatching { preview.getBitmap(w, h) }.getOrNull() ?: return null
+        val bmp = runCatching { shownBitmap(w, h) }.getOrNull() ?: return null
         // v103: the exposure circle is where exposure is read, when it is on the picture
         val b = if (exposureCircle.visibility == View.VISIBLE) exposureCircle.normalisedBounds()
             else if (focusSquare.visibility == View.VISIBLE) focusSquare.normalisedBounds()
@@ -2728,7 +2753,7 @@ class MainActivity : AppCompatActivity() {
         if (!preview.isAvailable) return null
         val w = (preview.width / 4).coerceAtLeast(48)
         val h = (preview.height / 4).coerceAtLeast(48)
-        val bmp = runCatching { preview.getBitmap(w, h) }.getOrNull() ?: return null
+        val bmp = runCatching { shownBitmap(w, h) }.getOrNull() ?: return null
         val bd = exposureCircle.normalisedBounds()
         val curve = LogCurves.Curve.entries[curveIndex]
         var sum = 0.0
@@ -2830,7 +2855,7 @@ class MainActivity : AppCompatActivity() {
         // black around them: "nothing lit in the triangle" over a lit keyboard (trace 2.10.2026 03:47).
         val w = (preview.width / 2).coerceAtLeast(64)
         val h = (preview.height / 2).coerceAtLeast(64)
-        val bmp = runCatching { preview.getBitmap(w, h) }.getOrNull() ?: return null
+        val bmp = runCatching { shownBitmap(w, h) }.getOrNull() ?: return null
         val bd = exposureCircle.normalisedBounds()
         val x0 = (bd[0] * w).toInt().coerceIn(0, w - 1)
         val x1 = (bd[2] * w).toInt().coerceIn(x0 + 1, w)
@@ -2995,7 +3020,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun sampleBrightness(): Double? {
         if (!preview.isAvailable) return null
-        val bmp = runCatching { preview.getBitmap(24, 14) }.getOrNull() ?: return null
+        val bmp = runCatching { shownBitmap(24, 14) }.getOrNull() ?: return null
         var sum = 0.0
         var n = 0
         for (y in 4 until 10) for (x in 8 until 16) {
@@ -3991,6 +4016,12 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         if (adbRegistered) runCatching { unregisterReceiver(adbControl) }
+        // v157 (27.10.2026, THE BACKGROUND FREEZE): the ticks die with the activity. onPause re-posts them when NDI goes
+        // on behind other apps, so an activity swiped away kept its rateTick, and its syncService (nothing streaming
+        // here) stopped the next activity's stream service every second; behind other apps nothing started it again,
+        // Android cut the camera ("disabled by policy") and the picture froze.
+        ui.removeCallbacks(rateTick)
+        ui.removeCallbacks(remoteTick)
         keptRunning = false
         pipeline.stop()
         meter?.stop()
@@ -4003,6 +4034,7 @@ class MainActivity : AppCompatActivity() {
      * refuses a camera service started from behind); stopped as soon as the stream is off.
      */
     private fun syncService() {
+        if (isDestroyed) return
         val streaming = pipeline.isRunning && pipeline.mode != CameraPipeline.Mode.OFF
         if (streaming && !StreamService.running && !keptRunning) {
             StreamService.start(this, "Streaming NDI on " + Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter))
