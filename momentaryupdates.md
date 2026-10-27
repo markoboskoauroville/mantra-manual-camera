@@ -1110,3 +1110,5 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 **Status 27.10.2026, 10:15: v162 released** (the Link stream race). The Nothing has the camera on its selfie lens; its stream reaches the Mac over Wi-Fi (29 fps, measured directly); Mantra Virtual Cam's own connection to it was stopped by Little Snitch (see mantra_virtual_cam).
 
 > please close the session and write handovers, and if you need to update any web page, update
+
+**Status 27.10.2026, 10:30: done.** mantramanualcamera.pages.dev updated and deployed (cards 10–13: Blender's tracker, TRACK, the calibrated scale, the Mac webcam on a cable; Coming next; download counter; Speechify keys), checked live; handovers written; every repo pushed. Left: Little Snitch for the Nothing over Wi-Fi, fresh screenshots for the page, the bio card text.
