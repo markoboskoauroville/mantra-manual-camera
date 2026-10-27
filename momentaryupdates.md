@@ -1040,3 +1040,15 @@ white paper, neutral. Focus key points deleted. The still now comes out the righ
 > Please find on GitHub the best application that replaces something like Houdini or After Effects, or any app like Mocha, which has tracking. You need to get the code from there, to see how to track objects for special effects. It should be open source, so please find it. We need the same user interface and the same quality of tracking.
 
 **So far:** v158 fixes "NDI source could not be opened" after a lens change (the old sender held the name). Only L2 and L3 (the main sensor) focus. The tracking square must be small to take a small subject (focusBoxSize 0.06).
+
+## 27.10.2026, 06:30: tracking mode for the square and the circle, smooth, with a delta
+
+> Please also add tracking for each rectangle. If I'm on the white balance, a long press can switch the white balance to tracking mode. It means it refreshes every 2 seconds and makes a smooth transition between white balances.
+>
+> The idea of this app is that everything is smooth, so it looks cinematic. For focusing too, a long press enters the tracking mode if the user chooses.
+>
+> So tracking mode is a long press and then on or off, for both the rectangle and the circle, whatever function they do. Then there is continuous tracking, where every 2 seconds it updates and smoothly transitions to the new situation.
+>
+> It also needs a delta, meaning how much difference there must be between the old and the new situation, so it doesn't start to pulsate. You need to find the right delta.
+
+**Status:** started (v158 in progress).
