@@ -1058,3 +1058,9 @@ glides past the delta (WB 0.04, ISO 0.2 stops, focus 25 %), measured and proven 
 through lens changes. The focus puller measured on L2 and L3: keyframes land within ±0.007 dpt, on time, no overshoot;
 AF on small subjects right about half the time. The tracker loses the swinging ball (research for libmv in
 ~/Developer/TRACKER_RESEARCH/REPORT.md). Open: a receiver freeze after lens changes (app restart cures it).
+
+## 27.10.2026, 07:05
+
+> please continue testing everything which is not tested. Yes, do that, please
+
+**Status:** started.
