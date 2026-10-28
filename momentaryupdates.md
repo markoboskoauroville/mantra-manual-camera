@@ -1152,3 +1152,7 @@ v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upr
 > Baba, not that dot. Normal dot. This is dot between. I want dot at the bottom of the text line, normal dot, like a full stop dot
 
 **v171:** a full stop, FILE.USB.NDI.HX.YT.
+
+> focus square lock to remove this completely: this status meter and the obtr. No, I don't need it. Remove it
+
+**v172:** "FOCUSING SQUARE locked at … m (… dpt)" (and the ISO/WB CIRCLE words) off the status line; the rest stays.

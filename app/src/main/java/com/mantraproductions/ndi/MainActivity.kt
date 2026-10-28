@@ -4136,7 +4136,7 @@ class MainActivity : AppCompatActivity() {
     private fun say(text: String) {
         lastSaid = text
         lastSaidAt = android.os.SystemClock.elapsedRealtime()
-        status.text = markStatus() + text
+        status.text = text                          // v172: no mark words on the line (Marko, 28.10.2026: "Remove it")
         Trace.state(text)
     }
 
@@ -4213,8 +4213,8 @@ class MainActivity : AppCompatActivity() {
         lastWatching = connections
         val depth = if (pipeline.isTenBit) "10-bit" else "8-bit"
         val grey = greyReadout?.let { " · $it" } ?: ""
-        status.text = if (fps > 0.5) String.format(java.util.Locale.ROOT, "%s%s · %.1f fps%s · %s", markStatus(), depth, fps, grey, lastSaid)
-            else "${markStatus()}$depth$grey · $lastSaid"
+        status.text = if (fps > 0.5) String.format(java.util.Locale.ROOT, "%s%s · %.1f fps%s · %s", "", depth, fps, grey, lastSaid)
+            else "$depth$grey · $lastSaid"
         refreshTelemetry()
     }
 
