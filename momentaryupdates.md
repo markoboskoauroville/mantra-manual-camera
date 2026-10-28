@@ -1144,3 +1144,7 @@ v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upr
 > Also extend on my pixel camera this line for focusing, going fully left and fully right on the screen. The play button should be somewhere else, not taking the length of the ruler itself. I want to use the maximum resolution of the ruler possible. A ruler should go from the left to the right edge of the screen completely, and then the play button can be on the rail menu, aligning exactly with that line. There is enough space now to compress the buttons of the left rail menu, so the play button can be on the rail on the left side.
 
 **Read as (v169):** the focus ruler runs the whole width of the picture; its play key leaves the ruler and becomes a key on the left rail, at the bottom, level with the ruler's line.
+
+> also, by the way, fix my camera info line. I don't need USB. No cable. Then turn USB tethering on in my status view. For this USB thing, there is only USB status. USB status is already there, so remove this text completely. Put this text inside Settings under USB on/off. It looks a little bit strange when this is cramped. All this: "File USB NDI HX." Just put a dot in between: "File.USB.NDI.HX." No, just a dot as a placeholder for a space. The second one, the status, in the same line. Everything will fit nicely
+
+**Read as (v170):** no "USB: no cable — turn USB tethering on" on the info line (Settings already shows it under the NDI wire); the outputs with a dot for a space, FILE·USB·NDI·HX·YT; the status beside them on the same line.

@@ -4232,14 +4232,16 @@ class MainActivity : AppCompatActivity() {
             settings.armNdi, when (pipeline.mode) { CameraPipeline.Mode.FULL -> 2; CameraPipeline.Mode.HX -> 1; else -> settings.ndiKind },
             pipeline.mode != CameraPipeline.Mode.OFF,
             lastMbps, lastWatching,
-            wire = Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter ?: pipeline.currentAdapter()),
+            // v170: the wire stays in Settings (Marko, 28.10.2026: "remove this text completely. Put this text inside Settings")
+            wire = "",
             sound = if (meter != null && settings.ndiAudio) audioLabel.ifEmpty { "MIC" } else ""
         )
         val text = android.text.SpannableStringBuilder()
         parts.forEachIndexed { i, p ->
             // v168: the outputs touch, FILEUSBNDIHXYT, grey off and white armed (Marko, 28.10.2026: "without any
             // spaces in between ... It takes space"); only a note after a name keeps one space before the next
-            if (i > 0 && parts[i - 1].detail.isNotEmpty()) text.append(" ")
+            // v170: a dot where a space was, FILE·USB·NDI·HX·YT (Marko, 28.10.2026: "just a dot as a placeholder for a space")
+            if (i > 0) text.append("·")
             val start = text.length
             if (p.state == Mechanism.Output.LIVE) {
                 text.append("● ")
