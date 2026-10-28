@@ -1112,3 +1112,12 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 > please close the session and write handovers, and if you need to update any web page, update
 
 **Status 27.10.2026, 10:30: done.** mantramanualcamera.pages.dev updated and deployed (cards 10–13: Blender's tracker, TRACK, the calibrated scale, the Mac webcam on a cable; Coming next; download counter; Speechify keys), checked live; handovers written; every repo pushed. Left: Little Snitch for the Nothing over Wi-Fi, fresh screenshots for the page, the bio card text.
+
+## 28.10.2026 — only the rail keys turn
+
+> my camera has a bug. When I change orientation, look what happened in the changing of orientation. Only the buttons need to change orientation. Only the buttons are rotating, but no screen should be rotated. It's not. Look at my screen, please. Fix my camera quickly
+
+> You are completely correct. Only rail buttons are changing orientation, nothing else
+
+**Seen (v162, Pixel 7 upright):** the whole interface collapsed into a small block in the top corner, words over words.
+**Plan v163:** the screen stays landscape whatever the phone does; only the rail keys' words and marks turn to stay upright.
