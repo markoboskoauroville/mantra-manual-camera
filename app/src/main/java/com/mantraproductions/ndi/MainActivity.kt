@@ -3912,9 +3912,9 @@ class MainActivity : AppCompatActivity() {
     private fun applyShootMode() {
         // An older version's "follow the phone" becomes the way the screen is now.
         settings.shootMode = Mechanism.shootResolved(settings.shootMode, screenIsLandscape())
-        requestedOrientation = if (settings.shootMode == 1)
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
-        else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+        // v164: the screen never turns, PORTRAIT included (Marko, 28.10.2026: "no screen should be rotated"); in v162
+        // PORTRAIT turned it and the upright layout collapsed into the top corner. The keys turn instead (holding).
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
     }
 
     /**
