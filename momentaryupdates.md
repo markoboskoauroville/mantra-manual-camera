@@ -1140,3 +1140,7 @@ v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upr
 > also, to make more space in the status line info line file, USB NDI, you can write this without any spaces in between, even between ADI HX. No space in between, no minuses. It takes space. Because it's grade, YouTube also puts it as one of the outputs without any space in between with the next option
 
 **Read as (v168):** the outputs written together, FILEUSBNDIHXYT, told apart by their colour (grey off, white armed); NDIHX / NDIFULL; no dash in the NDI note.
+
+> Also extend on my pixel camera this line for focusing, going fully left and fully right on the screen. The play button should be somewhere else, not taking the length of the ruler itself. I want to use the maximum resolution of the ruler possible. A ruler should go from the left to the right edge of the screen completely, and then the play button can be on the rail menu, aligning exactly with that line. There is enough space now to compress the buttons of the left rail menu, so the play button can be on the rail on the left side.
+
+**Read as (v169):** the focus ruler runs the whole width of the picture; its play key leaves the ruler and becomes a key on the left rail, at the bottom, level with the ruler's line.
