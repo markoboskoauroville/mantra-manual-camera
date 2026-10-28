@@ -336,18 +336,17 @@ class RailButton @JvmOverloads constructor(
                 mark.style = Paint.Style.STROKE
             }
             Glyph.RULER -> {
-                // v165: the focus puller's ruler in small (Marko, 28.10.2026: "an icon ... the same as the focusing
-                // pusher"): the line with its ticks, a key point's triangle on it and the fingertip circle above
-                val y = cy + r * 0.55f
-                mark.strokeWidth = density(1.6f)
-                canvas.drawLine(cx - r * 1.3f, y, cx + r * 1.3f, y, mark)
-                for (i in -2..2) canvas.drawLine(cx + i * r * 0.6f, y, cx + i * r * 0.6f, y + r * 0.35f, mark)
-                markPath.moveTo(cx - r * 0.35f, y - r * 0.5f)
-                markPath.lineTo(cx + r * 0.35f, y - r * 0.5f)
-                markPath.lineTo(cx, y)
+                // v165: the focus puller's marks (Marko, 28.10.2026: "the same as the focusing pusher"); v167: no
+                // ruler under them ("Remove this centimeter part. Just make it bigger"), the key point's triangle
+                // INSIDE the fingertip circle, pointing down as it does on the ruler
+                val ring = r * 1.25f
+                mark.strokeWidth = density(1.8f)
+                canvas.drawCircle(cx, cy, ring, mark)
+                markPath.moveTo(cx - ring * 0.62f, cy - ring * 0.36f)
+                markPath.lineTo(cx + ring * 0.62f, cy - ring * 0.36f)
+                markPath.lineTo(cx, cy + ring * 0.62f)
                 markPath.close()
                 canvas.drawPath(markPath, mark)
-                canvas.drawCircle(cx, cy - r * 0.55f, r * 0.42f, mark)
                 mark.strokeWidth = density(1.4f)
             }
             Glyph.ROTATE -> {
