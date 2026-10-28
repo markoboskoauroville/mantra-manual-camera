@@ -39,7 +39,7 @@ class RailButton @JvmOverloads constructor(
      * out on a shoot — a missing glyph is a hollow box, and a hollow box in the
      * corner of a camera is indistinguishable from a bug.
      */
-    enum class Glyph { NONE, GEAR, UP, DOWN, CAMERA, SQUARE, CIRCLE, TRIANGLE, PLAY, ROTATE, ZEBRA, PEAKING, FALSECOLOUR }
+    enum class Glyph { NONE, GEAR, UP, DOWN, CAMERA, SQUARE, CIRCLE, TRIANGLE, PLAY, ROTATE, ZEBRA, PEAKING, FALSECOLOUR, RULER }
 
     var glyph: Glyph = Glyph.NONE
         set(value) { field = value; describe(); invalidate() }
@@ -90,6 +90,7 @@ class RailButton @JvmOverloads constructor(
         val what = when {
             glyph == Glyph.CAMERA -> "snap"
             glyph == Glyph.PLAY -> "play"
+            glyph == Glyph.RULER -> "focus ruler"
             glyph == Glyph.ROTATE -> if (across) "landscape" else "portrait"
             glyph == Glyph.ZEBRA -> "zebra"
             glyph == Glyph.PEAKING -> "peaking"
@@ -333,6 +334,21 @@ class RailButton @JvmOverloads constructor(
                 mark.style = Paint.Style.FILL
                 canvas.drawPath(markPath, mark)
                 mark.style = Paint.Style.STROKE
+            }
+            Glyph.RULER -> {
+                // v165: the focus puller's ruler in small (Marko, 28.10.2026: "an icon ... the same as the focusing
+                // pusher"): the line with its ticks, a key point's triangle on it and the fingertip circle above
+                val y = cy + r * 0.55f
+                mark.strokeWidth = density(1.6f)
+                canvas.drawLine(cx - r * 1.3f, y, cx + r * 1.3f, y, mark)
+                for (i in -2..2) canvas.drawLine(cx + i * r * 0.6f, y, cx + i * r * 0.6f, y + r * 0.35f, mark)
+                markPath.moveTo(cx - r * 0.35f, y - r * 0.5f)
+                markPath.lineTo(cx + r * 0.35f, y - r * 0.5f)
+                markPath.lineTo(cx, y)
+                markPath.close()
+                canvas.drawPath(markPath, mark)
+                canvas.drawCircle(cx, cy - r * 0.55f, r * 0.42f, mark)
+                mark.strokeWidth = density(1.4f)
             }
             Glyph.ROTATE -> {
                 // v155 (Marko, 26.10.2026: "just two squares, one vertical, one horizontal, overlapping. Forget the

@@ -349,6 +349,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("focusPuller", false)
         set(value) = prefs.edit().putBoolean("focusPuller", value).apply()
 
+    /** v165: the status line on or off (the INFO key on the left rail). */
+    var showStatus: Boolean
+        get() = prefs.getBoolean("showStatus", true)
+        set(value) = prefs.edit().putBoolean("showStatus", value).apply()
+
     /** v149: the meter's key points, dioptres in the order marked ([Mechanism.encodeKeys]). */
     var focusKeys: String
         get() = prefs.getString("focusKeys", "") ?: ""

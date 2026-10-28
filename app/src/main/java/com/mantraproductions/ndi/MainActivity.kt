@@ -225,6 +225,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var lensChooser: RailButton
     private var lensesOpen = false
     private var markKeys: List<RailButton> = emptyList()
+    private lateinit var rulerKey: RailButton
+    private lateinit var infoKey: RailButton
+    private lateinit var statusRow: View
     private lateinit var peakKey: RailButton
     private lateinit var snapKey: RailButton
     private lateinit var logKey: RailButton
@@ -255,6 +258,7 @@ class MainActivity : AppCompatActivity() {
         railLeft = findViewById(R.id.railLeft)
         railRight = findViewById(R.id.railRight)
         timecode = findViewById(R.id.timecode)
+        statusRow = findViewById(R.id.statusRow)
         showTimecode(false)
 
         pipeline = CameraPipeline(this)
@@ -566,6 +570,12 @@ class MainActivity : AppCompatActivity() {
         markKeys = listOf(RailButton.Glyph.SQUARE, RailButton.Glyph.CIRCLE).mapIndexed { i, g ->
             newKey("") { stepMark(i) }.also { it.glyph = g; railLeft.addView(it) }
         }
+        // v165 (Marko, 28.10.2026): under the square and the circle, the focus ruler on/off, drawn as the ruler, and
+        // INFO, the status line on/off (the REC time then rises to the very top)
+        rulerKey = newKey("") { settings.focusPuller = !settings.focusPuller; showMeter(); refreshKeys() }
+            .also { it.glyph = RailButton.Glyph.RULER; railLeft.addView(it) }
+        infoKey = newKey("INFO") { settings.showStatus = !settings.showStatus; placeStatus(); refreshKeys() }
+            .also { railLeft.addView(it) }
         focusKey = newKey("AF") { toggleAutoFocus() }.also { railLeft.addView(it) }
         logKey = newKey("LOG") { nextCurve() }.also { railLeft.addView(it) }
         manualKey = newKey("M") { nextCameraMode() }.also { railLeft.addView(it) }
@@ -4038,6 +4048,8 @@ class MainActivity : AppCompatActivity() {
         }
         // v107: each mark key wears its shape's colour of the moment (white, orange searching, green locked,
         // red failed), grey when the shape is off; a bar under it says which one is armed.
+        rulerKey.state = if (settings.focusPuller) RailButton.State.ON else RailButton.State.OFF
+        infoKey.state = if (settings.showStatus) RailButton.State.ON else RailButton.State.OFF
         markKeys.forEachIndexed { i, key ->
             val on = settings.marksShown and (1 shl i) != 0
             key.state = if (on) RailButton.State.SHOWN else RailButton.State.OFF
@@ -4117,10 +4129,15 @@ class MainActivity : AppCompatActivity() {
      * hidden — no gap (Marko, 2.10.2026: "when my outputs are gone, the status line has a gap").
      */
     private fun placeStatus() {
-        val lp = status.layoutParams as? android.view.ViewGroup.MarginLayoutParams ?: return
+        // v165: the outputs and the status share one row (activity_main.xml), shown unless FULL or INFO hides it,
+        // and the REC time sits right under it, or at the very top without it (Marko, 28.10.2026)
+        if (!::statusRow.isInitialized) return
+        statusRow.visibility = if (!fullScreen && settings.showStatus) View.VISIBLE else View.GONE
+        val lp = timecode.layoutParams as? android.view.ViewGroup.MarginLayoutParams ?: return
         val dp = resources.displayMetrics.density
-        lp.topMargin = ((if (telemetry.visibility == View.VISIBLE) 22 else 2) * dp).toInt()
-        status.layoutParams = lp
+        lp.topMargin = if (statusRow.visibility == View.VISIBLE) (statusRow.height.takeIf { it > 0 } ?: (20 * dp).toInt()) else 0
+        timecode.layoutParams = lp
+        if (statusRow.visibility == View.VISIBLE && statusRow.height == 0) statusRow.post { if (statusRow.height > 0) placeStatus() }
     }
 
     private fun markStatus(): String = when (settings.pinchTarget) {
