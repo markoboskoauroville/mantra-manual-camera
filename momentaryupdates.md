@@ -1121,3 +1121,8 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 
 **Seen (v162, Pixel 7 upright):** the whole interface collapsed into a small block in the top corner, words over words.
 **Plan v163:** the screen stays landscape whatever the phone does; only the rail keys' words and marks turn to stay upright.
+
+**Status 28.10.2026, 07:35: v163 + v164 released and installed.** The collapse was the phone, not the app: the Gemini work of
+22.10 left `fixed-to-user-rotation enabled`, so Android letterboxed the landscape app into a 1080x486 box. Set back to
+`default`; the app fills the screen in landscape. v163: rail keys and the focus ruler's distances turn with the phone;
+v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upright and see the words turn.
