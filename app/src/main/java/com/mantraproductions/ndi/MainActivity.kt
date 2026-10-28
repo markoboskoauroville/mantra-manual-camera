@@ -909,8 +909,9 @@ class MainActivity : AppCompatActivity() {
                 // to the nearest quarter, with a margin so a phone held at 45° does not flicker
                 val q = ((degrees + 45) / 90 % 4) * 90
                 if (kotlin.math.abs(((degrees - q + 540) % 360) - 180) > 30) return
-                // the landscape screen is the phone turned to 270 here; upright (0) the words turn a quarter right
-                val turn = (q - 270 + 360) % 360
+                // the landscape screen is the phone turned to 270 here; upright (0) the words turn a quarter LEFT
+                // (v166: v165 turned them right, upside down for Marko, 28.10.2026: "the opposite of what it's supposed to be")
+                val turn = (270 - q + 360) % 360
                 if (turn != keyTurn) { keyTurn = turn; turnKeys() }
             }
         }
