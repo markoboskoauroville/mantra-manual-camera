@@ -1136,3 +1136,7 @@ v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upr
 > also, the focusing rail symbol is not good. Remove this centimeter part. Just make it bigger. Please write inside the circle. Put the triangle like this, not one above the other one inside the other
 
 **Read as (v167):** the ruler key's mark is only the circle with the triangle inside it, larger; no line, no ticks.
+
+> also, to make more space in the status line info line file, USB NDI, you can write this without any spaces in between, even between ADI HX. No space in between, no minuses. It takes space. Because it's grade, YouTube also puts it as one of the outputs without any space in between with the next option
+
+**Read as (v168):** the outputs written together, FILEUSBNDIHXYT, told apart by their colour (grey off, white armed); NDIHX / NDIFULL; no dash in the NDI note.

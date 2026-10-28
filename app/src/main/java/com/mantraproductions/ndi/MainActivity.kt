@@ -4215,7 +4215,9 @@ class MainActivity : AppCompatActivity() {
         )
         val text = android.text.SpannableStringBuilder()
         parts.forEachIndexed { i, p ->
-            if (i > 0) text.append("   ")
+            // v168: the outputs touch, FILEUSBNDIHXYT, grey off and white armed (Marko, 28.10.2026: "without any
+            // spaces in between ... It takes space"); only a note after a name keeps one space before the next
+            if (i > 0 && parts[i - 1].detail.isNotEmpty()) text.append(" ")
             val start = text.length
             if (p.state == Mechanism.Output.LIVE) {
                 text.append("● ")
@@ -4224,7 +4226,7 @@ class MainActivity : AppCompatActivity() {
             }
             val wordStart = text.length
             text.append(p.name)
-            if (p.detail.isNotEmpty()) text.append(" ").append(p.detail)
+            if (p.detail.isNotEmpty()) text.append(" ").append(p.detail.replace(" — ", " ").replace(" - ", " "))
             val colour = when (p.state) {
                 Mechanism.Output.OFF -> android.graphics.Color.argb(120, 200, 204, 208)
                 Mechanism.Output.READY -> android.graphics.Color.WHITE
