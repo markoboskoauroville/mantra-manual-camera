@@ -1126,3 +1126,9 @@ AF on small subjects right about half the time. The tracker loses the swinging b
 22.10 left `fixed-to-user-rotation enabled`, so Android letterboxed the landscape app into a 1080x486 box. Set back to
 `default`; the app fills the screen in landscape. v163: rail keys and the focus ruler's distances turn with the phone;
 v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upright and see the words turn.
+
+## 28.10.2026 — the record time up, ruler and status keys, status on one line
+
+> my focusing ruler is overlapping with record time what you need to do is bring the record up at the top of the screen and add one more switch so I have F square, E round, and F round. No F F. Basically, make an icon which looks like a circle, square, and triangle, the same as the focusing pusher, and that will be on the left side of the rail menu to switch on and off. This is just an on/off switcher on the rail on the left side, under the E and the recording button. This is overlapping. Please put record numbers in this view at the top of the screen under these status things, and on the left rail, give an on/off switch for status. In that case, the numbers of recording will snap to the even higher, to the top. Please see if you can get the status in only one line, not in the two lines as it is now
+
+**Read as:** (1) the REC time moves from the bottom (under the focus ruler) to the top, under the status; (2) a new left-rail key under E: the focus ruler on/off, its icon drawn like the ruler (triangle on a line, the fingertip circle); (3) a left-rail key: the status on/off, and with the status off the REC time rises to the very top; (4) the status on one line.
