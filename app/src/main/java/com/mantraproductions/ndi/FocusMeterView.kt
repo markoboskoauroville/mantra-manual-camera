@@ -81,9 +81,7 @@ class FocusMeterView @JvmOverloads constructor(
     private val vertical get() = height >= width
     /** The strip's thickness, from the long edge in. */
     private val strip get() = 96f * density
-    private val margin get() = 28f * density
     private val circleR get() = 20f * density          // an index finger
-    private val playR get() = 22f * density
 
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(200, 242, 242, 242); strokeWidth = 1.5f * density }
     private val tick = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(170, 242, 242, 242); strokeWidth = 1f * density }
@@ -100,15 +98,17 @@ class FocusMeterView @JvmOverloads constructor(
     private val lensRing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE; color = RailButton.WHITE; strokeWidth = 2f * density; setShadowLayer(2f, 0f, 0f, Color.BLACK)
     }
-    private val playPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = RailButton.GREEN }
     private val path = Path()
 
     // --- where things are -----------------------------------------------------------------------------------------
 
-    /** The scale's two ends along the long edge, pixels: the near end first. */
+    /** The scale's two ends along the long edge, pixels: the near end first. v169: edge to edge, with only room for
+     *  the end words (Marko, 28.10.2026: "going fully left and fully right ... the maximum resolution of the ruler");
+     *  the ▶ went to the left rail (MainActivity.rulerPlay). */
+    private val edge get() = 12f * density
     private fun ends(): Pair<Float, Float> =
-        if (vertical) (height - margin - playR * 2.6f) to margin        // near at the bottom, ∞ at the top, ▶ below
-        else (margin + playR * 2.6f) to (width - margin)               // near at the left, ∞ at the right, ▶ before
+        if (vertical) (height - edge) to edge                          // near at the bottom, ∞ at the top
+        else edge to (width - edge)                                    // near at the left, ∞ at the right
 
     /** The scale line's place across the strip. */
     private fun lineAt(): Float = if (vertical) width - strip * 0.32f else height - strip * 0.32f
@@ -131,10 +131,18 @@ class FocusMeterView @JvmOverloads constructor(
         return if (vertical) c to a else a to c
     }
 
-    private fun playCentre(): Pair<Float, Float> {
-        val (near, _) = ends()
-        val p = if (vertical) near + playR * 1.6f else near - playR * 1.6f
-        return if (vertical) lineAt() to p else p to lineAt()
+    /** v169: where the line is, in this view's own pixels across the strip, so the rail's ▶ can stand level with it. */
+    fun lineOffset(): Float = lineAt()
+
+    /** v169, the ▶ (now a key on the left rail): rack to the next key point in marking order, past any the lens already
+     *  stands on. */
+    fun playNext() {
+        if (keys.isEmpty()) return
+        for (i in keys.indices) {
+            next %= keys.size
+            val k = keys[next++]
+            if (lens == null || kotlin.math.abs(k - lens!!) > 0.05f) { onRack?.invoke(k); break }
+        }
     }
 
     // --- drawing --------------------------------------------------------------------------------------------------
@@ -184,14 +192,6 @@ class FocusMeterView @JvmOverloads constructor(
             val (cx, cy) = circleCentre(d)
             canvas.drawCircle(cx, cy, circleR, lensRing)
         }
-
-        // ▶, the next key point
-        val (px, py) = playCentre()
-        playPaint.color = if (keys.isEmpty()) RailButton.DEAD else RailButton.GREEN
-        path.reset()
-        val r = playR * 0.55f
-        path.moveTo(px - r * 0.6f, py - r); path.lineTo(px + r, py); path.lineTo(px - r * 0.6f, py + r); path.close()
-        canvas.drawPath(path, playPaint)
     }
 
     /** A triangle whose point touches the line from the picture's side ("looking down" at the scale). */
@@ -211,7 +211,7 @@ class FocusMeterView @JvmOverloads constructor(
     // v151 (Marko, 26.10.2026): the lens's own white circle — pressed and dragged up and down, it pulls focus; held, it
     // asks ADD KEYFRAME / DELETE KEYFRAME. A key point's circle: a tap racks there, held it asks DELETE KEYFRAME. Key
     // points are no longer added by a tap on the scale (the long press on the white circle is the way).
-    private enum class Grab { NONE, KEY, LENS, PLAY }
+    private enum class Grab { NONE, KEY, LENS }
     private var grab = Grab.NONE
     private var grabbedKey = -1
     private var longFired = false
@@ -240,11 +240,9 @@ class FocusMeterView @JvmOverloads constructor(
                 if (!inStrip(e.x, e.y)) return false           // not ours: on to the marks and the square underneath
                 downX = e.x; downY = e.y; longFired = false; dragging = false
                 val reach = circleR * 1.2f
-                val (px, py) = playCentre()
                 val onLens = lens?.let { l -> circleCentre(l.coerceIn(0f, closest)).let { (cx, cy) -> dist(e.x, e.y, cx, cy) <= reach } } == true
                 grabbedKey = keys.indexOfFirst { k -> circleCentre(k).let { (cx, cy) -> dist(e.x, e.y, cx, cy) <= reach } }
                 grab = when {
-                    dist(e.x, e.y, px, py) <= playR * 1.3f -> Grab.PLAY
                     onLens -> Grab.LENS                        // the white circle wins where a key point lies under it
                     grabbedKey >= 0 -> Grab.KEY
                     else -> return false                       // the empty strip: the picture's
@@ -268,14 +266,6 @@ class FocusMeterView @JvmOverloads constructor(
                 removeCallbacks(longPress)
                 when (grab) {
                     Grab.KEY -> if (!longFired && !dragging) keys.getOrNull(grabbedKey)?.let { onRack?.invoke(it) }
-                    Grab.PLAY -> if (keys.isNotEmpty()) {
-                        // the next key point in marking order, past any the lens already stands on
-                        for (i in keys.indices) {
-                            next %= keys.size
-                            val k = keys[next++]
-                            if (lens == null || kotlin.math.abs(k - lens!!) > 0.05f) { onRack?.invoke(k); break }
-                        }
-                    }
                     else -> Unit
                 }
                 grab = Grab.NONE

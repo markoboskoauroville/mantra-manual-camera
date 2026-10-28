@@ -226,6 +226,7 @@ class MainActivity : AppCompatActivity() {
     private var lensesOpen = false
     private var markKeys: List<RailButton> = emptyList()
     private lateinit var rulerKey: RailButton
+    private lateinit var rulerPlay: RailButton
     private lateinit var infoKey: RailButton
     private lateinit var statusRow: View
     private lateinit var peakKey: RailButton
@@ -588,6 +589,10 @@ class MainActivity : AppCompatActivity() {
             if (LinkServer.fromMonitorJustNow()) LinkServer.setClean(!LinkServer.clean) else setFullScreen(!fullScreen)
         }
             .also { railLeft.addView(it) }
+        // v169: the ruler's ▶ (the next key point) left the ruler for the rail, the last key, standing level with the
+        // ruler's line (Marko, 28.10.2026: "the play button can be on the rail menu, aligning exactly with that line")
+        rulerPlay = newKey("") { focusMeter.playNext() }.also { it.glyph = RailButton.Glyph.PLAY; railLeft.addView(it) }
+        railLeft.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> alignRulerPlay() }
 
         // THE RIGHT RAIL, v85: the take, the look, the measuring tools, and
         // what is left on the drive.
@@ -2438,6 +2443,20 @@ class MainActivity : AppCompatActivity() {
         val on = settings.focusPuller && closest > 0f && !fullScreen
         focusMeter.visibility = if (on) View.VISIBLE else View.GONE
         focusMeter.closest = if (on) closest else 0f
+        if (::rulerPlay.isInitialized) {
+            rulerPlay.visibility = if (on && !lensesOpen) View.VISIBLE else View.GONE
+            railLeft.post { alignRulerPlay() }
+        }
+    }
+
+    /** v169: the rail's ▶ moved up or down so its middle is exactly on the ruler's line. */
+    private fun alignRulerPlay() {
+        if (!::rulerPlay.isInitialized || rulerPlay.visibility != View.VISIBLE || focusMeter.height == 0) return
+        val meter = IntArray(2).also { focusMeter.getLocationOnScreen(it) }
+        val rail = IntArray(2).also { railLeft.getLocationOnScreen(it) }
+        val lineY = meter[1] + focusMeter.lineOffset()
+        val keyMiddle = rail[1] + rulerPlay.top + rulerPlay.height / 2f
+        rulerPlay.translationY = lineY - keyMiddle
     }
 
     /** v145: 4.0 (dioptres), 250mm, 25cm, 0.25m or inf as dioptres. */
@@ -2501,7 +2520,7 @@ class MainActivity : AppCompatActivity() {
         return m.entries.joinToString("\n") { "${it.key}=${it.value ?: "-"}" }
     }
 
-    private fun keyName(k: RailButton): String = when (k.glyph) {
+    private fun keyName(k: RailButton): String = if (::rulerPlay.isInitialized && k === rulerPlay) "NEXTKEY" else when (k.glyph) {
         RailButton.Glyph.SQUARE -> "MARK0"
         RailButton.Glyph.CIRCLE -> "MARK1"
         RailButton.Glyph.TRIANGLE -> "MARK2"
@@ -4047,6 +4066,9 @@ class MainActivity : AppCompatActivity() {
             val k = railLeft.getChildAt(i)
             if (k !== lensChooser && k !in lensKeys) k.visibility = if (lensesOpen) View.GONE else View.VISIBLE
         }
+        // v169: the ruler's ▶ only while the ruler is up; green with key points to go to, dark without
+        rulerPlay.visibility = if (!lensesOpen && focusMeter.visibility == View.VISIBLE) View.VISIBLE else View.GONE
+        rulerPlay.state = if (focusMeter.keys.isEmpty()) RailButton.State.DEAD else RailButton.State.ON
         // v107: each mark key wears its shape's colour of the moment (white, orange searching, green locked,
         // red failed), grey when the shape is off; a bar under it says which one is armed.
         rulerKey.state = if (settings.focusPuller) RailButton.State.ON else RailButton.State.OFF
