@@ -30,6 +30,14 @@ class FocusMeterView @JvmOverloads constructor(
 ) : View(context, attrs, defStyle) {
 
     /** The closest the lens goes, in dioptres; 0 hides the meter (a fixed lens). */
+    /**
+     * v163: the turn of the distance words, in degrees, so they read upright when the phone is turned; the ruler
+     * stays where it is (Marko, 28.10.2026: "labels on the focusing ruler can also change orientation ... but the
+     * ruler stays in the same position").
+     */
+    var turn = 0
+        set(value) { if (field != value) { field = value; invalidate() } }
+
     var closest = 0f
         set(value) { field = value; invalidate() }
     /** Where the lens is now (the capture result), dioptres. */
@@ -148,13 +156,19 @@ class FocusMeterView @JvmOverloads constructor(
             if (dpt > closest + 0.01f) continue
             val a = along(dpt)
             val t = 6f * density
-            if (vertical) {
+            val w = words.measureText(word)
+            // the middle of the word, where it turns (v163)
+            val (cx, cy) = if (vertical) {
                 canvas.drawLine(l, a, l + t, a, tick)
-                canvas.drawText(word, l + t + 3f * density, a + words.textSize * 0.35f, words)
+                (l + t + 3f * density + w / 2f) to a
             } else {
                 canvas.drawLine(a, l, a, l + t, tick)
-                canvas.drawText(word, a - words.measureText(word) / 2f, l + t + words.textSize + 2f * density, words)
+                a to (l + t + 2f * density + words.textSize * 0.65f)
             }
+            canvas.save()
+            canvas.rotate(turn.toFloat(), cx, cy)
+            canvas.drawText(word, cx - w / 2f, cy + words.textSize * 0.35f, words)
+            canvas.restore()
         }
 
         // the key points: an empty triangle on the line, a fingertip circle beside it

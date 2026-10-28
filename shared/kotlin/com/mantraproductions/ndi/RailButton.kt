@@ -136,7 +136,29 @@ class RailButton @JvmOverloads constructor(
 
     private fun density(dp: Float) = dp * resources.displayMetrics.density
 
+    /**
+     * v163: the turn of the words and marks, in degrees (0, 90, 180, 270), so they stay upright when the phone is
+     * turned while the screen itself stays landscape (Marko, 28.10.2026: "Only rail buttons are changing
+     * orientation, nothing else"). The key keeps its place and its size; only what is drawn on it turns.
+     */
+    var turn = 0
+        set(value) { val v = ((value % 360) + 360) % 360; if (field != v) { field = v; invalidate() } }
+
+    private val quarter get() = turn == 90 || turn == 270
+    /** The box the drawing is laid out in: the key's own, or the key's turned a quarter. */
+    private val dw get() = (if (quarter) height else width).toFloat()
+    private val dh get() = (if (quarter) width else height).toFloat()
+
     override fun onDraw(canvas: Canvas) {
+        if (turn == 0) { drawUpright(canvas); return }
+        canvas.save()
+        canvas.rotate(turn.toFloat(), width / 2f, height / 2f)
+        if (quarter) canvas.translate((width - height) / 2f, (height - width) / 2f)
+        drawUpright(canvas)
+        canvas.restore()
+    }
+
+    private fun drawUpright(canvas: Canvas) {
         val tint = when (state) {
             State.ON -> GREEN
             State.OFF -> GREY
@@ -147,15 +169,15 @@ class RailButton @JvmOverloads constructor(
         if (marked) {
             mark.color = tint
             mark.strokeWidth = density(2.2f)
-            canvas.drawLine(width * 0.32f, height - density(4f), width * 0.68f, height - density(4f), mark)
+            canvas.drawLine(dw * 0.32f, dh - density(4f), dw * 0.68f, dh - density(4f), mark)
             mark.strokeWidth = density(1.4f)
         }
 
         if (divider) {
             val across = (parent as? android.widget.LinearLayout)?.orientation != android.widget.LinearLayout.VERTICAL
             rule.strokeWidth = density(1f)
-            if (across) canvas.drawLine(0.5f, height * 0.18f, 0.5f, height * 0.82f, rule)
-            else canvas.drawLine(width * 0.18f, 0.5f, width * 0.82f, 0.5f, rule)
+            if (across) canvas.drawLine(0.5f, dh * 0.18f, 0.5f, dh * 0.82f, rule)
+            else canvas.drawLine(dw * 0.18f, 0.5f, dw * 0.82f, 0.5f, rule)
         }
 
         word.color = tint
@@ -175,20 +197,20 @@ class RailButton @JvmOverloads constructor(
 
         val hasSub = !sub.isNullOrBlank()
         val metrics = word.fontMetrics
-        val centre = height / 2f
+        val centre = dh / 2f
         if (hasSub) {
-            canvas.drawText(label, width / 2f, centre - density(1.5f * scale), word)
-            canvas.drawText(sub!!, width / 2f, centre + density(10f * scale), whisper)
+            canvas.drawText(label, dw / 2f, centre - density(1.5f * scale), word)
+            canvas.drawText(sub!!, dw / 2f, centre + density(10f * scale), whisper)
         } else {
             canvas.drawText(
-                label, width / 2f, centre - (metrics.ascent + metrics.descent) / 2f, word
+                label, dw / 2f, centre - (metrics.ascent + metrics.descent) / 2f, word
             )
         }
     }
 
     private fun fit(paint: Paint, text: String, full: Float) {
         paint.textSize = full
-        val room = width - density(3f)
+        val room = dw - density(3f)
         val needed = paint.measureText(text)
         if (needed > room && needed > 0f) paint.textSize = (full * room / needed).coerceAtLeast(density(6f))
     }
@@ -203,11 +225,11 @@ class RailButton @JvmOverloads constructor(
     private val rule = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#4A5058") }
 
     private fun drawGlyph(canvas: Canvas, tint: Int) {
-        val cx = width / 2f
-        val cy = height / 2f
+        val cx = dw / 2f
+        val cy = dh / 2f
         // Sized off the key rather than fixed, so the same code draws a mark
         // that fits whichever way the rail is running.
-        val r = minOf(width, height) * 0.24f
+        val r = minOf(dw, dh) * 0.24f
         mark.color = tint
         markPath.reset()
 
@@ -375,7 +397,7 @@ class RailButton @JvmOverloads constructor(
         // The page number still belongs under the arrow.
         sub?.takeIf { it.isNotBlank() }?.let {
             whisper.color = Color.argb(150, Color.red(tint), Color.green(tint), Color.blue(tint))
-            canvas.drawText(it, cx, height - density(3f), whisper)
+            canvas.drawText(it, cx, dh - density(3f), whisper)
         }
     }
 

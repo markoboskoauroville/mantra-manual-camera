@@ -771,6 +771,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.picture).layoutParams = stageLp
 
         applyPreviewTransform()
+        turnKeys()                                  // v163: keys made since keep the turn
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -883,6 +884,37 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * v163: THE SCREEN STAYS LANDSCAPE, ONLY THE RAIL KEYS TURN. *"Only the buttons need to change orientation ...
+     * no screen should be rotated"*, *"Only rail buttons are changing orientation, nothing else"* (Marko, 28.10.2026,
+     * after v162's upright layout collapsed into the top corner). The activity is locked to landscape; this listens
+     * to how the phone is held and turns the words and marks on every rail key, and the focus ruler's distances,
+     * so they read upright. The picture, the rails and every other word stay exactly where they are.
+     */
+    private var keyTurn = 0
+    private val holding by lazy {
+        object : android.view.OrientationEventListener(this) {
+            override fun onOrientationChanged(degrees: Int) {
+                if (degrees == ORIENTATION_UNKNOWN) return
+                // to the nearest quarter, with a margin so a phone held at 45° does not flicker
+                val q = ((degrees + 45) / 90 % 4) * 90
+                if (kotlin.math.abs(((degrees - q + 540) % 360) - 180) > 30) return
+                // the landscape screen is the phone turned to 270 here; upright (0) the words turn a quarter right
+                val turn = (q - 270 + 360) % 360
+                if (turn != keyTurn) { keyTurn = turn; turnKeys() }
+            }
+        }
+    }
+
+    private fun turnKeys() {
+        fun walk(v: View) {
+            if (v is RailButton) v.turn = keyTurn
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(window.decorView)
+        focusMeter.turn = keyTurn
+    }
+
     override fun onResume() {
         super.onResume()
         if (keptRunning) resumeKept()
@@ -893,6 +925,7 @@ class MainActivity : AppCompatActivity() {
         ui.removeCallbacks(focusLabelTick)
         ui.post(focusLabelTick)
         displays?.registerDisplayListener(displayListener, ui)
+        if (holding.canDetectOrientation()) holding.enable()
         if (fullScreen) hideSystemBars(true)
         // The camera session is lost while backgrounded even with a foreground
         // service, so it is rebuilt rather than tested for.
@@ -925,6 +958,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         runCatching { displays?.unregisterDisplayListener(displayListener) }
+        holding.disable()
         ui.removeCallbacks(rateTick)
         ui.removeCallbacks(focusWatch)
         ui.removeCallbacks(logExposureTick)
