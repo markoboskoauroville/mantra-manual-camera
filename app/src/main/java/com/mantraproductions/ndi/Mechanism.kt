@@ -1919,7 +1919,7 @@ object Mechanism {
             else -> Output.OFF
         }
         // v168: no spaces (Marko, 28.10.2026: "even between NDI HX. No space in between"); the colours tell them apart
-        val ndiName = if (ndiKind == 2) "NDI·FULL" else "NDI·HX"
+        val ndiName = if (ndiKind == 2) "NDI.FULL" else "NDI.HX"
         return listOf(
             Telemetry("FILE", state(armFile, fileLive),
                 if (fileLive) String.format(java.util.Locale.ROOT, "%.0f Mb/s", fileMbps) else ""),

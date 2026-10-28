@@ -4240,8 +4240,8 @@ class MainActivity : AppCompatActivity() {
         parts.forEachIndexed { i, p ->
             // v168: the outputs touch, FILEUSBNDIHXYT, grey off and white armed (Marko, 28.10.2026: "without any
             // spaces in between ... It takes space"); only a note after a name keeps one space before the next
-            // v170: a dot where a space was, FILE·USB·NDI·HX·YT (Marko, 28.10.2026: "just a dot as a placeholder for a space")
-            if (i > 0) text.append("·")
+            // v170: a dot where a space was, FILE.USB.NDI.HX.YT, a full stop (Marko, 28.10.2026: "normal dot, like a full stop dot")
+            if (i > 0) text.append(".")
             val start = text.length
             if (p.state == Mechanism.Output.LIVE) {
                 text.append("● ")

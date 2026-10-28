@@ -1148,3 +1148,7 @@ v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upr
 > also, by the way, fix my camera info line. I don't need USB. No cable. Then turn USB tethering on in my status view. For this USB thing, there is only USB status. USB status is already there, so remove this text completely. Put this text inside Settings under USB on/off. It looks a little bit strange when this is cramped. All this: "File USB NDI HX." Just put a dot in between: "File.USB.NDI.HX." No, just a dot as a placeholder for a space. The second one, the status, in the same line. Everything will fit nicely
 
 **Read as (v170):** no "USB: no cable — turn USB tethering on" on the info line (Settings already shows it under the NDI wire); the outputs with a dot for a space, FILE·USB·NDI·HX·YT; the status beside them on the same line.
+
+> Baba, not that dot. Normal dot. This is dot between. I want dot at the bottom of the text line, normal dot, like a full stop dot
+
+**v171:** a full stop, FILE.USB.NDI.HX.YT.
