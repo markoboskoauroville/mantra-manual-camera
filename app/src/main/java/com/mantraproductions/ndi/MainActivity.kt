@@ -4105,9 +4105,10 @@ class MainActivity : AppCompatActivity() {
         // then (the same day, after seeing it): "what is more important is to see how much time is left rather than
         // gigabytes. So time should be bigger and gigabytes should be smaller": the time left is the big word, as big as
         // the battery's, and its unit with the gigabytes is the small line under it
-        val time = Mechanism.formatTimeLeft(left)               // "5:03 h" or "47 min"
-        storageKey.label = time.substringBefore(' ')
-        storageKey.sub = time.substringAfter(' ', "") + " · " + Mechanism.formatFree(free)
+        // (the unit rides on the big word, "5:03h" / "47m": "h · 41.1 GB" did not fit the rail and was cut)
+        storageKey.label = if (left >= 3600) String.format(java.util.Locale.ROOT, "%d:%02dh", left / 3600, (left / 60) % 60)
+            else "${(left / 60).coerceAtLeast(0)}m"
+        storageKey.sub = Mechanism.formatFree(free)
         // v145: yellow, the settings' key; red under ten minutes, as before
         storageKey.state = if (left < 10 * 60) RailButton.State.ARMED else RailButton.State.SHOWN
         storageKey.tint = if (left < 10 * 60) null else STORAGE_YELLOW
