@@ -423,7 +423,7 @@
             android:id="@+id/bitRate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:max="98" />
+            android:max="99" />
         <TextView style="@style/MantraLabel" android:text="@string/stream_bitrate" />
         <TextView
             android:id="@+id/streamBitRateValue"

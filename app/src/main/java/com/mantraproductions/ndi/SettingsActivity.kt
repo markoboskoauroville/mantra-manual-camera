@@ -320,6 +320,9 @@ class SettingsActivity : AppCompatActivity() {
             fpsKey.text = "${settings.fps} FPS"
             depthKey.text = if (settings.wantTenBit) "10-BIT" else "8-BIT"
             resKey.text = resName(settings.captureWidth)
+            // v173: AUTO's number follows the format keys at once
+            if (settings.bitRateAuto) findViewById<TextView>(R.id.bitRateValue)?.text =
+                "AUTO · ${settings.autoMbps(settings.captureWidth, settings.fps, settings.wantTenBit)} Mbit/s"
         }
         paintQuick()
         fpsKey.setOnClickListener {
@@ -334,11 +337,13 @@ class SettingsActivity : AppCompatActivity() {
             paintQuick()
         }
 
+        // v173: the far left is AUTO, the file's rate from the format (shown, and following the size, rate and depth
+        // keys above); right of it the number by hand, 2 to 100 Mbit/s
         slider(
             R.id.bitRate, R.id.bitRateValue,
-            value = settings.bitRateMbps - 2,
-            label = { "${it + 2} Mbit/s" },
-            onSet = { settings.bitRateMbps = it + 2 }
+            value = if (settings.bitRateAuto) 0 else settings.bitRateMbps - 1,
+            label = { if (it == 0) "AUTO · ${settings.autoMbps(settings.captureWidth, settings.fps, settings.wantTenBit)} Mbit/s" else "${it + 1} Mbit/s" },
+            onSet = { if (it == 0) settings.bitRateAuto = true else { settings.bitRateAuto = false; settings.bitRateMbps = it + 1 } }
         )
         slider(
             R.id.streamBitRate, R.id.streamBitRateValue,

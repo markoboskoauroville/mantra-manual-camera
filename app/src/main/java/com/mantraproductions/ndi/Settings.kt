@@ -69,6 +69,20 @@ class Settings(context: Context) {
         set(value) = prefs.edit().putInt(BITRATE, value.coerceIn(2, 100)).apply()
 
     /**
+     * v173, THE FILE'S BIT RATE FOLLOWS THE FORMAT (Marko, 29.10.2026: "these 4 hours under 41.1 GB is not correct.
+     * When I'm changing file formats inside my settings, this number is fixed"). Measured on his Pixel: 720p and 4K
+     * both wrote 24 Mbit/s, so the time left never moved and 4K was starved. AUTO (the default) takes the rate from
+     * the size, the frame rate and the bit depth; the number by hand stays for whoever wants it.
+     */
+    var bitRateAuto: Boolean
+        get() = prefs.getBoolean(BITRATE_AUTO, true)
+        set(value) = prefs.edit().putBoolean(BITRATE_AUTO, value).apply()
+
+    /** What the take is really written at, in Mbit/s: AUTO by the format, else the number by hand. */
+    val recordMbps: Int
+        get() = if (bitRateAuto) autoMbps(captureWidth, fps, wantTenBit) else bitRateMbps
+
+    /**
      * Quarter turns added to the preview by hand, kept between runs.
      *
      * The automatic angle is the sensor's mounting against the display's
@@ -225,9 +239,23 @@ class Settings(context: Context) {
     var marksShown: Int
         get() = prefs.getInt(MARKS, 0b11) and 0b11
         set(value) = prefs.edit().putInt(MARKS, value and 0b11).apply()
+    /** v173: the GREEN mark, the one every tap on the picture and every pinch goes to; -1 = none is green
+     *  (Marko, 29.10.2026: "When there is a green color ... its default tapping is registered only for that circle or
+     *  focus ... only one can be green at a time"). */
     var pinchTarget: Int
-        get() = prefs.getInt(PINCH, 0).coerceIn(0, 1)
-        set(value) = prefs.edit().putInt(PINCH, value.coerceIn(0, 1)).apply()
+        get() = prefs.getInt(PINCH, 0).coerceIn(-1, 1)
+        set(value) = prefs.edit().putInt(PINCH, value.coerceIn(-1, 1)).apply()
+
+    /** v173: which marks take touches even while grey (hidden): bit 0 square, bit 1 circle; off by default
+     *  (Marko, 29.10.2026: "Long pressing registers touches even if invisible ... by default they are off"). */
+    var marksTouchHidden: Int
+        get() = prefs.getInt(TOUCH_HIDDEN, 0) and 0b11
+        set(value) = prefs.edit().putInt(TOUCH_HIDDEN, value and 0b11).apply()
+
+    /** v173: the LUT the LUT key turns back on (0 = none yet). */
+    var lastLutSlot: Int
+        get() = prefs.getInt(LAST_LUT, 0)
+        set(value) = prefs.edit().putInt(LAST_LUT, value).apply()
 
     /** SHOOT: 0 follows the phone's own rotation, 1 landscape, 2 portrait. */
     var shootMode: Int
@@ -458,6 +486,9 @@ class Settings(context: Context) {
         const val CIRCLE_MODE = "circleMode"
         const val MARKS = "marksShown"
         const val PINCH = "pinchTarget"
+        const val TOUCH_HIDDEN = "marksTouchHidden"
+        const val LAST_LUT = "lastLutSlot"
+        const val BITRATE_AUTO = "bitRateAuto"
         const val SHOOT = "shootMode"
         const val FOLDER = "recordFolder"
         const val LAST_TAKE = "lastTake"
@@ -471,5 +502,13 @@ class Settings(context: Context) {
         const val NDI_AUDIO = "ndiAudio"
         const val AUDIO_SOURCE = "audioSource"
         const val AUDIO_STEREO = "audioStereo"
+    }
+
+    /** HEVC at 30 frames: 720p 24, 1080p 40, 1440p 60, 4K 100 Mbit/s; by the frame rate, and a quarter more at
+     *  10 bits. 720p24 8-bit = 19, 1080p24 = 32, 4K24 = 80, 4K30 10-bit = 125 (the most is 150). */
+    fun autoMbps(width: Int, fps: Int, tenBit: Boolean): Int {
+        val at30 = when { width >= 3840 -> 100.0; width >= 2560 -> 60.0; width >= 1920 -> 40.0; else -> 24.0 }
+        val v = at30 * (fps.coerceIn(1, 120) / 30.0) * (if (tenBit) 1.25 else 1.0)
+        return v.toInt().coerceIn(8, 150)
     }
 }

@@ -224,6 +224,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var focusKey: RailButton
     private lateinit var lensChooser: RailButton
     private var lensesOpen = false
+    // v173, DISPLAY ASSIST: peaking, false colour and zebra behind one key, a drawer like the lenses' (Marko, 29.10.2026)
+    private lateinit var assistKey: RailButton
+    private var assistOpen = false
     private var markKeys: List<RailButton> = emptyList()
     private lateinit var rulerKey: RailButton
     private lateinit var rulerPlay: RailButton
@@ -544,7 +547,8 @@ class MainActivity : AppCompatActivity() {
         // v103: ONE key, L (Marko, 2.10.2026: "This lenses chooser is taking too much space ... L, only one
         // icon. When user press L, they uncollapse. User choose one lens and then it collapse again"). Its
         // whisper is the lens in use; the lens keys appear beside it only while it is open.
-        lensChooser = newKey("L") { openDrawer(!lensesOpen) }.also { railLeft.addView(it) }
+        // v173: the lens drawer moved to the right rail, beside REC, next to DISPLAY ASSIST (Marko, 29.10.2026)
+        lensChooser = newKey("L") { openDrawer(!lensesOpen) }
         // v130, THE LENS DRAWER (Marko, 3.10.2026: "when I press lens, it should actually take all available space
         // ... all other icons are gone ... millimeters ... next to the letter ... aperture opening for each lens and
         // resolution"). Each lens key reads "L1 24mm" over "f/1.85 · 12MP · 4K".
@@ -563,13 +567,16 @@ class MainActivity : AppCompatActivity() {
             key.scale = 1.35f
             key.divider = true
             lensKeys.add(key)
-            railLeft.addView(key)
         }
         // v103: the marks' keys, drawn as their marks. Grey = not on the picture, white = on it,
         // orange = the one a pinch resizes (only one). A tap steps grey → white → orange → grey.
         // v143: the square and the circle; the triangle went into the circle's WB mode.
         markKeys = listOf(RailButton.Glyph.SQUARE, RailButton.Glyph.CIRCLE).mapIndexed { i, g ->
-            newKey("") { stepMark(i) }.also { it.glyph = g; railLeft.addView(it) }
+            newKey("") { stepMark(i) }.also {
+                it.glyph = g
+                it.setOnLongClickListener { _ -> markMenu(i); true }      // v173: TOUCH WHEN HIDDEN, and the colours
+                railLeft.addView(it)
+            }
         }
         // v165 (Marko, 28.10.2026): under the square and the circle, the focus ruler on/off, drawn as the ruler, and
         // INFO, the status line on/off (the REC time then rises to the very top)
@@ -608,8 +615,10 @@ class MainActivity : AppCompatActivity() {
         // Everything is circular. Please make the recording in the place of the lot, in the middle of the screen"):
         // LUT where REC was, PLAY as a round key with the last capture, REC in the middle where the LUT was.
         recKey = RecordButtonView(this).also { it.setOnClickListener { toggleRecording() }; withHelp(it) { "REC" } }
-        lutKey = newKey("LUT") { nextLut() }.also {
-            it.setOnLongClickListener { openSettings(); true }
+        // v173 (Marko, 29.10.2026: "Short press enables the LUT. Long press gives the file-opening dialog to load the
+        // LUT. In the same dialog, we have history of all LUTs, so the user can switch in between")
+        lutKey = newKey("LUT") { toggleLut() }.also {
+            it.setOnLongClickListener { lutMenu(); true }
             railRight.addView(it)
         }
         // the PLAY key the link and adb press by name ("play"); on the rail it is the round lastKey
@@ -632,7 +641,12 @@ class MainActivity : AppCompatActivity() {
             railRight.addView(it)
         }
         shootKey = newKey("POR") { nextShoot() }.also { it.glyph = RailButton.Glyph.ROTATE; it.tint = SNAP_ORANGE; railRight.addView(it) }
+        // v173: LENS above REC and DISPLAY ASSIST under it; each opens as a drawer that takes the whole rail, its keys
+        // larger and spread over it, and gives the other keys back when it closes (Marko, 29.10.2026)
+        railRight.addView(lensChooser)
+        lensKeys.forEach { railRight.addView(it) }
         railRight.addView(recKey)
+        assistKey = newKey("ASSIST") { openAssist(!assistOpen) }.also { railRight.addView(it) }
         peakKey = newKey("PEA") { togglePeaking() }.also { it.glyph = RailButton.Glyph.PEAKING; it.tint = SNAP_ORANGE; railRight.addView(it) }
         falseKey = newKey("FC") { falseColour = !falseColour; applyLook(); refreshKeys() }
             .also { it.glyph = RailButton.Glyph.FALSECOLOUR; it.tint = SNAP_ORANGE; railRight.addView(it) }
@@ -650,6 +664,16 @@ class MainActivity : AppCompatActivity() {
     /** v130: the lens drawer opens over the whole left rail (wider in landscape, taller upright) and closes again. */
     private fun openDrawer(open: Boolean) {
         lensesOpen = open
+        if (open) assistOpen = false
+        refreshKeys()
+        layoutForOrientation(resources.configuration.orientation)
+    }
+
+    /** v173: DISPLAY ASSIST, the drawer of peaking, false colour and zebra; one drawer open at a time. */
+    private fun openAssist(open: Boolean) {
+        assistOpen = open
+        if (open) lensesOpen = false
+        Trace.control("display assist", if (open) "open" else "closed", "key")
         refreshKeys()
         layoutForOrientation(resources.configuration.orientation)
     }
@@ -752,7 +776,12 @@ class MainActivity : AppCompatActivity() {
         val margin = (2 * density).toInt()
         for (rail in listOf(railLeft, railRight)) {
             // v130: the open lens drawer takes room for its words, across in landscape and down when upright
-            val thickness = ((if (rail === railLeft && lensesOpen) (if (landscape) 150 else 72) else 44) * density).toInt()
+            // v173: the drawers live on the right rail: the lenses need room for their words, the assists for larger icons
+            val thickness = ((when {
+                rail === railRight && lensesOpen -> if (landscape) 150 else 72
+                rail === railRight && assistOpen -> if (landscape) 72 else 64
+                else -> 44
+            }) * density).toInt()
             val lp = rail.layoutParams as LinearLayout.LayoutParams
             if (landscape) {
                 lp.width = thickness
@@ -873,7 +902,7 @@ class MainActivity : AppCompatActivity() {
             sourceName = Mechanism.sanitizeSourceName(settings.sourceName),
             curve = curve,
             wantTenBit = settings.wantTenBit,
-            bitRate = settings.bitRateMbps * 1_000_000,
+            bitRate = settings.recordMbps * 1_000_000,   // v173: AUTO by the format, or the number by hand
             useGpuStage = settings.gpuStage
         )
         applyLook()
@@ -1014,7 +1043,7 @@ class MainActivity : AppCompatActivity() {
 
     /** v136: what, changed in settings while the stream ran on, needs the camera (or the meter) made again. */
     private fun snapshot(): List<Any?> = listOf(
-        settings.captureWidth, settings.fps, settings.gpuStage, settings.wantTenBit, settings.bitRateMbps,
+        settings.captureWidth, settings.fps, settings.gpuStage, settings.wantTenBit, settings.recordMbps,
         settings.streamMbps, settings.sourceName, settings.ndiKind, settings.ndiTransport, settings.armNdi,
         settings.audioSource, settings.audioStereo, settings.ndiAudio
     )
@@ -2434,8 +2463,10 @@ class MainActivity : AppCompatActivity() {
             if (r.measured) "Measured: the cell's own charge counter over the last minutes"
             else "First estimate from the current now; measured after two minutes"
         )
+        // v173 (Marko, 29.10.2026: "On the left side, there is OK. On the right side, put Settings")
         android.app.AlertDialog.Builder(this).setTitle("POWER MONITOR").setMessage(lines.joinToString("\n"))
-            .setPositiveButton("OK", null).show()
+            .setNegativeButton("OK", null)
+            .setPositiveButton("SETTINGS") { _, _ -> openSettings() }.show()
     }
 
     private fun showMeter() {
@@ -2553,7 +2584,7 @@ class MainActivity : AppCompatActivity() {
 
     // --- the marks (v103; v143 the square and one circle) ---------------------------
 
-    /** Grey → white → orange → grey, for the square (0) and the circle (1). */
+    /** v173: grey → white → green → grey, for the square (0) and the circle (1); green takes it from the other. */
     private fun stepMark(i: Int) {
         val bit = 1 shl i
         val shown = settings.marksShown and bit != 0
@@ -2562,8 +2593,7 @@ class MainActivity : AppCompatActivity() {
             settings.pinchTarget != i -> settings.pinchTarget = i
             else -> {
                 settings.marksShown = settings.marksShown and bit.inv()
-                // the orange goes to the next mark still on the picture, or stays (a pinch with none is nothing)
-                (0..1).firstOrNull { settings.marksShown and (1 shl it) != 0 }?.let { settings.pinchTarget = it }
+                settings.pinchTarget = -1                    // nothing is green until a key is made green again
                 if (i == 1) { releaseCircle(); exposureCircle.state = MarkView.State.IDLE }
             }
         }
@@ -2577,12 +2607,18 @@ class MainActivity : AppCompatActivity() {
     private fun refreshMarks() {
         val canShow = !zonesOn && !fullScreen
         val shown = settings.marksShown
-        // the square always takes the tap that focuses; grey only stops it being drawn
+        // v173: grey is not drawn; a grey mark with TOUCH WHEN HIDDEN is still there, unseen, and works
         focusSquare.visibility = if (canShow) View.VISIBLE else View.GONE
         focusSquare.drawn = shown and 1 != 0
-        exposureCircle.visibility = if (canShow && shown and 2 != 0) View.VISIBLE else View.GONE
-        focusSquare.pinchResizesMe = settings.pinchTarget == 0
-        focusSquare.tapMovesMe = settings.pinchTarget == 0
+        exposureCircle.visibility = when {
+            !canShow -> View.GONE
+            shown and 2 != 0 -> View.VISIBLE
+            settings.marksTouchHidden and 2 != 0 -> View.INVISIBLE
+            else -> View.GONE
+        }
+        val target = tapTarget()
+        focusSquare.pinchResizesMe = target == 0
+        focusSquare.tapMovesMe = target == 0
     }
 
     /**
@@ -2593,7 +2629,8 @@ class MainActivity : AppCompatActivity() {
         // v125: a tap on one or more marks sets every one of them where they are (the monitor's taps too)
         // The armed mark still goes where the finger is, unless it is already there.
         val under = marksUnder(x, y)
-        if (settings.pinchTarget.coerceIn(0, 1) in under) {
+        val target = tapTarget()
+        if (target in under) {
             Trace.control("tap", String.format("%.2f,%.2f", x, y), "on marks " + under.joinToString())
             under.forEach { fireMark(it) }
             return
@@ -2602,15 +2639,42 @@ class MainActivity : AppCompatActivity() {
             Trace.control("tap", String.format("%.2f,%.2f", x, y), "also on marks " + under.joinToString())
             under.forEach { fireMark(it) }
         }
-        when (settings.pinchTarget) {
+        when (target) {
             1 -> {
                 exposureCircle.moveTo(x, y)
                 settings.circleX = exposureCircle.centreX; settings.circleY = exposureCircle.centreY
                 Trace.control("tap", String.format("%.2f,%.2f", x, y), "circle " + circleLabel())
                 fireCircle()
             }
-            else -> focusAt(x, y)
+            0 -> focusAt(x, y)
+            else -> if (under.isEmpty()) Trace.control("tap", String.format("%.2f,%.2f", x, y), "nothing green: no mark takes it")
         }
+    }
+
+    /**
+     * v173: which mark a tap anywhere on the picture serves: the GREEN one; with none green, a grey one that has
+     * TOUCH WHEN HIDDEN (square first); else none (-1).
+     */
+    private fun tapTarget(): Int {
+        val green = settings.pinchTarget
+        if (green in 0..1 && settings.marksShown and (1 shl green) != 0) return green
+        return (0..1).firstOrNull { settings.marksShown and (1 shl it) == 0 && settings.marksTouchHidden and (1 shl it) != 0 } ?: -1
+    }
+
+    /** v173: a long press on the square's or the circle's key: TOUCH WHEN HIDDEN, and what the colours mean. */
+    private fun markMenu(i: Int) {
+        val name = if (i == 0) "FOCUS SQUARE" else "EXPOSURE CIRCLE"
+        val bit = 1 shl i
+        val items = arrayOf("TOUCH WHEN HIDDEN: taps on the picture still reach it while it is grey")
+        val checked = booleanArrayOf(settings.marksTouchHidden and bit != 0)
+        android.app.AlertDialog.Builder(this).setTitle(name)
+            .setMultiChoiceItems(items, checked) { _, _, on ->
+                settings.marksTouchHidden = if (on) settings.marksTouchHidden or bit else settings.marksTouchHidden and bit.inv()
+                Trace.control("marks", "touch when hidden ${settings.marksTouchHidden}", "key ${i} long press")
+                refreshMarks(); refreshKeys()
+            }
+            .setMessage("A tap on the key: GREY hidden, WHITE shown (a tap on it works), GREEN every tap and pinch go to it. One green at a time.")
+            .setPositiveButton("OK", null).show()
     }
 
     /**
@@ -2655,7 +2719,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
-        if (settings.pinchTarget != 0 && !zonesOn && !fullScreen) markPinch.onTouchEvent(ev)
+        if (tapTarget() == 1 && !zonesOn && !fullScreen) markPinch.onTouchEvent(ev)
         return super.dispatchTouchEvent(ev)
     }
 
@@ -3864,6 +3928,58 @@ class MainActivity : AppCompatActivity() {
      * The eleven slots moved to settings, where LUTs are added and removed;
      * this key only switches between them. A long press opens settings.
      */
+    /** v173: the LUT key's tap: the last LUT on, or off. With none loaded, the file picker. */
+    private fun toggleLut() {
+        val loaded = (1..LutSlots.COUNT).filter { slots.slot(it).loaded }
+        if (loaded.isEmpty()) { say("No LUT yet: choose a .cube file"); pickLut.launch(arrayOf("*/*")); return }
+        activeSlot = if (activeSlot > 0) 0 else settings.lastLutSlot.takeIf { it in loaded } ?: loaded.first()
+        if (activeSlot > 0) settings.lastLutSlot = activeSlot
+        applyLook(); refreshKeys()
+        say(if (activeSlot == 0) "LUT off" else "LUT: " + (slots.slot(activeSlot).label ?: "$activeSlot"))
+        Trace.control("LUT", activeSlot, if (activeSlot == 0) "off" else slots.slot(activeSlot).label)
+    }
+
+    /** v173: the LUT key's long press: LOAD A .CUBE FILE, OFF, and every LUT loaded so far (the history) to switch to. */
+    private fun lutMenu() {
+        val loaded = (1..LutSlots.COUNT).filter { slots.slot(it).loaded }
+            .sortedByDescending { java.io.File(filesDir, "lut_slot_$it.cube").lastModified() }
+        val names = listOf("LOAD A .CUBE FILE …", (if (activeSlot == 0) "● " else "   ") + "OFF") +
+            loaded.map { (if (it == activeSlot) "● " else "   ") + (slots.slot(it).label ?: "LUT $it") + "  · ${slots.slot(it).size}³" }
+        android.app.AlertDialog.Builder(this).setTitle("LUTS")
+            .setItems(names.toTypedArray()) { _, w ->
+                when (w) {
+                    0 -> pickLut.launch(arrayOf("*/*"))
+                    1 -> { activeSlot = 0; applyLook(); refreshKeys(); say("LUT off") }
+                    else -> {
+                        activeSlot = loaded[w - 2]; settings.lastLutSlot = activeSlot
+                        applyLook(); refreshKeys(); say("LUT: " + (slots.slot(activeSlot).label ?: "$activeSlot"))
+                    }
+                }
+                Trace.control("LUT", activeSlot, "menu")
+            }
+            .setNegativeButton("CLOSE", null).show()
+    }
+
+    /** v173: a .cube from the menu: into a free place, or over the LUT loaded longest ago when all eleven are full;
+     *  then it is on. */
+    private val pickLut =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@registerForActivityResult
+            val place = (1..LutSlots.COUNT).firstOrNull { !slots.slot(it).loaded }
+                ?: (1..LutSlots.COUNT).minBy { java.io.File(filesDir, "lut_slot_$it.cube").lastModified() }
+            val name = runCatching {
+                contentResolver.query(uri, null, null, null, null)?.use { c ->
+                    val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (i >= 0 && c.moveToFirst()) c.getString(i) else null
+                }
+            }.getOrNull()
+            val size = slots.import(place, uri, name)
+            if (size == null) { say("That file is not a 3D cube LUT"); return@registerForActivityResult }
+            activeSlot = place; settings.lastLutSlot = place
+            applyLook(); refreshKeys()
+            say("LUT: ${slots.slot(place).label}, $size cubed")
+        }
+
     private fun nextLut() {
         val loaded = (1..LutSlots.COUNT).filter { slots.slot(it).loaded }
         // An empty library is not a dead key: it is the way in to filling it.
@@ -3972,9 +4088,13 @@ class MainActivity : AppCompatActivity() {
             storageKey.tint = null
             return
         }
-        val left = Mechanism.secondsLeft(free, pipeline.videoBitRate.toLong(), 192_000L)
-        storageKey.label = Mechanism.formatFree(free)
-        storageKey.sub = Mechanism.formatTimeLeft(left)
+        // v173: the time left at the rate the take WILL be written at (the format's, AUTO), not the last start's
+        val left = Mechanism.secondsLeft(free, settings.recordMbps * 1_000_000L, 192_000L)
+        // v173 (Marko, 29.10.2026: "enlarge gigabytes ... It must be the same as 90% battery"): the number alone is
+        // the key's word, as big as the battery's; its unit goes under it with the time left
+        val text = Mechanism.formatFree(free)
+        storageKey.label = text.substringBefore(' ')
+        storageKey.sub = text.substringAfter(' ', "") + " " + Mechanism.formatTimeLeft(left)
         // v145: yellow, the settings' key; red under ten minutes, as before
         storageKey.state = if (left < 10 * 60) RailButton.State.ARMED else RailButton.State.SHOWN
         storageKey.tint = if (left < 10 * 60) null else STORAGE_YELLOW
@@ -4060,12 +4180,20 @@ class MainActivity : AppCompatActivity() {
     private fun refreshKeys() {
         lenses.getOrNull(activeLens)?.equivalentMm?.takeIf { it > 0 }?.let { lensChooser.sub = "${it}mm" }
         lensChooser.state = if (lensesOpen) RailButton.State.ARMED else RailButton.State.ON
-        lensKeys.forEach { it.visibility = if (lensesOpen) View.VISIBLE else View.GONE }
-        // v130: while the drawer is open it is the whole rail; every other key steps aside
-        for (i in 0 until railLeft.childCount) {
-            val k = railLeft.getChildAt(i)
-            if (k !== lensChooser && k !in lensKeys) k.visibility = if (lensesOpen) View.GONE else View.VISIBLE
+        // v130/v173: an open drawer is the whole right rail; every other key steps aside and comes back when it closes
+        val assists = listOf<View>(peakKey, falseKey, zebraKey)
+        for (i in 0 until railRight.childCount) {
+            val k = railRight.getChildAt(i)
+            k.visibility = when {
+                lensesOpen -> if (k === lensChooser || k in lensKeys) View.VISIBLE else View.GONE
+                assistOpen -> if (k === assistKey || k in assists) View.VISIBLE else View.GONE
+                else -> if (k in lensKeys || k in assists) View.GONE else View.VISIBLE
+            }
         }
+        for (k in listOf(peakKey, falseKey, zebraKey)) k.scale = if (assistOpen) 1.35f else 1f
+        val on = listOfNotNull("PEA".takeIf { peaking }, "FC".takeIf { falseColour }, "ZEB".takeIf { zebra })
+        assistKey.sub = if (on.isEmpty()) "OFF" else on.joinToString(" ")
+        assistKey.state = when { assistOpen -> RailButton.State.ARMED; on.isNotEmpty() -> RailButton.State.ON; else -> RailButton.State.OFF }
         // v169: the ruler's ▶ only while the ruler is up; green with key points to go to, dark without
         rulerPlay.visibility = if (!lensesOpen && focusMeter.visibility == View.VISIBLE) View.VISIBLE else View.GONE
         rulerPlay.state = if (focusMeter.keys.isEmpty()) RailButton.State.DEAD else RailButton.State.ON
@@ -4073,11 +4201,14 @@ class MainActivity : AppCompatActivity() {
         // red failed), grey when the shape is off; a bar under it says which one is armed.
         rulerKey.state = if (settings.focusPuller) RailButton.State.ON else RailButton.State.OFF
         infoKey.state = if (settings.showStatus) RailButton.State.ON else RailButton.State.OFF
+        // v173 (Marko, 29.10.2026): no bar under the key any more, only colours. GREY: hidden, and a tap on the
+        // picture does nothing for it (unless TOUCH WHEN HIDDEN, its long press); WHITE: shown, a tap ON it works as
+        // before; GREEN: every tap on the picture and every pinch go to it; one green at a time.
         markKeys.forEachIndexed { i, key ->
             val on = settings.marksShown and (1 shl i) != 0
-            key.state = if (on) RailButton.State.SHOWN else RailButton.State.OFF
-            key.tint = if (!on) null else if (i == 0) focusSquare.colour() else exposureCircle.colour()
-            key.marked = on && settings.pinchTarget == i
+            key.state = when { !on -> RailButton.State.OFF; settings.pinchTarget == i -> RailButton.State.ON; else -> RailButton.State.SHOWN }
+            key.tint = null
+            key.marked = false
             key.invalidate()
         }
         lensKeys.forEachIndexed { i, key ->
@@ -4115,6 +4246,7 @@ class MainActivity : AppCompatActivity() {
         lutKey.sub = if (activeSlot > 0) slots.slot(activeSlot).label?.take(5) ?: "$activeSlot" else "OFF"
         lutKey.state = if (activeSlot > 0) RailButton.State.ON else RailButton.State.OFF
         if (activeSlot == 0 && slots.loadedCount() == 0) lutKey.sub = "ADD"
+        if (activeSlot > 0) settings.lastLutSlot = activeSlot
         falseKey.state = if (falseColour) RailButton.State.ON else RailButton.State.SHOWN
         zebraKey.state = if (zebra) RailButton.State.ON else RailButton.State.SHOWN
         zebraKey.sub = if (zebra) "${settings.zebraLevel}%" else null
@@ -4163,7 +4295,8 @@ class MainActivity : AppCompatActivity() {
         if (statusRow.visibility == View.VISIBLE && statusRow.height == 0) statusRow.post { if (statusRow.height > 0) placeStatus() }
     }
 
-    private fun markStatus(): String = when (settings.pinchTarget) {
+    private fun markStatus(): String = when (tapTarget()) {
+        -1 -> ""
         1 -> if (settings.circleMode == CIRCLE_WB) "WB CIRCLE" + (wbLockedAt?.let { " $it" } ?: "") + "  ·  "
             else "ISO CIRCLE" + (exposureLockedAt?.let { " $it" } ?: "") + "  ·  "
         else -> "FOCUSING SQUARE" + (focusLockedAt?.let { " $it" } ?: "") + "  ·  "
