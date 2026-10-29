@@ -1241,4 +1241,11 @@ fixed focus, front lenses no torch, all true).
 >
 > That's it.
 
+**Status:** done 29.10.2026, v178: a short toast "F FOCUS OFF / ON / DEFAULT TOUCHING MODE", "E EXPOSURE …"; seen on the
+Pixel for all three states of E.
+
+## 29.10.2026 — the assists: orange off, green on, the green twice as thick
+
+> To make a greater difference in the assistance menu, you need to turn orange off and on. Orange is off, and green is on. But you should make it much thicker, double-size green.
+
 **Status:** in progress 29.10.2026.

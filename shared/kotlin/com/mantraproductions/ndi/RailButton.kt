@@ -225,6 +225,10 @@ class RailButton @JvmOverloads constructor(
     private val markPath = Path()
     private val rule = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#4A5058") }
 
+    /** v179 (Marko, 29.10.2026: "Orange is off, and green is on ... make it much thicker, double-size green"): the
+     *  frame of the assists (zebra, peaking, false colour) twice as thick while green. */
+    private fun frameWidth() = density(if (state == State.ON) 3.6f else 1.8f)
+
     private fun drawGlyph(canvas: Canvas, tint: Int) {
         val cx = dw / 2f
         val cy = dh / 2f
@@ -363,7 +367,7 @@ class RailButton @JvmOverloads constructor(
             Glyph.ZEBRA -> {
                 // v155 (Marko: "one square and inside lines in some kind of angle. It can be like zebra")
                 val h = r * 1.05f
-                mark.strokeWidth = density(1.8f)
+                mark.strokeWidth = frameWidth()
                 canvas.drawRect(cx - h, cy - h, cx + h, cy + h, mark)
                 canvas.save()
                 canvas.clipRect(cx - h, cy - h, cx + h, cy + h)
@@ -378,7 +382,7 @@ class RailButton @JvmOverloads constructor(
                 // v155 (Marko: "Peaking will be the red square with random dots"): the square in the key's colour, the
                 // dots red as peaking lights edges red; fixed places, so the key does not flicker
                 val h = r * 1.05f
-                mark.strokeWidth = density(1.8f)
+                mark.strokeWidth = frameWidth()
                 canvas.drawRect(cx - h, cy - h, cx + h, cy + h, mark)
                 val dots = floatArrayOf(-0.55f, -0.6f, 0.2f, -0.45f, 0.6f, -0.1f, -0.2f, 0.05f, 0.35f, 0.5f, -0.6f, 0.45f, 0.05f, 0.62f, -0.05f, -0.25f, 0.62f, 0.3f)
                 val red = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = if (state == State.DEAD) DEAD else Color.parseColor("#FF3B30") }
@@ -404,7 +408,7 @@ class RailButton @JvmOverloads constructor(
                 p(0.7f, 1f, 0.62f, 0.45f, 1f, 0.55f, 1f, 1f, colour = "#F26FB0")              // pink: skin
                 p(0f, 0.2f, 0f, 0f, 0.55f, 0f, 0.62f, 0.45f, 0.35f, 0.3f, colour = "#F5D90A") // yellow: bright
                 p(0.55f, 0f, 1f, 0f, 1f, 0.55f, 0.62f, 0.45f, colour = "#E5484D")             // red: clipping
-                mark.strokeWidth = density(1.8f)
+                mark.strokeWidth = frameWidth()
                 canvas.drawRect(cx - h, cy - h, cx + h, cy + h, mark)
             }
             Glyph.NONE -> Unit
