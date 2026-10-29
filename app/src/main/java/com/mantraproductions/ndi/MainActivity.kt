@@ -977,10 +977,23 @@ class MainActivity : AppCompatActivity() {
                 // the landscape screen is the phone turned to 270 here; upright (0) the words turn a quarter LEFT
                 // (v166: v165 turned them right, upside down for Marko, 28.10.2026: "the opposite of what it's supposed to be")
                 val turn = (270 - q + 360) % 360
-                if (turn != keyTurn) { keyTurn = turn; turnKeys() }
+                if (turn != keyTurn) {
+                    val wasUpright = keyTurn % 180 == 90
+                    keyTurn = turn; turnKeys()
+                    if (wasUpright != (keyTurn % 180 == 90)) { applyPreviewTransform(); updateFocusRegion() }   // v182: the selfie's half turn
+                }
             }
         }
     }
+
+    /**
+     * v182 (Marko, 29.10.2026: "in portrait mode, the selfie lens is upside down. It's acting very good in landscape"):
+     * the screen stays landscape and the selfie picture is mirrored across the screen; held upright, "across the
+     * screen" is up-down for him, so the mirror stood the picture on its head. A half turn more, with the mirror, is a
+     * side-to-side mirror again. Front lens and the phone upright only; the take is not mirrored and keeps its turn.
+     */
+    private fun selfieTurn(): Int =
+        if (::pipeline.isInitialized && pipeline.isRunning && pipeline.engine.isFrontFacing && keyTurn % 180 == 90) 180 else 0
 
     private fun turnKeys() {
         fun walk(v: View) {
@@ -1412,7 +1425,7 @@ class MainActivity : AppCompatActivity() {
         previewMirrored = producerMirrored
 
         val auto = Mechanism.previewRotation(sensor, displayDegrees, front, producerDegrees)
-        val applied = ((auto + manualQuarterTurns * 90) % 360 + 360) % 360
+        val applied = ((auto + manualQuarterTurns * 90 + selfieTurn()) % 360 + 360) % 360
 
         // THE SQUASH.
         //
@@ -1485,9 +1498,9 @@ class MainActivity : AppCompatActivity() {
         val engine = pipeline.engine
         val displayDegrees = displayDegrees()
         val front = engine.isFrontFacing
-        val degrees = Mechanism.sensorToViewDegrees(
+        val degrees = (Mechanism.sensorToViewDegrees(
             engine.sensorOrientation, displayDegrees, front, manualQuarterTurns
-        )
+        ) + selfieTurn()) % 360
         val b = focusSquare.normalisedBounds()
         val onStream = Mechanism.viewRegionToSensor(b[0], b[1], b[2], b[3], degrees, previewMirrored)
         val array = engine.activeArray()
@@ -1593,9 +1606,9 @@ class MainActivity : AppCompatActivity() {
     /** The stream's degrees from the screen, the same sum [updateFocusRegion] uses. */
     private fun viewDegrees(): Int {
         val engine = pipeline.engine
-        return Mechanism.sensorToViewDegrees(
+        return (Mechanism.sensorToViewDegrees(
             engine.sensorOrientation, displayDegrees(), engine.isFrontFacing, manualQuarterTurns
-        )
+        ) + selfieTurn()) % 360
     }
 
     /** The box, as it is now, becomes the pattern; the GPU stage starts looking for it. */
@@ -2787,7 +2800,7 @@ class MainActivity : AppCompatActivity() {
     private fun sensorRegionOf(b: FloatArray): FloatArray? {
         if (!pipeline.isRunning) return null
         val engine = pipeline.engine
-        val degrees = Mechanism.sensorToViewDegrees(engine.sensorOrientation, displayDegrees(), engine.isFrontFacing, manualQuarterTurns)
+        val degrees = (Mechanism.sensorToViewDegrees(engine.sensorOrientation, displayDegrees(), engine.isFrontFacing, manualQuarterTurns) + selfieTurn()) % 360
         val onStream = Mechanism.viewRegionToSensor(b[0], b[1], b[2], b[3], degrees, previewMirrored)
         val array = engine.activeArray() ?: return onStream
         return Mechanism.streamRegionToArray(onStream, bufferSize.width, bufferSize.height, array.width(), array.height())
