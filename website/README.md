@@ -10,3 +10,7 @@ releases/latest, so a new release needs no change here; new cards and screenshot
 
 29.10.2026: cards 14 (two drawers beside REC) and 15 (time left that tells the truth), screenshot 01 of v176 on L3 and
 09 with DISPLAY ASSIST open. NOT YET PUBLISHED: the session's deploy was refused by the permission check.
+
+29.10.2026 (v183, on the branch claude/mantra-manual-camera-rename-mxa5ln): card 16 (faders that meet the light: the
+yellow line, the mixer caps, the words upright) and screenshot 10-faders.jpg (the faders held upright on the Pixel 7).
+NOT YET PUBLISHED: publish together with the v183 release, so the page does not describe what the download lacks.
