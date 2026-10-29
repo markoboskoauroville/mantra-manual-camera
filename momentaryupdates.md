@@ -1222,4 +1222,11 @@ key's millimetres changing (17, 25, 50, 21, 24 mm), no fault in the trace; the d
 >
 > You can test this on Nothing Phone.
 
-**Status:** in progress 29.10.2026.
+**Status:** done 29.10.2026, v177 (PhoneSupport.kt). Read from each lens, no list of phone models: 10-bit (HLG from
+the camera AND a 10-bit HEVC encoder), manual exposure, manual white balance, focus travel, torch, EV, log curves, the
+tracker. A key asking for what is missing says "Not supported feature on this phone: …" (status line; a toast in
+Settings) and does nothing; the old varied refusals say the same sentence. A new phone (by model) is greeted once
+with what it lacks, and the trace lists every lens. Tested on the Nothing A142 (v177 installed): greeted "Nothing A142
+— Not supported feature on this phone: 10-bit"; 10-BIT in Settings refused (stays 8-BIT); AF on the fixed front lens
+and the torch refused with the sentence on screen. The Pixel 7: nothing wrongly refused (ultra-wide and front lenses
+fixed focus, front lenses no torch, all true).
