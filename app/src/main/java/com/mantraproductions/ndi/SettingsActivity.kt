@@ -330,7 +330,17 @@ class SettingsActivity : AppCompatActivity() {
             settings.fps = rates[(rates.indexOf(settings.fps) + 1) % rates.size]
             paintQuick()
         }
-        depthKey.setOnClickListener { settings.wantTenBit = !settings.wantTenBit; paintQuick() }
+        depthKey.setOnClickListener {
+            // v177 (Marko, 29.10.2026: "if the camera is not 10-bit, then it says Not supported feature"): 10-bit only
+            // when this lens gives HLG 10-bit and the phone has a 10-bit HEVC encoder
+            val lens = intent.getStringExtra(EXTRA_LENS)
+            if (!settings.wantTenBit && lens != null && PhoneSupport.lens(this, lens)?.tenBit == false) {
+                Toast.makeText(this, "${PhoneSupport.SENTENCE}: 10-bit", Toast.LENGTH_LONG).show()
+                Trace.refused("not supported", "10-bit on ${PhoneSupport.phoneName}, lens $lens")
+                return@setOnClickListener
+            }
+            settings.wantTenBit = !settings.wantTenBit; paintQuick()
+        }
         resKey.setOnClickListener {
             settings.captureWidth = offered[(offered.indexOf(settings.captureWidth) + 1) % offered.size]
             fitRate()                      // a size can change which rates the lenses hold

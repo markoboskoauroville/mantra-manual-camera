@@ -413,7 +413,7 @@ class MainActivity : AppCompatActivity() {
         // v104: any change that stopped the picture was taken back by the engine; say so, in his words
         pipeline.engine.onRequestFroze = {
             ui.post {
-                say("That setting is not available on this phone — put back as it was")
+                say("${PhoneSupport.SENTENCE} — that setting was put back as it was")
                 refreshZones(); refreshKeys()
             }
         }
@@ -423,7 +423,7 @@ class MainActivity : AppCompatActivity() {
                 refusedCurves.add(lensKey() + "/" + refused.name)
                 settings.refusedCurves = refusedCurves
                 risk = null
-                say("${curveLabel(refused)} is not supported on this lens — back to ${curveLabel(back)}")
+                say("${PhoneSupport.SENTENCE}: ${curveLabel(refused)} — back to ${curveLabel(back)}")
                 refreshKeys()
             }
         }
@@ -907,6 +907,9 @@ class MainActivity : AppCompatActivity() {
         )
         applyLook()
         refreshKeys()
+        // v177: 10-bit asked for on a lens (or a phone) that cannot: said, not quietly dropped to 8-bit
+        if (settings.wantTenBit && can()?.tenBit == false) notSupported("10-bit on this lens — 8-bit instead")
+        greetNewPhone()
     }
 
     override fun onRequestPermissionsResult(
@@ -1532,7 +1535,12 @@ class MainActivity : AppCompatActivity() {
      * steps straight from AF to MF and says why.
      */
     private fun toggleAutoFocus() {
+        if (can()?.focusTravel == false) { notSupported("focus (this lens is fixed focus)"); return }
         when {
+            focus.mode == FocusDirector.Mode.AUTO && !tracking && !PhoneSupport.tracker -> {
+                notSupported("TRK, the tracker")
+                focus.setMode(FocusDirector.Mode.MANUAL)
+            }
             focus.mode == FocusDirector.Mode.AUTO && !tracking -> {
                 if (pipeline.usesGpuStage) {
                     startTrack()
@@ -1734,7 +1742,7 @@ class MainActivity : AppCompatActivity() {
         risk = null
         if (r != null && now - r.second < 10_000) {
             r.third()                                    // forget the step, put the old value back
-            say("${r.first} is not available on this phone — back as it was")
+            say("${PhoneSupport.SENTENCE}: ${r.first} — back as it was")
             Trace.refused("camera died", "$message after ${r.first}: taken back, the camera opened again")
         } else {
             say("The camera stopped ($message) — opened again")
@@ -1768,6 +1776,7 @@ class MainActivity : AppCompatActivity() {
     private var previousCurve = LogCurves.Curve.REC709
 
     private fun nextCurve() {
+        if (can()?.toneCurve == false) { notSupported("log curves"); return }
         previousCurve = LogCurves.Curve.entries[curveIndex]
         val count = LogCurves.Curve.entries.size
         for (step in 1..count) {
@@ -1805,6 +1814,7 @@ class MainActivity : AppCompatActivity() {
      * once, the way pressing its A does.
      */
     private fun nextCameraMode() {
+        if (can()?.manualExposure == false) { notSupported("manual exposure (ISO and shutter by hand)"); return }
         val now = switches()
         if (Mechanism.cameraMode(now) == "HM") lastHalf = now.copyOf()
         val next = Mechanism.nextCameraMode(now, lastHalf)
@@ -1819,6 +1829,9 @@ class MainActivity : AppCompatActivity() {
     private fun toggleParam(index: Int) {
         // WB's switch is a button (v90): A measures once and comes back to M.
         if (index == 3) { if (!wbAuto) probeWhiteBalance(); return }
+        val c = can()
+        if ((index == 0 || index == 1) && c?.manualExposure == false) { notSupported(if (index == 0) "manual ISO" else "manual shutter"); return }
+        if (index == 2 && c?.focusTravel == false) { notSupported("focus (this lens is fixed focus)"); return }
         val now = switches()
         setParamAuto(index, !now[index], quiet = false)
         if (Mechanism.cameraMode(switches()) == "HM") lastHalf = switches()
@@ -2204,7 +2217,7 @@ class MainActivity : AppCompatActivity() {
         if (cmd != "key" && !pipeline.isRunning) return "the camera is not running"
         val said: String = when (cmd) {
             "torch", "light" -> {
-                if (!engine.hasFlash()) return "this lens has no lamp"
+                if (!engine.hasFlash()) { notSupported("torch on this lens"); return "${PhoneSupport.SENTENCE}: torch on this lens" }
                 // v145: a brightness in percent turns it on at that level (torch 30%)
                 v.removeSuffix("%").toIntOrNull()?.takeIf { v.endsWith("%") }?.let { pct ->
                     settings.torchLevel = pct
@@ -2774,6 +2787,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setCircleMode(mode: Int) {
+        if (mode == CIRCLE_WB && can()?.manualWhiteBalance == false) { notSupported("white balance by the circle"); return }
+        if (mode != CIRCLE_WB && can()?.manualExposure == false) { notSupported("ISO by the circle (no manual exposure)"); return }
         releaseCircle()
         spotTicket++
         settings.circleMode = mode
@@ -3024,7 +3039,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun stepShutter(direction: Int) {
         if (!pipeline.isRunning) { say("The camera is not open"); return }
-        val (low, high) = shutterBounds() ?: run { say("This lens has no manual shutter"); return }
+        val (low, high) = shutterBounds() ?: run { notSupported("manual shutter"); return }
         val from = if (shutterAuto) pipeline.engine.lastExposureNs ?: shutterNs else shutterNs
         val next = Mechanism.shutterStep(from, direction, low, high)
         if (next == null) {
@@ -3054,7 +3069,7 @@ class MainActivity : AppCompatActivity() {
         val shutter0 = if (shutterAuto) engine.lastExposureNs else shutterNs
         if (engine.isoRange() == null || iso0 == null || shutter0 == null) {
             exposureCircle.state = MarkView.State.FAILED
-            say("ISO: this lens does not report its exposure")
+            notSupported("ISO by the circle (this lens does not report its exposure)")
             return
         }
         iso = iso0
@@ -3699,7 +3714,7 @@ class MainActivity : AppCompatActivity() {
             focusComplaintFor = key
             Trace.refused("focus", "$lens has no focus travel; it is fixed")
         }
-        say("$lens is fixed focus — there is nothing to pull")
+        say("${PhoneSupport.SENTENCE}: focus — $lens is fixed focus")
     }
 
     /**
@@ -3924,6 +3939,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** What this lens is called in the preferences: its id, and its sub-lens. */
+    /** v177: what the lens in use can do (PhoneSupport), or null before the lenses are known. */
+    private fun can(): PhoneSupport.Lens? = if (lenses.isEmpty()) null else PhoneSupport.lens(this, lensKey())
+
+    /** v177: the one sentence for a feature this phone or lens does not have, on the screen and in the trace. */
+    private fun notSupported(what: String) {
+        say("${PhoneSupport.SENTENCE}: $what")
+        Trace.refused("not supported", "$what on ${PhoneSupport.phoneName}, ${lenses.getOrNull(activeLens)?.label ?: "?"}")
+    }
+
+    /**
+     * v177: the first start on a phone (or after the app came to another one): what is on it and what is not, said
+     * once, so nobody is surprised by a key that answers "Not supported".
+     */
+    private fun greetNewPhone() {
+        val phone = PhoneSupport.phoneName
+        val prefs = getSharedPreferences("phone", MODE_PRIVATE)
+        if (prefs.getString("model", null) == phone || lenses.isEmpty()) return
+        prefs.edit().putString("model", phone).apply()
+        val perLens = lenses.mapNotNull { l -> PhoneSupport.lens(this, l.id + (l.physicalId?.let { ":$it" } ?: ""))?.let { l to it } }
+        val nowhere = listOf("10-bit", "manual exposure", "manual white balance", "log curves")
+            .filter { f -> perLens.isNotEmpty() && perLens.all { f in it.second.missing() } }
+        val extra = listOfNotNull("10-bit (no 10-bit encoder)".takeIf { !PhoneSupport.hevcMain10 && "10-bit" !in nowhere },
+            "TRK (the tracker)".takeIf { !PhoneSupport.tracker })
+        Trace.state("phone: $phone, ${lenses.size} lenses; " + perLens.joinToString("; ") { (l, c) ->
+            l.label + ": " + (c.missing().ifEmpty { listOf("everything") }.joinToString(", ")) })
+        val lacking = nowhere + extra
+        say("$phone" + if (lacking.isEmpty()) ": every feature is supported" else " — ${PhoneSupport.SENTENCE}: " + lacking.joinToString(", "))
+    }
+
     private fun lensKey(): String {
         val lens = lenses.getOrNull(activeLens) ?: return "0"
         return lens.id + (lens.physicalId?.let { ":$it" } ?: "")
@@ -4180,7 +4224,7 @@ class MainActivity : AppCompatActivity() {
             zebraLevel = settings.zebraLevel
         )
         if (!ok) {
-            say("This phone will not run the preview shader")
+            say("${PhoneSupport.SENTENCE}: the preview shader (looks, LUTs, peaking)")
             Trace.refused("preview shader", "rejected by the graphics layer")
             peaking = false
             falseColour = false
