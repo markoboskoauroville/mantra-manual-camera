@@ -367,8 +367,8 @@ class ControlZones @JvmOverloads constructor(
                 canvas.drawLine(x, mid + density(6f), x, mid + density(6f) + h, line)
             }
 
-            // THE CAP: a wide flat block with a line across its middle, the
-            // way an audio fader's cap is made to be read at a glance.
+            // THE CAP: a flat block, wide across the groove and narrow along it, with
+            // a line across its middle, the way an audio fader's cap is read at a glance.
             val at = left + (right - left) * zone.position.coerceIn(0f, 1f)
             val capW = density(18f)
             val capH = (rowHeight * 0.62f).coerceAtMost(density(42f))
@@ -381,9 +381,18 @@ class ControlZones @JvmOverloads constructor(
             fill.setShadowLayer(density(4f), 0f, 0f, Color.BLACK)
             canvas.drawRoundRect(box, density(3f), density(3f), fill)
             fill.clearShadowLayer()
+            // v183 (Marko, 29.10.2026: "turn the knobs on the faders so they are vertical, like on the audio mixer.
+            // That is our role model"): the line runs ACROSS the cap, square to the travel, the level mark of a mixer's
+            // fader cap, with a fine grip ridge either side of it. It ran along the travel before.
+            line.strokeWidth = density(1f)
+            line.color = Color.argb(110, 20, 20, 20)
+            for (side in listOf(-1f, 1f)) {
+                val x = at + side * capW * 0.30f
+                canvas.drawLine(x, box.top + density(4f), x, box.bottom - density(4f), line)
+            }
             line.strokeWidth = density(2f)
             line.color = Color.argb(220, 20, 20, 20)
-            canvas.drawLine(box.left + density(2f), mid, box.right - density(2f), mid, line)
+            canvas.drawLine(at, box.top + density(2f), at, box.bottom - density(2f), line)
         }
     }
 

@@ -1290,4 +1290,10 @@ v183. `ControlZones.turn` follows the rail keys' turn. Phone upright: each fader
 lines at its far end (number above, name under it), the groove shortened to make room; the A / M letter turns in its
 key; the preset words that fit standing (0°, 90° … 360°) turn, BASE 100 / HIGH 1600 and the kelvin presets stay as
 they are. Upside down: each word turns where it is. The faders themselves do not move. CTRL now sits under the
-ruler key, INFO where CTRL was. — **Status:** v183 asked; built, not yet seen on a phone.
+ruler key, INFO where CTRL was.
+
+> Also, please turn the knobs on the faders so they are vertical, like on the audio mixer. That is our role model.
+
+The fader cap keeps its mixer shape (wide across the groove, narrow along it); its line now runs across the cap, square
+to the travel, the level mark of a mixer cap, with a fine grip ridge either side (it ran along the travel). — **Status:**
+v183 asked; built, not yet seen on a phone.
