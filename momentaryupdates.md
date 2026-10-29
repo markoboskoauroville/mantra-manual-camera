@@ -1257,4 +1257,8 @@ orange (off); seen on the Pixel.
 
 > Those should follow the rotation of the screen.
 
-**Status:** in progress 29.10.2026.
+**Status:** done 29.10.2026, v180–v181: the lens drawer is three rows per lens ("L1" / "17mm" / "f/2.2 · 12MP · 4K"),
+1.7× larger, and no opener while open (the lens in use closes it); seen on the Pixel. The F/E message is the camera's
+own (on the picture, turned with the keys by keyTurn) instead of Android's toast, which never turns. v180 broke the
+F/E keys' refresh (the message looked up the picture from the TextView, null); v181 fixed it; seen: "F FOCUS OFF",
+"F FOCUS ON". The turn with the phone upright is for Marko's hand.
