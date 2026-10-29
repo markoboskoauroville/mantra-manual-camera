@@ -1168,3 +1168,25 @@ v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upr
 **Pinpointed 29.10.2026, 06:50:** adb's own discovery started deaf after the restart (it only listens on the networks
 that existed when the adb server started), while macOS's Bonjour heard the Pixel; and the first connect to the dozing
 Wi-Fi fails. mcam: Bonjour fallback and four tries; both roads proven (≈6 s each).
+
+## 29.10.2026 — gigabytes as big as the battery; time left that follows the format; DISPLAY ASSIST and LENS drawers; grey / white / green for the square, circle and F; click-through on a long press; LUT history; Settings from the power monitor
+
+> First, you need to add features to the camera. Then you need to test it all, please.
+>
+> First, you need to enlarge gigabytes. It says 41.1 GB. It must be the same as 90% battery power.
+>
+> Second, of all, these 4 hours under 41.1 GB is not correct. When I'm changing file formats inside my settings, this number is fixed.
+>
+> Second, all these 3 assistants for the screen: Zebra, False Colors, Focus, Speaking, should be under one button, same as selecting the lens principle. So one button is like Display Assistance. Then you open it, and it pushes other items and maximizes its size, so it's easy to click on. Now instead of 3, we have 1, so icons can be a bit larger and better spread. Since we have this kind of shelf opening just next to the shelf on the left side of the record button, move the lens. Lens again, opener. We have assistance for the display, and then a lens chooser with the same kind of mechanism to push other icons away and basically fill up the central stage of that rail. They are coming to the center, so the user can easily understand and click both things. They are replacing all the icons momentarily, and when you close them, they open up again.
+>
+> Old layout, and now the behavior of this focus-pulling icon, which is the exposure circle and the F icon. The idea is that when the icon is active, it has some color. I will tell you what it is. When it is grey, even the clicks don't pass through. I said focus clicking or whatever with an invisible thing, but you can make this on the pop-up menu.
+>
+> If I long press each of these icons on the rail, there will be more options, and that means click through. Or somehow we need to find wording such that even when this is not visible on screen, the touches are registered, but by default they are off. Long pressing registers touches even if invisible.
+>
+> Also, the line under we're removing. We just work with colors. First is white color. It means I show the circle or square, and I do things as before. When there is a green color, which replaces the underlined thing, it means its default tapping is registered only for that circle or focus. It means they will cancel each other; only one can be green at a time. Also, for LUTs, there is a lot of suppression on the LUTs. Short press enables the LUT. Long press gives the file-opening dialog to load the LUT. In the same dialog, we have history of all LUTs, so the user can switch in between. That's all.
+>
+> Now, to make settings available in multiple places, when I am clicking on the battery indicator or the power monitor, it gets all its data. On the left side, there is OK. On the right side, put Settings. We can also enter the settings in this way. That's all. Only these updates. Only a few.
+
+(Dictation: "Speaking" = Peaking; "suppression" probably = confusion.)
+
+**Status:** in progress 29.10.2026.
