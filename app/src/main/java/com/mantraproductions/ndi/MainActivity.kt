@@ -3805,6 +3805,30 @@ class MainActivity : AppCompatActivity() {
      * questions and answering both with one number is what made the shutter
      * zone stop two thirds of the way along its own track.
      */
+    /**
+     * v183: how many stops the picture is off a good exposure, as the phone's own automatic exposure would judge it:
+     * the middle of the picture, decoded to scene light through the curve, against 18% grey (positive: open up).
+     * The camera does not meter while exposure is manual, so this is the app's meter on the same picture. Eased
+     * from second to second as a value, not as an error, so the line stays put while the fader moves the picture.
+     */
+    private var measuredLog: Double? = null
+    private var measuredFrom = 0L
+
+    private fun measuredExposureStops(): Double? {
+        val encoded = sampleBrightness() ?: return null
+        val curve = LogCurves.Curve.entries[curveIndex]
+        val error = Mechanism.circleExposureError(LogCurves.decode(curve, encoded))
+        // the error read at the exposure that made this picture: ISO × shutter as one number, in stops
+        val e = pipeline.engine
+        val now = kotlin.math.ln((e.lastIso ?: iso).toDouble() * (e.lastExposureNs ?: shutterNs).toDouble()) / kotlin.math.ln(2.0)
+        val target = now + error
+        val t = android.os.SystemClock.elapsedRealtime()
+        val held = measuredLog
+        measuredLog = if (held == null || t - measuredFrom > 5_000) target else held + (target - held) * 0.35
+        measuredFrom = t
+        return measuredLog!! - now
+    }
+
     private fun refreshZones() {
         val engine = pipeline.engine
         val running = pipeline.isRunning
@@ -3846,6 +3870,18 @@ class MainActivity : AppCompatActivity() {
             )
         } ?: shutterPosition
 
+        // v183: where the measurement would put the manual faders, one yellow line each (see measuredExposureStops)
+        val stops = if (running && (!isoAuto || !shutterAuto)) measuredExposureStops() else null
+        val isoSuggested = if (isoAuto || stops == null) null else engine.isoRange()?.let {
+            Mechanism.positionOfValue((liveIso * Math.pow(2.0, stops)).coerceIn(it.lower.toDouble(), it.upper.toDouble()),
+                it.lower.toDouble(), it.upper.toDouble())
+        }
+        val shutterSuggested = if (shutterAuto || stops == null) null else shutterBounds()?.let { (low, high) ->
+            Mechanism.positionOfValue((liveShutter * Math.pow(2.0, stops)).coerceIn(low.toDouble(), high.toDouble()),
+                low.toDouble(), high.toDouble())
+        }
+        val wbSuggested = if (wbAuto || !running) null else engine.measuredKelvin()?.let { WhiteBalance.travel(it) }
+
         zones.zones = listOf(
             // While a fader is his, the number is what he set, so it moves
             // with his thumb rather than a frame behind the camera.
@@ -3853,7 +3889,8 @@ class MainActivity : AppCompatActivity() {
                 "ISO", (if (isoAuto) liveIso else iso).toString(), true, isoPositionShown, isoAuto,
                 presets = isoPresetList.map { (name, value) -> "$name $value" },
                 presetLit = if (isoAuto) -1
-                    else Mechanism.presetLit(iso.toDouble(), isoPresetList.map { it.second.toDouble() })
+                    else Mechanism.presetLit(iso.toDouble(), isoPresetList.map { it.second.toDouble() }),
+                suggested = isoSuggested
             ),
             ControlZones.Zone(
                 "SHTR", Mechanism.formatShutter(if (shutterAuto) liveShutter else shutterNs), true,
@@ -3861,7 +3898,8 @@ class MainActivity : AppCompatActivity() {
                 presets = if (shutterPresetList.isEmpty()) emptyList()
                     else Mechanism.SHUTTER_ANGLES.map { "$it°" },
                 presetLit = if (shutterAuto) -1
-                    else Mechanism.presetLit(shutterNs.toDouble(), shutterPresetList.map { it.toDouble() })
+                    else Mechanism.presetLit(shutterNs.toDouble(), shutterPresetList.map { it.toDouble() }),
+                suggested = shutterSuggested
             ),
             ControlZones.Zone("FOCUS", focusText, canFocus, focusPosition, autoFocus),
             // Tungsten on the left, daylight on the right. Dragging it takes
@@ -3871,7 +3909,8 @@ class MainActivity : AppCompatActivity() {
                 if (wbAuto) "MEASURING" else WhiteBalance.format(wbKelvin),
                 running,
                 WhiteBalance.travel(wbKelvin),
-                wbAuto
+                wbAuto,
+                suggested = wbSuggested
             )
         )
 

@@ -1296,4 +1296,16 @@ ruler key, INFO where CTRL was.
 
 The fader cap keeps its mixer shape (wide across the groove, narrow along it); its line now runs across the cap, square
 to the travel, the level mark of a mixer cap, with a fine grip ridge either side (it ran along the travel). — **Status:**
-v183 asked; built, not yet seen on a phone.
+v183 asked.
+
+> Let the controls change. Only the knob should change its color to yellow when it reaches the part of the scale that is calculated by the phone's automatic measurement.
+>
+> It means you also need to mark the phone's recommended settings in manual mode with one line.
+
+A manual fader carries one yellow line across its groove where the measurement would put it, and its cap turns yellow
+while it stands on that line (within 1.5% of the travel); nothing else changes colour. ISO and shutter: the camera does
+not meter while exposure is manual, so the line is the app's meter on the same picture, the phone's way: the middle of
+the picture decoded through the curve against 18% grey, eased second to second as an exposure value so the line stays
+put while the fader moves the picture (`measuredExposureStops`). ISO's line holds the shutter, the shutter's line holds
+ISO. WB: the phone's own last automatic white balance (`measuredKelvin`, frozen once WB is manual). Focus: no line (the
+phone does not measure focus while it is manual). — **Status:** v183 asked; not yet compiled on the Mac or seen on a phone.

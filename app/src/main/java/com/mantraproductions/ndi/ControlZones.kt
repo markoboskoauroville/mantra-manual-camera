@@ -76,7 +76,12 @@ class ControlZones @JvmOverloads constructor(
         /** Preset keys under the fader (v90): 0° … 360° under SHTR, BASE / HIGH under ISO. */
         var presets: List<String> = emptyList(),
         /** The preset the fader sits on, lit; -1 for none. */
-        var presetLit: Int = -1
+        var presetLit: Int = -1,
+        /**
+         * v183: where the measurement would put this fader (0..1), drawn as one line across the groove while the
+         * fader is manual; null draws nothing. The cap turns yellow when it stands on it.
+         */
+        var suggested: Float? = null
     )
 
     var zones: List<Zone> = emptyList()
@@ -367,6 +372,19 @@ class ControlZones @JvmOverloads constructor(
                 canvas.drawLine(x, mid + density(6f), x, mid + density(6f) + h, line)
             }
 
+            // v183, THE MEASURED POINT (Marko, 29.10.2026: "mark the phone's recommended settings in manual mode
+            // with one line"; "only the knob should change its color to yellow when it reaches" it)
+            val suggested = zone.suggested?.takeIf { !zone.auto }?.coerceIn(0f, 1f)
+            if (suggested != null) {
+                val sx = left + (right - left) * suggested
+                line.strokeWidth = density(2f)
+                line.color = YELLOW
+                line.setShadowLayer(density(2f), 0f, 0f, Color.BLACK)
+                canvas.drawLine(sx, mid - density(14f), sx, mid + density(14f), line)
+                line.clearShadowLayer()
+            }
+            val onMeasured = suggested != null && kotlin.math.abs(zone.position - suggested) <= ON_MEASURED
+
             // THE CAP: a flat block, wide across the groove and narrow along it, with
             // a line across its middle, the way an audio fader's cap is read at a glance.
             val at = left + (right - left) * zone.position.coerceIn(0f, 1f)
@@ -374,6 +392,7 @@ class ControlZones @JvmOverloads constructor(
             val capH = (rowHeight * 0.62f).coerceAtMost(density(42f))
             box.set(at - capW / 2f, mid - capH / 2f, at + capW / 2f, mid + capH / 2f)
             fill.color = when {
+                onMeasured -> YELLOW
                 held == i -> RailButton.GREEN
                 zone.auto -> Color.argb(200, 200, 190, 170)
                 else -> Color.argb(240, 230, 232, 235)
@@ -468,5 +487,8 @@ class ControlZones @JvmOverloads constructor(
     private companion object {
         /** v183: the smallest a preset word may shrink to (sp) and still turn upright in its key. */
         const val PRESET_MIN = 9f
+        /** v183: how near the measured point (in travel) the cap counts as on it. */
+        const val ON_MEASURED = 0.015f
+        val YELLOW = Color.rgb(255, 214, 10)
     }
 }
