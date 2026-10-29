@@ -4416,7 +4416,25 @@ class MainActivity : AppCompatActivity() {
         lastSaidAt = android.os.SystemClock.elapsedRealtime()
         status.text = text                          // v172: no mark words on the line (Marko, 28.10.2026: "Remove it")
         Trace.state(text)
+        // v183: a message holds the line for a moment, then the line goes back to the picture's format
+        ui.removeCallbacks(formatBack)
+        ui.postDelayed(formatBack, SAID_HOLD_MS)
     }
+
+    /**
+     * v183 (Marko, 29.10.2026: "The top status line currently says "8-bit focus locked", and that is unnecessary
+     * information. What I need on the top line is the resolution first, then 8 or 10 bits, and then the streaming rate
+     * or quality in megabits per second. You don't need to write the word bit, just write 8b or 10b"):
+     * "1920x1080 · 10b · 40 Mb/s". The rate is what the stream measures while one runs, else the recording's quality.
+     */
+    private fun formatLine(): String {
+        val mbps = if (pipeline.mode != CameraPipeline.Mode.OFF && lastMbps > 0.0) lastMbps
+            else pipeline.videoBitRate / 1_000_000.0
+        return String.format(java.util.Locale.ROOT, "%dx%d · %s · %.0f Mb/s",
+            bufferSize.width, bufferSize.height, if (pipeline.isTenBit) "10b" else "8b", mbps)
+    }
+
+    private val formatBack = Runnable { if (pipeline.isRunning) status.text = formatLine() }
 
     // v106: the armed shape's name on the status line, and where it locked, in numbers (Marko, 2.10.2026:
     // "at the top status line, you need to write exposure circle, white balance triangle, focusing square, and
@@ -4490,10 +4508,8 @@ class MainActivity : AppCompatActivity() {
     private fun showRate(fps: Double, mbps: Double, connections: Int) {
         lastMbps = mbps
         lastWatching = connections
-        val depth = if (pipeline.isTenBit) "10-bit" else "8-bit"
-        val grey = greyReadout?.let { " · $it" } ?: ""
-        status.text = if (fps > 0.5) String.format(java.util.Locale.ROOT, "%s%s · %.1f fps%s · %s", "", depth, fps, grey, lastSaid)
-            else "$depth$grey · $lastSaid"
+        // v183: the format line, unless a message is still being read
+        if (android.os.SystemClock.elapsedRealtime() - lastSaidAt >= SAID_HOLD_MS) status.text = formatLine()
         refreshTelemetry()
     }
 
@@ -4600,6 +4616,8 @@ private const val SPRING_OMEGA = 5.0
 private const val CIRCLE_TOLERANCE_STOPS = 0.2
 private const val CIRCLE_ROUNDS = 3
 private const val CIRCLE_SETTLE_MS = 300L
+/** v183: how long a message holds the top line before the format comes back. */
+private const val SAID_HOLD_MS = 3_000L
 /** v143: the circle's modes (Settings.circleMode). */
 private const val CIRCLE_ISO = 0
 private const val CIRCLE_WB = 1

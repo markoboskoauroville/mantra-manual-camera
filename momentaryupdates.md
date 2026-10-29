@@ -1322,3 +1322,13 @@ v183. `CameraCatalogue.Lens.canFocus` (a minimum focus distance above zero). Eac
 the lens focuses and orange when it is fixed focus; the lens in use carries a bar under its key (it was the green of
 "on"). The key reads "L5" / "24mm" / "f/1.85" / "12MP" (`RailButton.fourth`); the video resolution (4K, 1440p) left
 the key. — **Status:** v183 asked; not yet compiled on the Mac or seen on a phone.
+
+## 29.10.2026 — the top line: resolution · 8b/10b · Mb/s
+
+> The top status line currently says "8-bit focus locked", and that is unnecessary information. What I need on the top line is the resolution first, then 8 or 10 bits, and then the streaming rate or quality in megabits per second.
+>
+> You don't need to write the word bit, just write 8b or 10b
+
+v183. The top line reads "1920x1080 · 10b · 40 Mb/s" (`formatLine`): the rate the stream measures while one runs, else
+the recording's quality. The fps and the log grey readout left the line. A message ("Focus locked", an error) still
+shows, for 3 seconds, then the line goes back to the format. — **Status:** v183 asked; compiles; not yet seen on a phone.
