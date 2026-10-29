@@ -237,7 +237,8 @@ class MainActivity : AppCompatActivity() {
             setPadding((18 * dp).toInt(), (10 * dp).toInt(), (18 * dp).toInt(), (10 * dp).toInt())
             background = android.graphics.drawable.GradientDrawable().apply { setColor(0xD0202020.toInt()); cornerRadius = 22 * dp }
             visibility = View.GONE
-            findViewById<ViewGroup>(R.id.picture).addView(this, android.widget.FrameLayout.LayoutParams(
+            // the activity's picture, not this TextView's own (inside apply, findViewById is the TextView's: v180 crashed here)
+            this@MainActivity.findViewById<ViewGroup>(R.id.picture).addView(this, android.widget.FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.CENTER))
         }
     }
