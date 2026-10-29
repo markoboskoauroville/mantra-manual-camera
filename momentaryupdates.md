@@ -1156,3 +1156,9 @@ v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upr
 > focus square lock to remove this completely: this status meter and the obtr. No, I don't need it. Remove it
 
 **v172:** "FOCUSING SQUARE locked at … m (… dpt)" (and the ISO/WB CIRCLE words) off the status line; the rest stays.
+
+## 29.10.2026 (improve the camera, remove the bugs; the Pixel 7 over Wi-Fi)
+
+> next job is to work with my mantra manual camera. Improve it, remove the bugs. My camera is my phone, Pixel 7, connected through Wi-Fi. Let's do this
+
+**Status:** in progress 29.10.2026.
