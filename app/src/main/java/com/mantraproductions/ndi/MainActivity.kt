@@ -226,6 +226,7 @@ class MainActivity : AppCompatActivity() {
     private var lensesOpen = false
     // v173, DISPLAY ASSIST: peaking, false colour and zebra behind one key, a drawer like the lenses' (Marko, 29.10.2026)
     private lateinit var assistKey: RailButton
+    private var markToast: Toast? = null        // v178: the F / E key's toast, one at a time
     private var assistOpen = false
     private var markKeys: List<RailButton> = emptyList()
     private lateinit var rulerKey: RailButton
@@ -2614,6 +2615,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
         Trace.control("marks", "shown ${settings.marksShown}, pinch ${settings.pinchTarget}", "key ${i}")
+        // v178 (Marko, 29.10.2026: "display a quick toast: what's going on. E exposure off; then when it's white,
+        // exposure on; when it's green, default touching mode"): the colour the key now has, in words
+        val name = if (i == 0) "F  FOCUS" else "E  EXPOSURE"
+        val words = when {
+            settings.marksShown and bit == 0 -> "$name OFF"
+            settings.pinchTarget == i -> "$name: DEFAULT TOUCHING MODE"
+            else -> "$name ON"
+        }
+        markToast?.cancel()
+        markToast = Toast.makeText(this, words, Toast.LENGTH_SHORT).also { it.show() }
         say(lastSaid)
         refreshMarks()
         refreshKeys()

@@ -1230,3 +1230,15 @@ with what it lacks, and the trace lists every lens. Tested on the Nothing A142 (
 — Not supported feature on this phone: 10-bit"; 10-BIT in Settings refused (stays 8-BIT); AF on the fixed front lens
 and the torch refused with the sentence on screen. The Pixel 7: nothing wrongly refused (ultra-wide and front lenses
 fixed focus, front lenses no torch, all true).
+
+## 29.10.2026 — a toast on the F and E keys
+
+> To make things clear, when I'm pressing this button, which is for focus pulling exposure and focus, and they have different colors, you need to display a quick toast: what's going on.
+>
+> - E exposure off
+> - Then when it's white, exposure on
+> - When it's green, default touching mode
+>
+> That's it.
+
+**Status:** in progress 29.10.2026.
