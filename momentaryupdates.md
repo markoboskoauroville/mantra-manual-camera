@@ -1271,5 +1271,5 @@ F/E keys' refresh (the message looked up the picture from the TextView, null); v
 picture is mirrored across the screen; held upright, across the screen is up-down, so the mirror put it on its head.
 `selfieTurn()`: a half turn more on the front lens while the phone is upright (keyTurn 90/270), for the preview and for
 the taps' regions (focus, circle, tracking); re-applied when the phone turns. The take is not mirrored and unchanged.
-Not yet seen upright: Marko's hand. On the way: the Pixel had auto-rotate stuck on (its tile is greyed while the camera
+Confirmed by Marko (29.10.2026): "face is fixed now. It works." On the way: the Pixel had auto-rotate stuck on (its tile is greyed while the camera
 asks for landscape) and the Nothing a fixed landscape turn; both set off / upright over adb.
