@@ -39,6 +39,13 @@ import android.view.View
  * change it; a drag moves the fader (and takes it to M); a single tap anywhere
  * else focuses there; a double tap means nothing.
  *
+ * **v183: the words turn with the phone, the faders do not.** Marko, 29.10.2026: *"When I'm in portrait mode, only
+ * in the manual controls, the labels should rotate the same as the other labels ... the faders stay the same. The
+ * base 100 and base 1600 can stay as they are, but all the small labels should turn around."* [turn] is the rail
+ * keys' turn. A quarter turn (the phone held upright) moves the name and the number to the far end of each fader,
+ * two upright lines, the number above and the name under it, *"like a label for that fader"*; the A / M letter and
+ * every preset word short enough to stand in its key turn in place. Half a turn turns each word where it is.
+ *
  * Still exclusive with the focus box, and that is still the reason the rail has
  * a key to put it away: a tap that could mean "focus here" and could mean
  * "start changing ISO" is a tap that means neither.
@@ -107,6 +114,11 @@ class ControlZones @JvmOverloads constructor(
     private var downY = 0f
     private var moved = false
 
+    /** v183: the turn of the words, in degrees (0, 90, 180, 270), the same as the rail keys' (RailButton.turn). */
+    var turn = 0
+        set(value) { if (field != value) { field = value; invalidate() } }
+    private val quarter get() = turn == 90 || turn == 270
+
     // v88: the names were grey and thin, and vanished over a bright picture.
     // Now the same weight as the numbers, white, over a dark band.
     private val title = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -169,7 +181,26 @@ class ControlZones @JvmOverloads constructor(
     private val switchSize get() = (rowHeight * 0.62f).coerceAtMost(density(40f))
 
     private val trackLeft get() = sideGap + switchSize + density(12f)
-    private val trackRight get() = width - sideGap - density(14f)
+    private val trackRight get() = width - sideGap - density(14f) - if (quarter) labelRoom + density(8f) else 0f
+
+    /** v183: across the screen, what the two upright lines at a fader's far end take (the phone held upright). */
+    private val labelRoom get() = value.fontSpacing + title.fontSpacing + density(10f)
+
+    /** [text] centred on ([cx], [cy]), turned by [turn]; [maxLength] shrinks it to fit along its own line. */
+    private fun drawTurned(canvas: Canvas, text: String, cx: Float, cy: Float, paint: Paint, maxLength: Float = Float.MAX_VALUE) {
+        val size = paint.textSize
+        val align = paint.textAlign
+        val w = paint.measureText(text)
+        if (w > maxLength && w > 0f) paint.textSize = size * maxLength / w
+        paint.textAlign = Paint.Align.CENTER
+        val m = paint.fontMetrics
+        canvas.save()
+        canvas.rotate(turn.toFloat(), cx, cy)
+        canvas.drawText(text, cx, cy - (m.ascent + m.descent) / 2f, paint)
+        canvas.restore()
+        paint.textSize = size
+        paint.textAlign = align
+    }
 
     private fun rowTop(index: Int): Float {
         var top = topInset
@@ -227,9 +258,7 @@ class ControlZones @JvmOverloads constructor(
                 canvas.drawRoundRect(box, density(4f), density(4f), fill)
                 fill.clearShadowLayer()
                 switchText.color = Color.BLACK
-                val m = switchText.fontMetrics
-                canvas.drawText(if (zone.auto) "A" else "M", box.centerX(),
-                    box.centerY() - (m.ascent + m.descent) / 2f, switchText)
+                drawTurned(canvas, if (zone.auto) "A" else "M", box.centerX(), box.centerY(), switchText)
             }
 
             // The name and the number, above the track, the number big: it is
@@ -244,16 +273,43 @@ class ControlZones @JvmOverloads constructor(
             value.color = tint
             title.setShadowLayer(density(2.5f), 0f, 0f, Color.BLACK)
             value.setShadowLayer(density(2.5f), 0f, 0f, Color.BLACK)
-            val words = top + rowHeight * 0.30f
-            val valueX = trackLeft + title.measureText(zone.title) + density(10f)
             val pad = density(5f)
-            canvas.drawRoundRect(
-                trackLeft - pad, words + value.ascent() - pad * 0.6f,
-                valueX + value.measureText(zone.value) + pad, words + value.descent() + pad * 0.6f,
-                pad, pad, band
-            )
-            canvas.drawText(zone.title, trackLeft, words, title)
-            canvas.drawText(zone.value, valueX, words, value)
+            if (quarter) {
+                // v183, THE PHONE UPRIGHT: at the far end of the fader, two lines that read upright, the number above
+                // and the name under it. Held with the screen's left edge up (270) "above" is towards the left.
+                val right = width - sideGap
+                val left = right - labelRoom
+                val cy = top + rowHeight / 2f
+                val along = rowHeight - pad * 2f
+                canvas.drawRoundRect(left, top + pad * 0.6f, right, top + rowHeight - pad * 0.6f, pad, pad, band)
+                val inner = left + density(5f)
+                val outer = right - density(5f)
+                val valueFirst = turn == 270
+                val valueX = if (valueFirst) inner + value.fontSpacing / 2f else outer - value.fontSpacing / 2f
+                val titleX = if (valueFirst) outer - title.fontSpacing / 2f else inner + title.fontSpacing / 2f
+                drawTurned(canvas, zone.value, valueX, cy, value, along)
+                drawTurned(canvas, zone.title, titleX, cy, title, along)
+            } else {
+                val words = top + rowHeight * 0.30f
+                val valueX = trackLeft + title.measureText(zone.title) + density(10f)
+                canvas.drawRoundRect(
+                    trackLeft - pad, words + value.ascent() - pad * 0.6f,
+                    valueX + value.measureText(zone.value) + pad, words + value.descent() + pad * 0.6f,
+                    pad, pad, band
+                )
+                if (turn == 180) {
+                    // upside down: each word turns where it stands
+                    val tm = title.fontMetrics
+                    drawTurned(canvas, zone.title, trackLeft + title.measureText(zone.title) / 2f,
+                        words + (tm.ascent + tm.descent) / 2f, title)
+                    val vm = value.fontMetrics
+                    drawTurned(canvas, zone.value, valueX + value.measureText(zone.value) / 2f,
+                        words + (vm.ascent + vm.descent) / 2f, value)
+                } else {
+                    canvas.drawText(zone.title, trackLeft, words, title)
+                    canvas.drawText(zone.value, valueX, words, value)
+                }
+            }
 
             if (!zone.live) continue
             val left = trackLeft
@@ -279,9 +335,18 @@ class ControlZones @JvmOverloads constructor(
                     canvas.drawRoundRect(box, density(4f), density(4f), fill)
                     presetText.color = if (pressed || k == zone.presetLit) Color.BLACK else Color.WHITE
                     val label = zone.presets[k]
+                    // v183: a word short enough to stand up in its key turns with the phone (0°, 90° …);
+                    // a long one (BASE 100, HIGH 1600) stays as it is
+                    val standing = box.height() - density(4f)
+                    val full = presetText.measureText(label)
+                    if (turn != 0 && (!quarter || full * PRESET_MIN / 12f <= standing)) {
+                        drawTurned(canvas, label, box.centerX(), box.centerY(), presetText,
+                            if (quarter) standing else box.width() - density(4f))
+                        continue
+                    }
                     val room = box.width() - density(4f)
-                    if (presetText.measureText(label) > room) {
-                        presetText.textSize = density(12f) * room / presetText.measureText(label)
+                    if (full > room) {
+                        presetText.textSize = density(12f) * room / full
                     }
                     val m = presetText.fontMetrics
                     canvas.drawText(label, box.centerX(), box.centerY() - (m.ascent + m.descent) / 2f, presetText)
@@ -389,5 +454,10 @@ class ControlZones @JvmOverloads constructor(
             }
         }
         return false
+    }
+
+    private companion object {
+        /** v183: the smallest a preset word may shrink to (sp) and still turn upright in its key. */
+        const val PRESET_MIN = 9f
     }
 }

@@ -1273,3 +1273,21 @@ picture is mirrored across the screen; held upright, across the screen is up-dow
 the taps' regions (focus, circle, tracking); re-applied when the phone turns. The take is not mirrored and unchanged.
 Confirmed by Marko (29.10.2026): "face is fixed now. It works." On the way: the Pixel had auto-rotate stuck on (its tile is greyed while the camera
 asks for landscape) and the Nothing a fixed landscape turn; both set off / upright over adb.
+
+## 29.10.2026 — the manual faders' words turn with the phone; CTRL and INFO swap
+
+> Please update the user interface of the app. When I'm in portrait mode, only in the manual controls, the labels should rotate the same as the other labels. The labels should rotate, but the faders stay the same. The base 100 and base 1600 can stay as they are, but all the small labels should turn around.
+>
+> You also need to swap the places of control and info.
+>
+> In this mode, the ISO label should be above the slider, and the number can also be on the side. So we split it in two. What is more logical is that ISO, shutter, focus and white balance sit at the bottom, like a label for that fader. The presets stay as they are, and the value is above.
+>
+> So we have two lines. For example, 1/50 is at the bottom of the fader, and the same rule applies to all the other faders.
+
+Asked which end: "Bottom end of fader" (the number, then the name under it, at the far end away from the A / M switch).
+
+v183. `ControlZones.turn` follows the rail keys' turn. Phone upright: each fader's number and name stand as two upright
+lines at its far end (number above, name under it), the groove shortened to make room; the A / M letter turns in its
+key; the preset words that fit standing (0°, 90° … 360°) turn, BASE 100 / HIGH 1600 and the kelvin presets stay as
+they are. Upside down: each word turns where it is. The faders themselves do not move. CTRL now sits under the
+ruler key, INFO where CTRL was. — **Status:** v183 asked; built, not yet seen on a phone.

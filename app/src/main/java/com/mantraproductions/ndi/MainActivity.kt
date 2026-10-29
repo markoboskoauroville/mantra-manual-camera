@@ -610,12 +610,13 @@ class MainActivity : AppCompatActivity() {
         // INFO, the status line on/off (the REC time then rises to the very top)
         rulerKey = newKey("") { settings.focusPuller = !settings.focusPuller; showMeter(); refreshKeys() }
             .also { it.glyph = RailButton.Glyph.RULER; railLeft.addView(it) }
-        infoKey = newKey("INFO") { settings.showStatus = !settings.showStatus; placeStatus(); refreshKeys() }
-            .also { railLeft.addView(it) }
+        // v183 (Marko, 29.10.2026: "swap the places of control and info"): CTRL here, INFO where CTRL was
+        ctrlKey = newKey("CTRL") { toggleZones() }.also { railLeft.addView(it) }
         focusKey = newKey("AF") { toggleAutoFocus() }.also { railLeft.addView(it) }
         logKey = newKey("LOG") { nextCurve() }.also { railLeft.addView(it) }
         manualKey = newKey("M") { nextCameraMode() }.also { railLeft.addView(it) }
-        ctrlKey = newKey("CTRL") { toggleZones() }.also { railLeft.addView(it) }
+        infoKey = newKey("INFO") { settings.showStatus = !settings.showStatus; placeStatus(); refreshKeys() }
+            .also { railLeft.addView(it) }
         // The clean feed, for a phone that is being broadcast by its screen.
         // v131: FULL pressed by the monitor's finger (Mantra Link) makes the MONITOR clean, not this screen
         // (Marko, 3.10.2026: "full screen button to make it full screen on the phone, which I'm not there. Doesn't
@@ -1002,6 +1003,7 @@ class MainActivity : AppCompatActivity() {
         }
         walk(window.decorView)
         focusMeter.turn = keyTurn
+        zones.turn = keyTurn      // v183: the faders' words turn too; the faders do not
     }
 
     override fun onResume() {
