@@ -12,7 +12,7 @@
     <string name="picture_path">Picture path</string>
     <string name="picture_path_hint">GPU STAGE: the camera writes once and the GPU copies each frame to the monitor, the take\'s encoder and the stream\'s, so the take has its own bit rate. DIRECT: the path of every version before v97, one encoder for both. Takes effect when the camera reopens.</string>
     <string name="stream_bitrate">STREAMING</string>
-    <string name="bitrate_hint">The file's bit rate. AUTO (far left) follows the format: 720p 19 to 24, 1080p 32 to 40, 4K 80 to 125 Mbit/s (more at 10-bit and at higher frame rates), and the time left on the rail follows it. Right of AUTO, a number by hand. The NDI stream has its own rate below.</string>
+    <string name="bitrate_hint">The file\'s bit rate. AUTO (far left) follows the format: 720p 19 to 24, 1080p 32 to 40, 4K 80 to 125 Mbit/s (more at 10-bit and at higher frame rates), and the time left on the rail follows it. Right of AUTO, a number by hand. The NDI stream has its own rate below.</string>
     <string name="focus">Focus</string>
     <string name="focus_hint">How long the director holds before it will consider moving, and how long a move takes. The ramp is every recalibration: a tap on the square glides the lens (at CAMERA speed; at a speed in mm/s it walks there), on the circle walks the ISO or the white balance, each eased in and out like a hand on analog gear, so it can be recorded. Zero ramp is a snap, for anybody who wants the phone to behave like a phone.</string>
     <string name="peaking">Peaking</string>
