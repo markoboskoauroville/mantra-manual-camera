@@ -1208,3 +1208,8 @@ Wi-Fi fails. mcam: Bonjour fallback and four tries; both roads proven (≈6 s ea
 > Actually, in displaying the free space, what is more important is to see how much time is left rather than gigabytes. So time should be bigger and gigabytes should be smaller. Positions and sizes.
 
 (29.10.2026, after the first v173 screen: the time left becomes the big word, the gigabytes the small line.)
+
+> Check switching of lenses.
+
+**29.10.2026, 07:24:** all five lenses switched from the Mac, each back running in 0.9–1.0 s, the picture and the L
+key's millimetres changing (17, 25, 50, 21, 24 mm), no fault in the trace; the drawer's own switch worked too. Back on L3.
