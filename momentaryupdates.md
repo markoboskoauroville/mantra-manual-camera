@@ -1262,3 +1262,9 @@ orange (off); seen on the Pixel.
 own (on the picture, turned with the keys by keyTurn) instead of Android's toast, which never turns. v180 broke the
 F/E keys' refresh (the message looked up the picture from the TextView, null); v181 fixed it; seen: "F FOCUS OFF",
 "F FOCUS ON". The turn with the phone upright is for Marko's hand.
+
+## 29.10.2026 — the selfie lens upside down in portrait
+
+> Please, in my manual camera fix in portrait mode, the selfie lens is upside down. It's acting very good in landscape mode, but in portrait mode, it's upside down.
+
+**Status:** in progress 29.10.2026.
