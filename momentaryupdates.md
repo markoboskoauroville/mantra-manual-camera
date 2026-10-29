@@ -1189,7 +1189,21 @@ Wi-Fi fails. mcam: Bonjour fallback and four tries; both roads proven (≈6 s ea
 
 (Dictation: "Speaking" = Peaking; "suppression" probably = confusion.)
 
-**Status:** in progress 29.10.2026.
+**Status:** done 29.10.2026, v173 → v176, tested on his Pixel 7 (cable + wireless adb), no crash:
+- the time left is the big word ("5:03h", "47m"), the gigabytes the line under it (his second message), as big as
+  the battery's 88%.
+- THE BUG, measured: the file was written at one fixed 24 Mbit/s whatever the format (720p and 4K alike), so the time
+  never moved. Now AUTO (default) by format: 720p 19, 4K 80, 4K 10-bit 100 Mbit/s seen in the trace; the rail read
+  5:03h → 1:12h → 58m → 5:03h; Settings shows "AUTO · 19 Mbit/s", the far right still a number by hand.
+- DISPLAY ASSIST (ASSIST under REC) opens a drawer of PEA, FC, ZEB over the whole right rail, icons about twice as
+  big; LENS (L, moved to the right rail above REC) opens its drawer the same way; one drawer at a time.
+- the square (F) and circle (E) keys: grey → white → green, one green at a time, no bar under them; a tap with nothing
+  green does nothing ("nothing green: no mark takes it" in the trace); a long press: TOUCH WHEN HIDDEN (off by
+  default), proven: hidden square + tick → the tap focused.
+- LUT: tap = the last LUT on / off; long press = LOAD A .CUBE FILE, OFF, and every LUT loaded so far, newest first.
+  Not yet tried with a real .cube (the file picker needs his hand).
+- POWER MONITOR: OK on the left, SETTINGS on the right (opens the settings, tried).
+- Not run: the full field test (it records takes, and test recordings are not made).
 
 > Actually, in displaying the free space, what is more important is to see how much time is left rather than gigabytes. So time should be bigger and gigabytes should be smaller. Positions and sizes.
 

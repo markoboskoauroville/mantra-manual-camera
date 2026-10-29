@@ -6,6 +6,19 @@ working state of *this* app.
 
 ---
 
+## 29.10.2026, 06:55–07:20: v173–v176, the rail's drawers, the marks' colours, AUTO bit rate
+
+- Right rail now: LUT, last capture, photo, POR/LAN, L (lens drawer), REC, ASSIST (PEA/FC/ZEB drawer), time left,
+  power. Drawers: `openDrawer` / `openAssist`, the right rail 150 dp (lenses) or 96 dp (assist) while open;
+  RailButton glyphs grow with `scale` (max 0.40 of the key).
+- Marks: `settings.pinchTarget` is the GREEN mark (-1 none); `marksTouchHidden` bits; `tapTarget()` decides; the old
+  rule "the square always takes the tap" is gone (his: grey = no touches).
+- `settings.recordMbps` = AUTO (`autoMbps`) or the number; used for the take, the time left and the restart snapshot.
+- LUT: `toggleLut`, `lutMenu`, `pickLut` (into a free slot or over the oldest), `settings.lastLutSlot`.
+- Wireless adb: scripts/mcam `wireless()` (Bonjour fallback); see LESSONS.
+- Builds: local, `scripts/release_mac.sh` (the GitHub workflow only by hand). An apostrophe in strings.xml breaks it.
+
+
 ## 27.10.2026, 09:20–10:15: v162, the Link stream race; the Nothing as a second camera
 
 - **v162:** an old Mantra Link client closing after a new one had arrived switched the NEW client's stream off (the
