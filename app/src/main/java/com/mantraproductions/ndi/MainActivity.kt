@@ -226,7 +226,31 @@ class MainActivity : AppCompatActivity() {
     private var lensesOpen = false
     // v173, DISPLAY ASSIST: peaking, false colour and zebra behind one key, a drawer like the lenses' (Marko, 29.10.2026)
     private lateinit var assistKey: RailButton
-    private var markToast: Toast? = null        // v178: the F / E key's toast, one at a time
+    // v180 (Marko, 29.10.2026: "Those should follow the rotation of the screen"): Android's toast is drawn the way the
+    // screen is set and never turns; this one lies on the picture and turns with the keys (keyTurn)
+    private val tip: TextView by lazy {
+        TextView(this).apply {
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 16f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            val dp = resources.displayMetrics.density
+            setPadding((18 * dp).toInt(), (10 * dp).toInt(), (18 * dp).toInt(), (10 * dp).toInt())
+            background = android.graphics.drawable.GradientDrawable().apply { setColor(0xD0202020.toInt()); cornerRadius = 22 * dp }
+            visibility = View.GONE
+            findViewById<ViewGroup>(R.id.picture).addView(this, android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.CENTER))
+        }
+    }
+    private val hideTip = Runnable { tip.visibility = View.GONE }
+
+    private fun showTip(text: String) {
+        tip.text = text
+        tip.rotation = keyTurn.toFloat()
+        tip.visibility = View.VISIBLE
+        tip.bringToFront()
+        ui.removeCallbacks(hideTip)
+        ui.postDelayed(hideTip, 1800)
+    }
     private var assistOpen = false
     private var markKeys: List<RailButton> = emptyList()
     private lateinit var rulerKey: RailButton
@@ -563,9 +587,11 @@ class MainActivity : AppCompatActivity() {
                 lens.megapixels.takeIf { it > 0 }?.let { "${it}MP" },
                 res
             ).joinToString(" · ")
-            val key = newKey("L$i$mm") { openDrawer(false); chooseLens(i - 1) }
-            key.sub = sub.ifEmpty { null }
-            key.scale = 1.35f
+            // v180 (Marko, 29.10.2026): three rows, larger: "L5", "24mm", then the lens's features
+            val key = newKey("L$i") { openDrawer(false); chooseLens(i - 1) }
+            key.sub = mm.trim().ifEmpty { " " }
+            key.third = sub.ifEmpty { null }
+            key.scale = 1.7f
             key.divider = true
             lensKeys.add(key)
         }
@@ -2623,8 +2649,7 @@ class MainActivity : AppCompatActivity() {
             settings.pinchTarget == i -> "$name: DEFAULT TOUCHING MODE"
             else -> "$name ON"
         }
-        markToast?.cancel()
-        markToast = Toast.makeText(this, words, Toast.LENGTH_SHORT).also { it.show() }
+        showTip(words)
         say(lastSaid)
         refreshMarks()
         refreshKeys()
@@ -4254,7 +4279,7 @@ class MainActivity : AppCompatActivity() {
         for (i in 0 until railRight.childCount) {
             val k = railRight.getChildAt(i)
             k.visibility = when {
-                lensesOpen -> if (k === lensChooser || k in lensKeys) View.VISIBLE else View.GONE
+                lensesOpen -> if (k in lensKeys) View.VISIBLE else View.GONE      // v180: no opener; the lens in use closes it
                 assistOpen -> if (k === assistKey || k in assists) View.VISIBLE else View.GONE
                 else -> if (k in lensKeys || k in assists) View.GONE else View.VISIBLE
             }

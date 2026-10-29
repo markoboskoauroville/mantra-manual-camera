@@ -65,6 +65,10 @@ class RailButton @JvmOverloads constructor(
     var sub: String? = null
         set(value) { field = value; describe(); invalidate() }
 
+    /** v180: a third line under the sub (the lens drawer: "L5" / "24mm" / "f/2 · 8MP · 1440p"), Marko 29.10.2026. */
+    var third: String? = null
+        set(value) { field = value; describe(); invalidate() }
+
     /** v130: how much larger than a rail key the words may be drawn (the lens drawer's keys have the room). */
     var scale: Float = 1f
         set(value) { field = value; invalidate() }
@@ -193,6 +197,20 @@ class RailButton @JvmOverloads constructor(
         // "SHOOT", "FALSE" and "ZEBRA" clipped at both ends (v85 on the
         // emulator). A word is drawn at its full size when it fits, and
         // smaller, never clipped, when it does not.
+        // v180: three rows, each as large as the key allows: the name, the millimetres, the lens's features
+        if (!third.isNullOrBlank()) {
+            fit(word, label, density(13f * scale))
+            val mm = Paint(word).apply { typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD) }
+            fit(mm, sub ?: "", density(11f * scale))
+            fit(whisper, third!!, density(9f * scale))
+            val gap = density(3f * scale)
+            val h1 = word.textSize; val h2 = mm.textSize; val h3 = whisper.textSize
+            var y = dh / 2f - (h1 + h2 + h3 + 2 * gap) / 2f
+            canvas.drawText(label, dw / 2f, y + h1 * 0.8f, word); y += h1 + gap
+            canvas.drawText(sub ?: "", dw / 2f, y + h2 * 0.8f, mm); y += h2 + gap
+            canvas.drawText(third!!, dw / 2f, y + h3 * 0.8f, whisper)
+            return
+        }
         fit(word, label, density(13f * scale))
         sub?.let { fit(whisper, it, density(9f * scale)) }
 

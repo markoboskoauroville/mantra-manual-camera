@@ -1248,4 +1248,13 @@ Pixel for all three states of E.
 
 > To make a greater difference in the assistance menu, you need to turn orange off and on. Orange is off, and green is on. But you should make it much thicker, double-size green.
 
+**Status:** done 29.10.2026, v179: the frame of peaking, false colour and zebra is 3.6 dp while green (on), 1.8 dp
+orange (off); seen on the Pixel.
+
+## 29.10.2026 — the lens drawer in three rows, larger, following the rotation
+
+> Since we have this display assistance, we have large icons for lenses, which should also enlarge the interface. When I click Lens, far right there is a chosen lens that I don't need. Now we can do it instead of L 5, 24 mm one after the other. L 5 can be one row, then millimeter in the second row, and then features of the lens in the third row. So everything can become bigger.
+
+> Those should follow the rotation of the screen.
+
 **Status:** in progress 29.10.2026.
