@@ -779,7 +779,7 @@ class MainActivity : AppCompatActivity() {
             // v173: the drawers live on the right rail: the lenses need room for their words, the assists for larger icons
             val thickness = ((when {
                 rail === railRight && lensesOpen -> if (landscape) 150 else 72
-                rail === railRight && assistOpen -> if (landscape) 72 else 64
+                rail === railRight && assistOpen -> if (landscape) 96 else 80
                 else -> 44
             }) * density).toInt()
             val lp = rail.layoutParams as LinearLayout.LayoutParams
@@ -2589,7 +2589,10 @@ class MainActivity : AppCompatActivity() {
         val bit = 1 shl i
         val shown = settings.marksShown and bit != 0
         when {
-            !shown -> settings.marksShown = settings.marksShown or bit
+            !shown -> {
+                settings.marksShown = settings.marksShown or bit
+                if (settings.pinchTarget == i) settings.pinchTarget = -1   // out of grey it is WHITE first, never green
+            }
             settings.pinchTarget != i -> settings.pinchTarget = i
             else -> {
                 settings.marksShown = settings.marksShown and bit.inv()
@@ -2665,15 +2668,22 @@ class MainActivity : AppCompatActivity() {
     private fun markMenu(i: Int) {
         val name = if (i == 0) "FOCUS SQUARE" else "EXPOSURE CIRCLE"
         val bit = 1 shl i
-        val items = arrayOf("TOUCH WHEN HIDDEN: taps on the picture still reach it while it is grey")
-        val checked = booleanArrayOf(settings.marksTouchHidden and bit != 0)
-        android.app.AlertDialog.Builder(this).setTitle(name)
-            .setMultiChoiceItems(items, checked) { _, _, on ->
+        // a dialog's message hides its list (Android), so the words and the tick are one small view
+        val dp = resources.displayMetrics.density
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding((24 * dp).toInt(), (8 * dp).toInt(), (24 * dp).toInt(), 0) }
+        box.addView(TextView(this).apply {
+            text = "A tap on the key: GREY hidden, WHITE shown (a tap on it works), GREEN every tap and pinch go to it. One green at a time."
+        })
+        box.addView(android.widget.CheckBox(this).apply {
+            text = "TOUCH WHEN HIDDEN: taps on the picture still reach it while it is grey"
+            isChecked = settings.marksTouchHidden and bit != 0
+            setOnCheckedChangeListener { _, on ->
                 settings.marksTouchHidden = if (on) settings.marksTouchHidden or bit else settings.marksTouchHidden and bit.inv()
                 Trace.control("marks", "touch when hidden ${settings.marksTouchHidden}", "key ${i} long press")
                 refreshMarks(); refreshKeys()
             }
-            .setMessage("A tap on the key: GREY hidden, WHITE shown (a tap on it works), GREEN every tap and pinch go to it. One green at a time.")
+        })
+        android.app.AlertDialog.Builder(this).setTitle(name).setView(box)
             .setPositiveButton("OK", null).show()
     }
 
@@ -4092,9 +4102,12 @@ class MainActivity : AppCompatActivity() {
         val left = Mechanism.secondsLeft(free, settings.recordMbps * 1_000_000L, 192_000L)
         // v173 (Marko, 29.10.2026: "enlarge gigabytes ... It must be the same as 90% battery"): the number alone is
         // the key's word, as big as the battery's; its unit goes under it with the time left
-        val text = Mechanism.formatFree(free)
-        storageKey.label = text.substringBefore(' ')
-        storageKey.sub = text.substringAfter(' ', "") + " " + Mechanism.formatTimeLeft(left)
+        // then (the same day, after seeing it): "what is more important is to see how much time is left rather than
+        // gigabytes. So time should be bigger and gigabytes should be smaller": the time left is the big word, as big as
+        // the battery's, and its unit with the gigabytes is the small line under it
+        val time = Mechanism.formatTimeLeft(left)               // "5:03 h" or "47 min"
+        storageKey.label = time.substringBefore(' ')
+        storageKey.sub = time.substringAfter(' ', "") + " · " + Mechanism.formatFree(free)
         // v145: yellow, the settings' key; red under ten minutes, as before
         storageKey.state = if (left < 10 * 60) RailButton.State.ARMED else RailButton.State.SHOWN
         storageKey.tint = if (left < 10 * 60) null else STORAGE_YELLOW

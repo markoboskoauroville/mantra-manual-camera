@@ -1190,3 +1190,7 @@ Wi-Fi fails. mcam: Bonjour fallback and four tries; both roads proven (≈6 s ea
 (Dictation: "Speaking" = Peaking; "suppression" probably = confusion.)
 
 **Status:** in progress 29.10.2026.
+
+> Actually, in displaying the free space, what is more important is to see how much time is left rather than gigabytes. So time should be bigger and gigabytes should be smaller. Positions and sizes.
+
+(29.10.2026, after the first v173 screen: the time left becomes the big word, the gigabytes the small line.)

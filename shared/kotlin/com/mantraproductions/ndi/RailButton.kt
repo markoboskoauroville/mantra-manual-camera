@@ -230,7 +230,8 @@ class RailButton @JvmOverloads constructor(
         val cy = dh / 2f
         // Sized off the key rather than fixed, so the same code draws a mark
         // that fits whichever way the rail is running.
-        val r = minOf(dw, dh) * 0.24f
+        // v173: a drawer's keys (scale > 1) draw their marks larger too, never past the key
+        val r = minOf(dw, dh) * minOf(0.24f * scale, 0.40f)
         mark.color = tint
         markPath.reset()
 
