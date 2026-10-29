@@ -1213,3 +1213,13 @@ Wi-Fi fails. mcam: Bonjour fallback and four tries; both roads proven (≈6 s ea
 
 **29.10.2026, 07:24:** all five lenses switched from the Mac, each back running in 0.9–1.0 s, the picture and the L
 key's millimetres changing (17, 25, 50, 21, 24 mm), no fault in the trace; the drawer's own switch worked too. Back on L3.
+
+## 29.10.2026 — "Not supported feature on this phone"
+
+> Please detect if this app is installed on a different phone. Then, if the user presses something that the app is not able to do for that phone, in particular, you need to write on the screen "Not supported feature on this phone."
+>
+> For example, if there is a 10-bit recording, the user can press 10-bit, but if the camera is not 10-bit, then it says "Not supported feature." Find what other cases should be so it works across the different phones.
+>
+> You can test this on Nothing Phone.
+
+**Status:** in progress 29.10.2026.
