@@ -69,6 +69,10 @@ class RailButton @JvmOverloads constructor(
     var third: String? = null
         set(value) { field = value; describe(); invalidate() }
 
+    /** v183: a fourth line (the lens drawer: the f-stop on the third line, the megapixels on this one). */
+    var fourth: String? = null
+        set(value) { field = value; describe(); invalidate() }
+
     /** v130: how much larger than a rail key the words may be drawn (the lens drawer's keys have the room). */
     var scale: Float = 1f
         set(value) { field = value; invalidate() }
@@ -205,10 +209,14 @@ class RailButton @JvmOverloads constructor(
             fit(whisper, third!!, density(9f * scale))
             val gap = density(3f * scale)
             val h1 = word.textSize; val h2 = mm.textSize; val h3 = whisper.textSize
-            var y = dh / 2f - (h1 + h2 + h3 + 2 * gap) / 2f
+            // v183: the fourth line as large as the third, in its own paint so the two shrink apart
+            val last = fourth?.takeIf { it.isNotBlank() }?.let { f -> Paint(whisper).also { fit(it, f, density(9f * scale)) } }
+            val h4 = last?.textSize ?: 0f
+            var y = dh / 2f - (h1 + h2 + h3 + 2 * gap + if (last != null) h4 + gap else 0f) / 2f
             canvas.drawText(label, dw / 2f, y + h1 * 0.8f, word); y += h1 + gap
             canvas.drawText(sub ?: "", dw / 2f, y + h2 * 0.8f, mm); y += h2 + gap
-            canvas.drawText(third!!, dw / 2f, y + h3 * 0.8f, whisper)
+            canvas.drawText(third!!, dw / 2f, y + h3 * 0.8f, whisper); y += h3 + gap
+            if (last != null) canvas.drawText(fourth!!, dw / 2f, y + h4 * 0.8f, last)
             return
         }
         fit(word, label, density(13f * scale))

@@ -1309,3 +1309,16 @@ the picture decoded through the curve against 18% grey, eased second to second a
 put while the fader moves the picture (`measuredExposureStops`). ISO's line holds the shutter, the shutter's line holds
 ISO. WB: the phone's own last automatic white balance (`measuredKelvin`, frozen once WB is manual). Focus: no line (the
 phone does not measure focus while it is manual). — **Status:** v183 asked; not yet compiled on the Mac or seen on a phone.
+
+## 29.10.2026 — the lens drawer: green focuses, orange is fixed focus; f-stop and megapixels on two lines
+
+> One more feature, to make it easy to tell apart the lenses with fixed focus, which cannot change the focus, and the ones which can.
+>
+> Orange are the lenses which are not able to focus. Green are the lenses which are able to focus.
+>
+> For the characteristics of each lens, please write two lines. The first is the f-stop and the second is the maximum resolution, in megapixels only.
+
+v183. `CameraCatalogue.Lens.canFocus` (a minimum focus distance above zero). Each lens key in the drawer is green when
+the lens focuses and orange when it is fixed focus; the lens in use carries a bar under its key (it was the green of
+"on"). The key reads "L5" / "24mm" / "f/1.85" / "12MP" (`RailButton.fourth`); the video resolution (4K, 1440p) left
+the key. — **Status:** v183 asked; not yet compiled on the Mac or seen on a phone.

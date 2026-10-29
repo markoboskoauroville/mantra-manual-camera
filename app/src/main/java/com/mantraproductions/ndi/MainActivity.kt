@@ -581,17 +581,14 @@ class MainActivity : AppCompatActivity() {
         for (i in 1..lenses.size) {
             val lens = lenses[i - 1]
             val mm = lens.equivalentMm.takeIf { it > 0 }?.let { " ${it}mm" } ?: ""
-            val video = runCatching { pipeline.widthsOffered(lens.id, lens.physicalId).maxOrNull() }.getOrNull()
-            val res = when { video == null -> null; video >= 3840 -> "4K"; video >= 2560 -> "1440p"; video >= 1920 -> "1080p"; else -> "720p" }
-            val sub = listOfNotNull(
-                lens.aperture.takeIf { it > 0f }?.let { "f/" + String.format(java.util.Locale.ROOT, "%.2f", it).trimEnd('0').trimEnd('.') },
-                lens.megapixels.takeIf { it > 0 }?.let { "${it}MP" },
-                res
-            ).joinToString(" · ")
             // v180 (Marko, 29.10.2026): three rows, larger: "L5", "24mm", then the lens's features
+            // v183 (Marko, 29.10.2026: "two lines. The first is the f-stop and the second is the maximum resolution,
+            // in megapixels only"): "L5", "24mm", "f/1.85", "12MP"
             val key = newKey("L$i") { openDrawer(false); chooseLens(i - 1) }
             key.sub = mm.trim().ifEmpty { " " }
-            key.third = sub.ifEmpty { null }
+            key.third = lens.aperture.takeIf { it > 0f }
+                ?.let { "f/" + String.format(java.util.Locale.ROOT, "%.2f", it).trimEnd('0').trimEnd('.') } ?: "f/—"
+            key.fourth = lens.megapixels.takeIf { it > 0 }?.let { "${it}MP" }
             key.scale = 1.7f
             key.divider = true
             lensKeys.add(key)
@@ -4360,13 +4357,13 @@ class MainActivity : AppCompatActivity() {
             key.marked = false
             key.invalidate()
         }
+        // v183 (Marko, 29.10.2026: "Orange are the lenses which are not able to focus. Green are the lenses which are
+        // able to focus"): each lens key wears its focus, and a bar under it marks the lens in use
         lensKeys.forEachIndexed { i, key ->
             val lens = lenses.getOrNull(i)
-            key.state = when {
-                lens == null -> RailButton.State.DEAD
-                i == activeLens && pipeline.isRunning -> RailButton.State.ON
-                else -> RailButton.State.OFF
-            }
+            key.state = if (lens == null) RailButton.State.DEAD else RailButton.State.SHOWN
+            key.tint = lens?.let { if (it.canFocus) RailButton.GREEN else RailButton.AMBER }
+            key.marked = lens != null && i == activeLens && pipeline.isRunning
         }
 
         focusKey.label = when {

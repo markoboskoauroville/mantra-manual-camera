@@ -45,7 +45,9 @@ object CameraCatalogue {
         /** v130: the widest aperture the lens publishes (its f-number), 0 when it says nothing. */
         val aperture: Float = 0f,
         /** v130: the largest still it delivers, in megapixels (from [maxResolution]). */
-        val megapixels: Int = 0
+        val megapixels: Int = 0,
+        /** v183: it has a focus motor (a minimum focus distance above zero); false is a fixed-focus lens. */
+        val canFocus: Boolean = true
     ) {
         /**
          * The name the operator sees. A focal length says more than an id, and
@@ -170,7 +172,8 @@ object CameraCatalogue {
             isLogical = isLogical,
             maxResolution = largest?.let { "${it.width}x${it.height}" } ?: "unknown",
             aperture = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)?.minOrNull() ?: 0f,
-            megapixels = largest?.let { Math.round(it.width.toLong() * it.height / 1_000_000.0).toInt() } ?: 0
+            megapixels = largest?.let { Math.round(it.width.toLong() * it.height / 1_000_000.0).toInt() } ?: 0,
+            canFocus = (c.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f) > 0f
         )
     }
 
