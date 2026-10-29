@@ -1162,3 +1162,9 @@ v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upr
 > next job is to work with my mantra manual camera. Improve it, remove the bugs. My camera is my phone, Pixel 7, connected through Wi-Fi. Let's do this
 
 **Status:** in progress 29.10.2026.
+
+> after you fix detection of ADB over-wire wirelessly, I am going to switch off the Wi-Fi. Let me know can you pinpoint the bug
+
+**Pinpointed 29.10.2026, 06:50:** adb's own discovery started deaf after the restart (it only listens on the networks
+that existed when the adb server started), while macOS's Bonjour heard the Pixel; and the first connect to the dozing
+Wi-Fi fails. mcam: Bonjour fallback and four tries; both roads proven (≈6 s each).

@@ -44,13 +44,51 @@ def device():
     for l in lines:
         if l[0] == PIXEL or "model:Pixel_7" in l:
             return l[0]
-    # wireless debugging: the phone announces itself as adb-<serial>-… on _adb-tls-connect
+    addr = wireless()
+    if addr:
+        return addr
+    sys.exit("mcam: no Pixel 7 on adb (cable, or Wireless debugging on the phone)")
+
+
+def bonjour(*args, seconds=3.0):
+    """macOS's own dns-sd, which never exits by itself: read for a few seconds, then stop it."""
+    p = subprocess.Popen(["/usr/bin/dns-sd", *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    try:
+        out, _ = p.communicate(timeout=seconds)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        out, _ = p.communicate()
+    return out
+
+
+def wireless():
+    """THE PIXEL OVER WIRELESS DEBUGGING (29.10.2026, Marko: "fix detection of ADB ... wirelessly"). Two faults found:
+    adb's own discovery (openscreen) listens only on the networks that existed when the adb server started, so after
+    a restart with the cable, the tunnel or the Wi-Fi changing later it hears nothing although the phone announces
+    itself; and a dozing Wi-Fi often drops the first connect ("No route to host"). So: adb's discovery first, then
+    macOS's Bonjour (dns-sd), which always hears it; then connect by address, a few tries."""
+    addr = None
     for l in run("mdns", "services").splitlines():
         if PIXEL in l and "_adb-tls-connect" in l:
             addr = l.split()[-1]
-            run("connect", addr)
+    if not addr:
+        names = re.findall(r"(adb-%s-\S+)" % PIXEL, bonjour("-B", "_adb-tls-connect._tcp", "local."))
+        if names:
+            m = re.search(r"can be reached at (\S+?)\.?:(\d+)", bonjour("-L", names[-1], "_adb-tls-connect._tcp", "local."))
+            if m:
+                import socket
+                try:
+                    addr = f"{socket.gethostbyname(m.group(1))}:{m.group(2)}"
+                except OSError:
+                    addr = None
+    if not addr:
+        return None
+    for _ in range(4):
+        out = run("connect", addr, timeout=10)
+        if "connected to" in out and any(l.split()[:2] == [addr, "device"] for l in run("devices").splitlines()):
             return addr
-    sys.exit("mcam: no Pixel 7 on adb (cable, or Wireless debugging on the phone)")
+        time.sleep(1.0)
+    return None
 
 
 def front(d):

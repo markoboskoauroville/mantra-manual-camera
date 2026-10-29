@@ -237,3 +237,12 @@ LinkServer closes the old client when a new one connects; the old reader's `fina
 switched the stream on and switched it off again. Cleanup that touches shared state checks it is still the current
 client (`if (out === o)`). And a test that opens its own connection (nc, a probe) to a one-client server kicks the
 real client off: probe with the app's own status, not with a second connection.
+
+## 29.10.2026: the Pixel not found over wireless debugging
+
+- adb's own discovery (openscreen, `adb mdns services`) listens only on the networks that existed when the adb server
+  started. After the Mac's restart (04:44) the cable, the tunnel and the Wi-Fi changed later, so it heard nothing for
+  hours while the Pixel announced itself the whole time: macOS's `dns-sd -B _adb-tls-connect._tcp` saw it at once. A
+  restarted adb server hears it again. mcam now falls back to dns-sd itself (browse, resolve, connect by address).
+- The first `adb connect` to a dozing phone often answers "No route to host"; the next one a second later works.
+  mcam tries four times.
