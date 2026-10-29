@@ -1,0 +1,4 @@
+/Users/markobosko/Library/Android/sdk/cmake/3.22.1/bin/ninja \
+  -C \
+  /Users/markobosko/Developer/MANTRA_NDI/monitor/.cxx/Debug/343o4j1i/arm64-v8a \
+  ndi_bridge

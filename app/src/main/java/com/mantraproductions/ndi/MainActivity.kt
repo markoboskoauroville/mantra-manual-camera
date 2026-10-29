@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import android.util.Size
+import android.view.MotionEvent
 import android.view.Surface
 import android.view.TextureView
 import android.view.View
@@ -66,11 +67,25 @@ import androidx.core.view.WindowInsetsControllerCompat
  */
 /** v139: the action of the adb control (MainActivity.adbControl, scripts/mcam). */
 private const val ADB_ACTION = "com.mantraproductions.manualcamera.ADB"
+/** v145: how wide the record button's picture of the last capture is kept, in pixels. */
+private const val THUMB_PX = 192
+/** v145: the free-space key, which opens the settings, in yellow. */
+private val STORAGE_YELLOW = android.graphics.Color.parseColor("#F5D90A")
+/** v155: the POWER MONITOR's readout, blue beside the drive's yellow. */
+private val POWER_BLUE = android.graphics.Color.parseColor("#4DB8FF")
+private val POWER_GREEN = android.graphics.Color.parseColor("#33D17A")
+/** v155 (Marko, 26.10.2026: "make the color of the camera ... orange"): the photo key. */
+private val SNAP_ORANGE = android.graphics.Color.parseColor("#FF9500")
+/** v155: how long a finger stays on a key before its help opens. */
+private const val HELP_MS = 2000L
+/** v155: the power readout is written this often (the measuring goes on every second). */
+private const val POWER_SHOW_MS = 5000L
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var preview: TextureView
     private lateinit var focusSquare: FocusSquareView
+    private lateinit var focusMeter: FocusMeterView
     private lateinit var exposureCircle: MarkView
     private lateinit var zones: ControlZones
     private lateinit var fullScreenCatcher: View
@@ -190,13 +205,17 @@ class MainActivity : AppCompatActivity() {
 
     private val lensKeys = mutableListOf<RailButton>()
     private lateinit var recKey: RecordButtonView
-    private lateinit var gearKey: RailButton
     private lateinit var playKey: RailButton
+    private lateinit var lastKey: RecordButtonView
     private lateinit var shootKey: RailButton
     private lateinit var lutKey: RailButton
     private lateinit var falseKey: RailButton
     private lateinit var zebraKey: RailButton
     private lateinit var storageKey: RailButton
+    /** v155: the POWER MONITOR, beside the drive's time left (Marko, 26.10.2026). */
+    private lateinit var powerMonitor: PowerMonitor
+    private lateinit var powerKey: RailButton
+    private var lastPower: PowerMonitor.Reading? = null
     private lateinit var timecode: TextView
 
     /** The two exposure tools beside peaking. Monitor only, like peaking. */
@@ -205,7 +224,40 @@ class MainActivity : AppCompatActivity() {
     private lateinit var focusKey: RailButton
     private lateinit var lensChooser: RailButton
     private var lensesOpen = false
+    // v173, DISPLAY ASSIST: peaking, false colour and zebra behind one key, a drawer like the lenses' (Marko, 29.10.2026)
+    private lateinit var assistKey: RailButton
+    // v180 (Marko, 29.10.2026: "Those should follow the rotation of the screen"): Android's toast is drawn the way the
+    // screen is set and never turns; this one lies on the picture and turns with the keys (keyTurn)
+    private val tip: TextView by lazy {
+        TextView(this).apply {
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 16f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            val dp = resources.displayMetrics.density
+            setPadding((18 * dp).toInt(), (10 * dp).toInt(), (18 * dp).toInt(), (10 * dp).toInt())
+            background = android.graphics.drawable.GradientDrawable().apply { setColor(0xD0202020.toInt()); cornerRadius = 22 * dp }
+            visibility = View.GONE
+            // the activity's picture, not this TextView's own (inside apply, findViewById is the TextView's: v180 crashed here)
+            this@MainActivity.findViewById<ViewGroup>(R.id.picture).addView(this, android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.CENTER))
+        }
+    }
+    private val hideTip = Runnable { tip.visibility = View.GONE }
+
+    private fun showTip(text: String) {
+        tip.text = text
+        tip.rotation = keyTurn.toFloat()
+        tip.visibility = View.VISIBLE
+        tip.bringToFront()
+        ui.removeCallbacks(hideTip)
+        ui.postDelayed(hideTip, 1800)
+    }
+    private var assistOpen = false
     private var markKeys: List<RailButton> = emptyList()
+    private lateinit var rulerKey: RailButton
+    private lateinit var rulerPlay: RailButton
+    private lateinit var infoKey: RailButton
+    private lateinit var statusRow: View
     private lateinit var peakKey: RailButton
     private lateinit var snapKey: RailButton
     private lateinit var logKey: RailButton
@@ -225,6 +277,7 @@ class MainActivity : AppCompatActivity() {
         preview = findViewById(R.id.preview)
         focusSquare = findViewById(R.id.focusSquare)
         exposureCircle = findViewById(R.id.exposureCircle)
+        focusMeter = findViewById(R.id.focusMeter)
         zones = findViewById(R.id.zones)
         fullScreenCatcher = findViewById(R.id.fullScreenCatcher)
         status = findViewById(R.id.status)
@@ -235,6 +288,7 @@ class MainActivity : AppCompatActivity() {
         railLeft = findViewById(R.id.railLeft)
         railRight = findViewById(R.id.railRight)
         timecode = findViewById(R.id.timecode)
+        statusRow = findViewById(R.id.statusRow)
         showTimecode(false)
 
         pipeline = CameraPipeline(this)
@@ -243,6 +297,8 @@ class MainActivity : AppCompatActivity() {
         applyTestExtras(intent)
         manualQuarterTurns = settings.quarterTurns
         lenses = CameraCatalogue.lenses(this)
+        // v148: the lens it was left on (it always opened on L1, the ultra wide with fixed focus; Marko: "lens two is the best")
+        activeLens = (settings.lens - 1).coerceIn(0, (lenses.size - 1).coerceAtLeast(0))
         Trace.state(
             "lenses: " + lenses.joinToString {
                 it.label + " [" + it.id + (it.physicalId?.let { p -> ":$p" } ?: "") + "]"
@@ -275,6 +331,35 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        // v149: the focus puller's meter
+        focusMeter.keys = Mechanism.decodeKeys(settings.focusKeys)
+        focusMeter.onRack = { dpt -> rackTo(dpt) }
+        focusMeter.onPull = { dpt -> pullTo(dpt) }
+        // v151: the long press on a circle asks (Marko: "it's a long press, and then the dialog opens: Add Keyframe or
+        // Delete Keyframe")
+        focusMeter.onLongPress = { onLens, index ->
+            val at = (if (onLens) pipeline.engine.lastFocusDistance else focusMeter.keys.getOrNull(index))
+                ?.let { Mechanism.formatFocusDistance(it) } ?: ""
+            // v151 (Marko: "Add Keyframe and Remove Keyframe, both options. It's the keyframe column, and then two yellow
+            // buttons: Add or Remove"): ADD where the lens is, REMOVE the keyframe pressed or the one the lens stands on
+            val keyAt = focusMeter.keys.getOrNull(index)      // v153: removed by its value, not a list place that may move
+            val d = android.app.AlertDialog.Builder(this)
+                .setTitle("KEYFRAME:  $at")
+                .setNeutralButton("ADD") { _, _ -> focusMeter.addKeyAtLens() }
+                .setPositiveButton("REMOVE") { _, _ -> keyAt?.let { v -> focusMeter.deleteKey(focusMeter.keys.indexOfFirst { it == v }) } }
+                .show()
+            val yellow = RailButton.AMBER
+            d.getButton(android.app.AlertDialog.BUTTON_NEUTRAL)?.apply { setTextColor(yellow); textSize = 16f }
+            d.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.apply {
+                textSize = 16f
+                isEnabled = index >= 0
+                setTextColor(if (index >= 0) yellow else RailButton.GREY)
+            }
+        }
+        focusMeter.onKeysChanged = { keys ->
+            settings.focusKeys = Mechanism.encodeKeys(keys)
+            Trace.control("focus puller", "key points", keys.joinToString { Mechanism.formatFocusDistance(it) })
+        }
         focusSquare.size = settings.focusBoxSize
         focusSquare.onMoved = { x, y ->
             focus.target = x to y
@@ -288,7 +373,7 @@ class MainActivity : AppCompatActivity() {
             if (tracking) startTrack()
         }
         pipeline.trackListener = GpuStage.TrackListener { x, y, score -> ui.post { onTracked(x, y, score) } }
-        focusSquare.onTapped = { focus.focusHereAndHold(); alsoUnder(focusSquare.tapX, focusSquare.tapY, 0) }
+        focusSquare.onTapped = { rackTicket++; focus.focusHereAndHold(); alsoUnder(focusSquare.tapX, focusSquare.tapY, 0) }
         // v103: the circle. A tap reads there and locks; where it is dragged is kept. v143: the one circle does
         // ISO or white balance (its mode, written under it); a long press chooses, and sets the shutter.
         exposureCircle.kind = MarkView.Kind.CIRCLE
@@ -298,6 +383,13 @@ class MainActivity : AppCompatActivity() {
         exposureCircle.onMoved = { x, y -> settings.circleX = x; settings.circleY = y; exposureCircle.state = MarkView.State.IDLE }
         exposureCircle.onTapped = { fireCircle(); alsoUnder(exposureCircle.tapX, exposureCircle.tapY, 1) }
         exposureCircle.onLongPressed = { openCircleMenu() }
+        // v158: the square's long press (held still) and both TRACKs as they were left
+        focusSquare.onLongPressed = { openSquareMenu() }
+        focus.watching = settings.squareTrack
+        Mechanism.focusCal = floatArrayOf(settings.focusCalA, settings.focusCalB)   // v159: the calibrated distance meter
+        focus.holdFraction = settings.trackFocusHold.toDouble()
+        if (settings.circleTrack) ui.postDelayed(circleTrackTick, TRACK_EVERY_MS)
+        ui.postDelayed(sharpnessTick, 500)
         focusSquare.onStateChanged = { refreshKeys() }
         exposureCircle.onStateChanged = { refreshKeys() }
         focusSquare.onTapFor = { x, y -> tapAt(x, y) }
@@ -347,7 +439,7 @@ class MainActivity : AppCompatActivity() {
         // v104: any change that stopped the picture was taken back by the engine; say so, in his words
         pipeline.engine.onRequestFroze = {
             ui.post {
-                say("That setting is not available on this phone — put back as it was")
+                say("${PhoneSupport.SENTENCE} — that setting was put back as it was")
                 refreshZones(); refreshKeys()
             }
         }
@@ -357,7 +449,7 @@ class MainActivity : AppCompatActivity() {
                 refusedCurves.add(lensKey() + "/" + refused.name)
                 settings.refusedCurves = refusedCurves
                 risk = null
-                say("${curveLabel(refused)} is not supported on this lens — back to ${curveLabel(back)}")
+                say("${PhoneSupport.SENTENCE}: ${curveLabel(refused)} — back to ${curveLabel(back)}")
                 refreshKeys()
             }
         }
@@ -368,9 +460,13 @@ class MainActivity : AppCompatActivity() {
                     bufferSize = size
                     holdBufferSize()
                     applyPreviewTransform()
-                    say("${size.width}x${size.height} ${if (tenBit) "10-bit" else "8-bit"} $codec")
+                    say("${size.width}x${size.height} ${if (tenBit) "10-bit" else "8-bit"} $codec" +
+                        // v148: said on the screen, not only in the trace (it fell back unseen on every open until v148)
+                        if (settings.gpuStage && !pipeline.usesGpuStage) " · GPU STAGE could not start: direct path, no tracking" else "")
+                    showMeter()                     // v149: a lens that focuses has the meter, a fixed one none
                     reopenTries = -1                // v116: up again, the recovery is over
                     // v104: the light, switched in settings, is put on whenever the camera opens
+                    pipeline.engine.setTorchLevel(settings.torchLevel)
                     if (settings.torch) pipeline.engine.setTorch(true)
                     restoreMode = CameraPipeline.Mode.OFF
                     // v136: the stream stands the way the phone is held
@@ -477,7 +573,8 @@ class MainActivity : AppCompatActivity() {
         // v103: ONE key, L (Marko, 2.10.2026: "This lenses chooser is taking too much space ... L, only one
         // icon. When user press L, they uncollapse. User choose one lens and then it collapse again"). Its
         // whisper is the lens in use; the lens keys appear beside it only while it is open.
-        lensChooser = newKey("L") { openDrawer(!lensesOpen) }.also { railLeft.addView(it) }
+        // v173: the lens drawer moved to the right rail, beside REC, next to DISPLAY ASSIST (Marko, 29.10.2026)
+        lensChooser = newKey("L") { openDrawer(!lensesOpen) }
         // v130, THE LENS DRAWER (Marko, 3.10.2026: "when I press lens, it should actually take all available space
         // ... all other icons are gone ... millimeters ... next to the letter ... aperture opening for each lens and
         // resolution"). Each lens key reads "L1 24mm" over "f/1.85 · 12MP · 4K".
@@ -491,19 +588,30 @@ class MainActivity : AppCompatActivity() {
                 lens.megapixels.takeIf { it > 0 }?.let { "${it}MP" },
                 res
             ).joinToString(" · ")
-            val key = newKey("L$i$mm") { openDrawer(false); chooseLens(i - 1) }
-            key.sub = sub.ifEmpty { null }
-            key.scale = 1.35f
+            // v180 (Marko, 29.10.2026): three rows, larger: "L5", "24mm", then the lens's features
+            val key = newKey("L$i") { openDrawer(false); chooseLens(i - 1) }
+            key.sub = mm.trim().ifEmpty { " " }
+            key.third = sub.ifEmpty { null }
+            key.scale = 1.7f
             key.divider = true
             lensKeys.add(key)
-            railLeft.addView(key)
         }
         // v103: the marks' keys, drawn as their marks. Grey = not on the picture, white = on it,
         // orange = the one a pinch resizes (only one). A tap steps grey → white → orange → grey.
         // v143: the square and the circle; the triangle went into the circle's WB mode.
         markKeys = listOf(RailButton.Glyph.SQUARE, RailButton.Glyph.CIRCLE).mapIndexed { i, g ->
-            newKey("") { stepMark(i) }.also { it.glyph = g; railLeft.addView(it) }
+            newKey("") { stepMark(i) }.also {
+                it.glyph = g
+                it.setOnLongClickListener { _ -> markMenu(i); true }      // v173: TOUCH WHEN HIDDEN, and the colours
+                railLeft.addView(it)
+            }
         }
+        // v165 (Marko, 28.10.2026): under the square and the circle, the focus ruler on/off, drawn as the ruler, and
+        // INFO, the status line on/off (the REC time then rises to the very top)
+        rulerKey = newKey("") { settings.focusPuller = !settings.focusPuller; showMeter(); refreshKeys() }
+            .also { it.glyph = RailButton.Glyph.RULER; railLeft.addView(it) }
+        infoKey = newKey("INFO") { settings.showStatus = !settings.showStatus; placeStatus(); refreshKeys() }
+            .also { railLeft.addView(it) }
         focusKey = newKey("AF") { toggleAutoFocus() }.also { railLeft.addView(it) }
         logKey = newKey("LOG") { nextCurve() }.also { railLeft.addView(it) }
         manualKey = newKey("M") { nextCameraMode() }.also { railLeft.addView(it) }
@@ -516,6 +624,10 @@ class MainActivity : AppCompatActivity() {
             if (LinkServer.fromMonitorJustNow()) LinkServer.setClean(!LinkServer.clean) else setFullScreen(!fullScreen)
         }
             .also { railLeft.addView(it) }
+        // v169: the ruler's ▶ (the next key point) left the ruler for the rail, the last key, standing level with the
+        // ruler's line (Marko, 28.10.2026: "the play button can be on the rail menu, aligning exactly with that line")
+        rulerPlay = newKey("") { focusMeter.playNext() }.also { it.glyph = RailButton.Glyph.PLAY; railLeft.addView(it) }
+        railLeft.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> alignRulerPlay() }
 
         // THE RIGHT RAIL, v85: the take, the look, the measuring tools, and
         // what is left on the drive.
@@ -526,40 +638,70 @@ class MainActivity : AppCompatActivity() {
         // the free space and how much time we can still record."* The eleven
         // LUT slots went to settings; one key here switches between the ones
         // loaded there.
-        recKey = RecordButtonView(this).also {
-            it.setOnClickListener { toggleRecording() }
+        // v151 (Marko, 26.10.2026: "the record button, should still be the record button as before. But this triangle,
+        // which is the playing button, should become this round button with the last picture of the last clip ...
+        // Everything is circular. Please make the recording in the place of the lot, in the middle of the screen"):
+        // LUT where REC was, PLAY as a round key with the last capture, REC in the middle where the LUT was.
+        recKey = RecordButtonView(this).also { it.setOnClickListener { toggleRecording() }; withHelp(it) { "REC" } }
+        // v173 (Marko, 29.10.2026: "Short press enables the LUT. Long press gives the file-opening dialog to load the
+        // LUT. In the same dialog, we have history of all LUTs, so the user can switch in between")
+        lutKey = newKey("LUT") { toggleLut() }.also {
+            it.setOnLongClickListener { lutMenu(); true }
             railRight.addView(it)
         }
-        playKey = newKey("") { playLastTake() }.also {
-            it.glyph = RailButton.Glyph.PLAY
+        // the PLAY key the link and adb press by name ("play"); on the rail it is the round lastKey
+        playKey = newKey("") { playLastCapture() }.also { it.glyph = RailButton.Glyph.PLAY }
+        lastKey = RecordButtonView(this).also {
+            it.playMode = true
+            it.setOnClickListener { playLastCapture() }
+            withHelp(it) { "PLAY" }
             railRight.addView(it)
+        }
+        // v145: the last capture, kept from the run before
+        stillWriter.execute {
+            val kept = runCatching { android.graphics.BitmapFactory.decodeFile(lastCaptureFile().path) }.getOrNull()
+            if (kept != null) ui.post { if (lastKey.thumbnail == null) lastKey.thumbnail = kept }
         }
         // SNAP is the app's own icon (v88): the still is this camera's picture.
         snapKey = newKey("") { takeSnap() }.also {
             it.glyph = RailButton.Glyph.CAMERA
+            it.tint = SNAP_ORANGE
             railRight.addView(it)
         }
-        shootKey = newKey("PORTRAIT") { nextShoot() }.also { railRight.addView(it) }
-        lutKey = newKey("LUT") { nextLut() }.also {
-            it.setOnLongClickListener { openSettings(); true }
-            railRight.addView(it)
-        }
-        peakKey = newKey("PEAK") { togglePeaking() }.also { railRight.addView(it) }
-        falseKey = newKey("FALSE") { falseColour = !falseColour; applyLook(); refreshKeys() }
-            .also { railRight.addView(it) }
-        zebraKey = newKey("ZEBRA") { zebra = !zebra; applyLook(); refreshKeys() }
-            .also { railRight.addView(it) }
-        gearKey = newKey("") { openSettings() }.also {
-            it.glyph = RailButton.Glyph.GEAR
-            railRight.addView(it)
-        }
-        // Not a switch: a readout that opens where the takes go.
-        storageKey = newKey("—") { openSettings() }.also { railRight.addView(it) }
+        shootKey = newKey("POR") { nextShoot() }.also { it.glyph = RailButton.Glyph.ROTATE; it.tint = SNAP_ORANGE; railRight.addView(it) }
+        // v173: LENS above REC and DISPLAY ASSIST under it; each opens as a drawer that takes the whole rail, its keys
+        // larger and spread over it, and gives the other keys back when it closes (Marko, 29.10.2026)
+        railRight.addView(lensChooser)
+        lensKeys.forEach { railRight.addView(it) }
+        railRight.addView(recKey)
+        assistKey = newKey("ASSIST") { openAssist(!assistOpen) }.also { railRight.addView(it) }
+        peakKey = newKey("PEA") { togglePeaking() }.also { it.glyph = RailButton.Glyph.PEAKING; it.tint = SNAP_ORANGE; railRight.addView(it) }
+        falseKey = newKey("FC") { falseColour = !falseColour; applyLook(); refreshKeys() }
+            .also { it.glyph = RailButton.Glyph.FALSECOLOUR; it.tint = SNAP_ORANGE; railRight.addView(it) }
+        zebraKey = newKey("ZEB") { zebra = !zebra; applyLook(); refreshKeys() }
+            .also { it.glyph = RailButton.Glyph.ZEBRA; it.tint = SNAP_ORANGE; railRight.addView(it) }
+        // v145: no gear (Marko, 26.10.2026: "remove this settings icon, and clicking on the free space will open the
+        // settings. That's why you need to color this free space thing in yellow"). The readout is the way in.
+        storageKey = newKey("—") { openSettings() }.also { it.tint = STORAGE_YELLOW; railRight.addView(it) }
+        // v155 (Marko, 26.10.2026: "two points of reference that tell me how long I can keep working"): the drive's
+        // time left, and under it the battery's, on the ring of the POWER MONITOR; a tap opens all of its numbers
+        powerMonitor = PowerMonitor(this)
+        powerKey = newKey("—") { showPower() }.also { it.tint = POWER_BLUE; railRight.addView(it) }
     }
 
     /** v130: the lens drawer opens over the whole left rail (wider in landscape, taller upright) and closes again. */
     private fun openDrawer(open: Boolean) {
         lensesOpen = open
+        if (open) assistOpen = false
+        refreshKeys()
+        layoutForOrientation(resources.configuration.orientation)
+    }
+
+    /** v173: DISPLAY ASSIST, the drawer of peaking, false colour and zebra; one drawer open at a time. */
+    private fun openAssist(open: Boolean) {
+        assistOpen = open
+        if (open) lensesOpen = false
+        Trace.control("display assist", if (open) "open" else "closed", "key")
         refreshKeys()
         layoutForOrientation(resources.configuration.orientation)
     }
@@ -570,6 +712,7 @@ class MainActivity : AppCompatActivity() {
         startAdbControl()
         LinkServer.onKey = { name -> pressKey(name) }
         LinkServer.onModeChanged = { refreshKeys() }
+        LinkServer.onStreamWanted = { on -> pipeline.setLinkStream(on) }   // v161: the Mac app over the cable
         LinkServer.stateProvider = {
             mapOf(
                 "rec" to if (rolling) "1" else "0",
@@ -587,7 +730,7 @@ class MainActivity : AppCompatActivity() {
                 b = runCatching {
                     if (!preview.isAvailable || preview.width <= 0) null else {
                         val k = minOf(w.toFloat() / preview.width, h.toFloat() / preview.height)
-                        preview.getBitmap((preview.width * k).toInt().coerceAtLeast(2), (preview.height * k).toInt().coerceAtLeast(2))
+                        shownBitmap((preview.width * k).toInt().coerceAtLeast(2), (preview.height * k).toInt().coerceAtLeast(2))
                     }
                 }.getOrNull()
                 done.countDown()
@@ -610,7 +753,32 @@ class MainActivity : AppCompatActivity() {
         RailButton(this).apply {
             this.label = label
             setOnClickListener { onTap() }
+            withHelp(this) { keyName(this) }
         }
+
+    /**
+     * v155 (Marko, 26.10.2026: "long press of any of the action buttons after 2 seconds. Open the help menu explaining
+     * what the button does"): a finger held 2 s on a key opens its help, and the key is not pressed. A key with its own
+     * long press (LUT: the settings) keeps it.
+     */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private fun withHelp(v: View, name: () -> String) {
+        var shown = false
+        val open = Runnable { if (!v.isLongClickable) { shown = true; showHelp(name()) } }
+        v.setOnTouchListener { _, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { shown = false; v.postDelayed(open, HELP_MS) }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { v.removeCallbacks(open); if (shown) { v.isPressed = false; return@setOnTouchListener true } }
+            }
+            false
+        }
+    }
+
+    private fun showHelp(name: String) {
+        if (name == "FC") { showFalseColourLegend(); return }
+        val (title, text) = Help.forKey(name, lastPower)
+        android.app.AlertDialog.Builder(this).setTitle(title).setMessage(text).setPositiveButton("OK", null).show()
+    }
 
     /**
      * Across in landscape, down in portrait. Both, like any app on a phone.
@@ -636,7 +804,12 @@ class MainActivity : AppCompatActivity() {
         val margin = (2 * density).toInt()
         for (rail in listOf(railLeft, railRight)) {
             // v130: the open lens drawer takes room for its words, across in landscape and down when upright
-            val thickness = ((if (rail === railLeft && lensesOpen) (if (landscape) 150 else 72) else 44) * density).toInt()
+            // v173: the drawers live on the right rail: the lenses need room for their words, the assists for larger icons
+            val thickness = ((when {
+                rail === railRight && lensesOpen -> if (landscape) 150 else 72
+                rail === railRight && assistOpen -> if (landscape) 96 else 80
+                else -> 44
+            }) * density).toInt()
             val lp = rail.layoutParams as LinearLayout.LayoutParams
             if (landscape) {
                 lp.width = thickness
@@ -670,6 +843,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.picture).layoutParams = stageLp
 
         applyPreviewTransform()
+        turnKeys()                                  // v163: keys made since keep the turn
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -746,6 +920,8 @@ class MainActivity : AppCompatActivity() {
         val curve = LogCurves.Curve.entries[curveIndex]
         focus.holdMs = settings.focusHoldMs
         focus.rampMs = settings.focusRackMs
+        focus.speedMmS = settings.focusSpeedMmS
+        focus.trackSpeedMmS = settings.trackSpeedMmS
         pipeline.streamBitRate = settings.streamMbps * 1_000_000
         pipeline.start(
             cameraId = lens.id,
@@ -754,11 +930,14 @@ class MainActivity : AppCompatActivity() {
             sourceName = Mechanism.sanitizeSourceName(settings.sourceName),
             curve = curve,
             wantTenBit = settings.wantTenBit,
-            bitRate = settings.bitRateMbps * 1_000_000,
+            bitRate = settings.recordMbps * 1_000_000,   // v173: AUTO by the format, or the number by hand
             useGpuStage = settings.gpuStage
         )
         applyLook()
         refreshKeys()
+        // v177: 10-bit asked for on a lens (or a phone) that cannot: said, not quietly dropped to 8-bit
+        if (settings.wantTenBit && can()?.tenBit == false) notSupported("10-bit on this lens — 8-bit instead")
+        greetNewPhone()
     }
 
     override fun onRequestPermissionsResult(
@@ -780,6 +959,51 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * v163: THE SCREEN STAYS LANDSCAPE, ONLY THE RAIL KEYS TURN. *"Only the buttons need to change orientation ...
+     * no screen should be rotated"*, *"Only rail buttons are changing orientation, nothing else"* (Marko, 28.10.2026,
+     * after v162's upright layout collapsed into the top corner). The activity is locked to landscape; this listens
+     * to how the phone is held and turns the words and marks on every rail key, and the focus ruler's distances,
+     * so they read upright. The picture, the rails and every other word stay exactly where they are.
+     */
+    private var keyTurn = 0
+    private val holding by lazy {
+        object : android.view.OrientationEventListener(this) {
+            override fun onOrientationChanged(degrees: Int) {
+                if (degrees == ORIENTATION_UNKNOWN) return
+                // to the nearest quarter, with a margin so a phone held at 45° does not flicker
+                val q = ((degrees + 45) / 90 % 4) * 90
+                if (kotlin.math.abs(((degrees - q + 540) % 360) - 180) > 30) return
+                // the landscape screen is the phone turned to 270 here; upright (0) the words turn a quarter LEFT
+                // (v166: v165 turned them right, upside down for Marko, 28.10.2026: "the opposite of what it's supposed to be")
+                val turn = (270 - q + 360) % 360
+                if (turn != keyTurn) {
+                    val wasUpright = keyTurn % 180 == 90
+                    keyTurn = turn; turnKeys()
+                    if (wasUpright != (keyTurn % 180 == 90)) { applyPreviewTransform(); updateFocusRegion() }   // v182: the selfie's half turn
+                }
+            }
+        }
+    }
+
+    /**
+     * v182 (Marko, 29.10.2026: "in portrait mode, the selfie lens is upside down. It's acting very good in landscape"):
+     * the screen stays landscape and the selfie picture is mirrored across the screen; held upright, "across the
+     * screen" is up-down for him, so the mirror stood the picture on its head. A half turn more, with the mirror, is a
+     * side-to-side mirror again. Front lens and the phone upright only; the take is not mirrored and keeps its turn.
+     */
+    private fun selfieTurn(): Int =
+        if (::pipeline.isInitialized && pipeline.isRunning && pipeline.engine.isFrontFacing && keyTurn % 180 == 90) 180 else 0
+
+    private fun turnKeys() {
+        fun walk(v: View) {
+            if (v is RailButton) v.turn = keyTurn
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        walk(window.decorView)
+        focusMeter.turn = keyTurn
+    }
+
     override fun onResume() {
         super.onResume()
         if (keptRunning) resumeKept()
@@ -787,7 +1011,10 @@ class MainActivity : AppCompatActivity() {
         ui.post(logExposureTick)
         ui.removeCallbacks(remoteTick)
         ui.post(remoteTick)
+        ui.removeCallbacks(focusLabelTick)
+        ui.post(focusLabelTick)
         displays?.registerDisplayListener(displayListener, ui)
+        if (holding.canDetectOrientation()) holding.enable()
         if (fullScreen) hideSystemBars(true)
         // The camera session is lost while backgrounded even with a foreground
         // service, so it is rebuilt rather than tested for.
@@ -798,7 +1025,15 @@ class MainActivity : AppCompatActivity() {
         // v104: back from settings — the marks take their sizes from there, and the light follows its switch
         focusSquare.size = settings.focusBoxSize
         exposureCircle.size = settings.circleSize
-        if (pipeline.isRunning && pipeline.engine.hasFlash()) pipeline.engine.setTorch(settings.torch)
+        showMeter()                                 // v149: back from the settings, the FOCUS PULLER switch
+        focus.speedMmS = settings.focusSpeedMmS
+        focus.trackSpeedMmS = settings.trackSpeedMmS
+        focus.holdMs = settings.focusHoldMs
+        focus.rampMs = settings.focusRackMs
+        if (pipeline.isRunning && pipeline.engine.hasFlash()) {
+            pipeline.engine.setTorchLevel(settings.torchLevel)
+            pipeline.engine.setTorch(settings.torch)
+        }
         // Settings may have removed the LUT that was on.
         if (activeSlot > 0 && !slots.slot(activeSlot).loaded) { activeSlot = 0; applyLook() }
         refreshStorage()
@@ -812,10 +1047,12 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         runCatching { displays?.unregisterDisplayListener(displayListener) }
+        holding.disable()
         ui.removeCallbacks(rateTick)
         ui.removeCallbacks(focusWatch)
         ui.removeCallbacks(logExposureTick)
         ui.removeCallbacks(remoteTick)
+        ui.removeCallbacks(focusLabelTick)
         focus.stop()
         // v136: NDI GOES ON IN THE BACKGROUND. While it streams on the GPU path, leaving the app (home, another app,
         // the screen off, settings) keeps the camera, the microphone and the sender running under the foreground
@@ -850,7 +1087,7 @@ class MainActivity : AppCompatActivity() {
 
     /** v136: what, changed in settings while the stream ran on, needs the camera (or the meter) made again. */
     private fun snapshot(): List<Any?> = listOf(
-        settings.captureWidth, settings.fps, settings.gpuStage, settings.wantTenBit, settings.bitRateMbps,
+        settings.captureWidth, settings.fps, settings.gpuStage, settings.wantTenBit, settings.recordMbps,
         settings.streamMbps, settings.sourceName, settings.ndiKind, settings.ndiTransport, settings.armNdi,
         settings.audioSource, settings.audioStereo, settings.ndiAudio
     )
@@ -862,14 +1099,21 @@ class MainActivity : AppCompatActivity() {
      */
     private fun resumeKept() {
         keptRunning = false
+        applyChanged(keptWith)
+    }
+
+    /** v144 (out of resumeKept): what changed in the settings since [was] is applied to the running camera. */
+    private fun applyChanged(was: List<Any?>) {
         val now = snapshot()
-        val was = keptWith
         if (was.isEmpty() || now == was) return
         val camera = (0..6).any { now[it] != was[it] }
         val sound = (10..12).any { now[it] != was[it] }
         Trace.state("back in front: settings changed (camera=$camera, sound=$sound)")
         if (camera) {
-            pipeline.stop()
+            // v159 (27.10.2026, measured: his 720p/24 fps/8-bit change froze NDI Virtual Input, which does not follow a
+            // source closed and opened again): kept open as a lens change keeps it, the mode put back when ready
+            restoreMode = pipeline.mode
+            pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
             if (preview.isAvailable) openCamera()
         } else {
             NdiAudio.wanted = settings.ndiAudio
@@ -936,6 +1180,7 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             if (pipeline.isRunning) pipeline.sampleRate()
             if (++storageTicks % 5 == 0) refreshStorage()
+            runCatching { powerMonitor.read() }.getOrNull()?.let { refreshPower(it) }
             if (storageTicks % 2 == 0) watchWire()
             // v136: the stream watchdog, and the service that keeps the stream alive behind other apps
             pipeline.watchStream()?.let { Trace.refused("stream watch", it) }
@@ -1015,7 +1260,17 @@ class MainActivity : AppCompatActivity() {
             if (pipeline.mode != CameraPipeline.Mode.OFF) pipeline.setMode(CameraPipeline.Mode.OFF)
             return
         }
-        val want = if (settings.ndiKind == 2) CameraPipeline.Mode.FULL else CameraPipeline.Mode.HX
+        var want = if (settings.ndiKind == 2) CameraPipeline.Mode.FULL else CameraPipeline.Mode.HX
+        // v152 (the stress pass, 26.10.2026): FULL refused by the lens left NOTHING streaming (a settings change stops the
+        // stream before asking again). A kind the lens cannot take falls back to the other one, said, rather than to none.
+        // The wire watch asks again every 2 s, so it is said once, when the stream actually changes (it was said every 2 s).
+        if (want == CameraPipeline.Mode.FULL && !pipeline.fullAvailable && pipeline.hxAvailable) {
+            want = CameraPipeline.Mode.HX
+            if (pipeline.mode != want) {
+                say("Full NDI is not possible on this lens (10-bit takes its output) — NDI HX instead")
+                Trace.refused("ndi", "FULL not available on this lens: HX instead")
+            }
+        }
         if (pipeline.mode == want) return
         val possible = if (want == CameraPipeline.Mode.FULL) pipeline.fullAvailable else pipeline.hxAvailable
         if (!possible) {
@@ -1101,6 +1356,8 @@ class MainActivity : AppCompatActivity() {
         )
             ?: run { refreshKeys(); return false }
         pipeline.lastTakeUri?.let { settings.lastTake = it.toString() }
+        // v145: the take's first picture, for the record button once the take is saved
+        takeThumb = runCatching { if (preview.isAvailable) shownBitmap(THUMB_PX, THUMB_PX * preview.height / maxOf(1, preview.width)) else null }.getOrNull()
         say("Recording → $where")
         return true
     }
@@ -1109,6 +1366,9 @@ class MainActivity : AppCompatActivity() {
         val frames = pipeline.recordedFrames
         val drops = pipeline.recordedDrops
         val where = pipeline.stopRecording()
+        takeThumb?.let { t -> if (where != null) stillWriter.execute { keepLastCapture(t) } }
+        if (where != null) settings.lastIsStill = false      // v151: PLAY plays the take now
+        takeThumb = null
         refreshStorage()
         say(
             when {
@@ -1165,7 +1425,7 @@ class MainActivity : AppCompatActivity() {
         previewMirrored = producerMirrored
 
         val auto = Mechanism.previewRotation(sensor, displayDegrees, front, producerDegrees)
-        val applied = ((auto + manualQuarterTurns * 90) % 360 + 360) % 360
+        val applied = ((auto + manualQuarterTurns * 90 + selfieTurn()) % 360 + 360) % 360
 
         // THE SQUASH.
         //
@@ -1238,9 +1498,9 @@ class MainActivity : AppCompatActivity() {
         val engine = pipeline.engine
         val displayDegrees = displayDegrees()
         val front = engine.isFrontFacing
-        val degrees = Mechanism.sensorToViewDegrees(
+        val degrees = (Mechanism.sensorToViewDegrees(
             engine.sensorOrientation, displayDegrees, front, manualQuarterTurns
-        )
+        ) + selfieTurn()) % 360
         val b = focusSquare.normalisedBounds()
         val onStream = Mechanism.viewRegionToSensor(b[0], b[1], b[2], b[3], degrees, previewMirrored)
         val array = engine.activeArray()
@@ -1300,6 +1560,7 @@ class MainActivity : AppCompatActivity() {
         if (index >= lenses.size) return
         if (index == activeLens && pipeline.isRunning) return
         activeLens = index
+        settings.lens = index + 1           // v148: the camera opens on it next time
         restoreMode = pipeline.mode
         Trace.control("lens", index + 1, lenses[index].label + ", keeping " + restoreMode)
         pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
@@ -1315,7 +1576,12 @@ class MainActivity : AppCompatActivity() {
      * steps straight from AF to MF and says why.
      */
     private fun toggleAutoFocus() {
+        if (can()?.focusTravel == false) { notSupported("focus (this lens is fixed focus)"); return }
         when {
+            focus.mode == FocusDirector.Mode.AUTO && !tracking && !PhoneSupport.tracker -> {
+                notSupported("TRK, the tracker")
+                focus.setMode(FocusDirector.Mode.MANUAL)
+            }
             focus.mode == FocusDirector.Mode.AUTO && !tracking -> {
                 if (pipeline.usesGpuStage) {
                     startTrack()
@@ -1340,9 +1606,9 @@ class MainActivity : AppCompatActivity() {
     /** The stream's degrees from the screen, the same sum [updateFocusRegion] uses. */
     private fun viewDegrees(): Int {
         val engine = pipeline.engine
-        return Mechanism.sensorToViewDegrees(
+        return (Mechanism.sensorToViewDegrees(
             engine.sensorOrientation, displayDegrees(), engine.isFrontFacing, manualQuarterTurns
-        )
+        ) + selfieTurn()) % 360
     }
 
     /** The box, as it is now, becomes the pattern; the GPU stage starts looking for it. */
@@ -1356,7 +1622,7 @@ class MainActivity : AppCompatActivity() {
         val search = settings.trackSearch / 10f
         if (!pipeline.startTracking(
                 cx, cy, kotlin.math.abs(s[2] - s[0]), kotlin.math.abs(s[3] - s[1]),
-                settings.trackEvery, search, settings.trackConfidence / 100f
+                settings.trackEvery, search, settings.trackConfidence / 100f, settings.trackModel
             )
         ) {
             say("Tracking needs the GPU stage — Settings, Picture path")
@@ -1401,7 +1667,7 @@ class MainActivity : AppCompatActivity() {
         if (Mechanism.trackRefocus(lastFocusX, lastFocusY, nx, ny, settings.trackTolerance / 100f)) {
             lastFocusX = nx
             lastFocusY = ny
-            focus.focusHereAndHold()
+            focus.focusHereAndHold(settings.trackSpeedMmS)     // v147: the tracking speed
         }
     }
 
@@ -1416,6 +1682,28 @@ class MainActivity : AppCompatActivity() {
     private val stillsWaiting = java.util.concurrent.atomic.AtomicInteger()
     private val MAX_STILLS_WAITING = 4
     private val keptStill = java.util.concurrent.atomic.AtomicReference<android.graphics.Bitmap?>()
+
+    /**
+     * v157 (27.10.2026): THE PREVIEW AS THE SCREEN SHOWS IT. TextureView.getBitmap gives the texture without the
+     * preview's transform, and on the GPU stage the texture is in the sensor's raw orientation (the screen turns it
+     * with setTransform). So every reader got the picture turned and squeezed: the still, its thumbnail, the remote's
+     * picture, and the circle and the square, which measured another place than the one they are drawn on (Marko's
+     * white balance on a white paper read the tapestry beside it). [bitmap] is drawn through the same transform.
+     */
+    private fun asShown(bitmap: android.graphics.Bitmap): android.graphics.Bitmap = runCatching {
+        val w = bitmap.width; val h = bitmap.height
+        val m = preview.getTransform(android.graphics.Matrix())
+        if (m.isIdentity) return bitmap
+        val sx = w.toFloat() / preview.width; val sy = h.toFloat() / preview.height
+        m.preScale(1f / sx, 1f / sy); m.postScale(sx, sy)
+        android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888).also {
+            android.graphics.Canvas(it).drawBitmap(bitmap, m, android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+        }
+    }.onFailure { Trace.fault("preview as shown", it) }.getOrDefault(bitmap)
+
+    /** v157: [w] x [h] of the preview as the screen shows it (see [asShown]). */
+    private fun shownBitmap(w: Int, h: Int): android.graphics.Bitmap? =
+        preview.getBitmap(w, h)?.let { raw -> asShown(raw).also { if (it !== raw) raw.recycle() } }
 
     /**
      * SNAP: the picture as a PNG, beside the takes.
@@ -1458,11 +1746,20 @@ class MainActivity : AppCompatActivity() {
             say("The picture could not be read")
             return
         }
+        // v157: the picture as the screen shows it (see [asShown]); the raw one stays the kept buffer
+        val upright = asShown(bitmap)
         Trace.control("still", "${w}x$h", "PNG", "read in ${android.os.SystemClock.uptimeMillis() - t0} ms")
         stillWriter.execute {
-            val where = Recordings.savePng(this, bitmap, at = at, folder = settings.recordFolder)
+            val where = Recordings.savePng(this, upright, at = at, folder = settings.recordFolder)
+            if (where != null) {
+                keepLastCapture(upright)
+                // v151: PLAY opens this still now
+                Recordings.lastStillUri?.let { settings.lastStill = it.toString() }
+                settings.lastIsStill = true
+            }
             // One buffer is kept for the next snap; the others go back, so idle memory stays at one picture.
             if (!keptStill.compareAndSet(null, bitmap)) bitmap.recycle()
+            if (upright !== bitmap) upright.recycle()
             stillsWaiting.decrementAndGet()
             ui.post { say(if (where != null) "Still → $where" else "The still was not written, see the trace") }
         }
@@ -1486,7 +1783,7 @@ class MainActivity : AppCompatActivity() {
         risk = null
         if (r != null && now - r.second < 10_000) {
             r.third()                                    // forget the step, put the old value back
-            say("${r.first} is not available on this phone — back as it was")
+            say("${PhoneSupport.SENTENCE}: ${r.first} — back as it was")
             Trace.refused("camera died", "$message after ${r.first}: taken back, the camera opened again")
         } else {
             say("The camera stopped ($message) — opened again")
@@ -1520,6 +1817,7 @@ class MainActivity : AppCompatActivity() {
     private var previousCurve = LogCurves.Curve.REC709
 
     private fun nextCurve() {
+        if (can()?.toneCurve == false) { notSupported("log curves"); return }
         previousCurve = LogCurves.Curve.entries[curveIndex]
         val count = LogCurves.Curve.entries.size
         for (step in 1..count) {
@@ -1557,6 +1855,7 @@ class MainActivity : AppCompatActivity() {
      * once, the way pressing its A does.
      */
     private fun nextCameraMode() {
+        if (can()?.manualExposure == false) { notSupported("manual exposure (ISO and shutter by hand)"); return }
         val now = switches()
         if (Mechanism.cameraMode(now) == "HM") lastHalf = now.copyOf()
         val next = Mechanism.nextCameraMode(now, lastHalf)
@@ -1571,6 +1870,9 @@ class MainActivity : AppCompatActivity() {
     private fun toggleParam(index: Int) {
         // WB's switch is a button (v90): A measures once and comes back to M.
         if (index == 3) { if (!wbAuto) probeWhiteBalance(); return }
+        val c = can()
+        if ((index == 0 || index == 1) && c?.manualExposure == false) { notSupported(if (index == 0) "manual ISO" else "manual shutter"); return }
+        if (index == 2 && c?.focusTravel == false) { notSupported("focus (this lens is fixed focus)"); return }
         val now = switches()
         setParamAuto(index, !now[index], quiet = false)
         if (Mechanism.cameraMode(switches()) == "HM") lastHalf = switches()
@@ -1728,7 +2030,7 @@ class MainActivity : AppCompatActivity() {
         if (!preview.isAvailable) return null
         val w = 48
         val h = 27
-        val bmp = runCatching { preview.getBitmap(w, h) }.getOrNull() ?: return null
+        val bmp = runCatching { shownBitmap(w, h) }.getOrNull() ?: return null
         // v103: the exposure circle is where exposure is read, when it is on the picture
         val b = if (exposureCircle.visibility == View.VISIBLE) exposureCircle.normalisedBounds()
             else if (focusSquare.visibility == View.VISIBLE) focusSquare.normalisedBounds()
@@ -1848,7 +2150,9 @@ class MainActivity : AppCompatActivity() {
             else -> {
                 val all = (0 until railLeft.childCount).map { railLeft.getChildAt(it) } +
                     (0 until railRight.childCount).map { railRight.getChildAt(it) }
-                all.filterIsInstance<RailButton>().firstOrNull { keyName(it) == name }?.performClick()
+                // v155: the keys are three letters now; their old names still reach them (mcam key FALSE …)
+                val n = mapOf("PORTRAIT" to "POR", "LANDSCAPE" to "LAN", "PEAK" to "PEA", "FALSE" to "FC", "FAL" to "FC", "ZEBRA" to "ZEB")[name] ?: name
+                all.filterIsInstance<RailButton>().firstOrNull { keyName(it) == n || (n == "POR" && keyName(it) == "LAN") || (n == "LAN" && keyName(it) == "POR") }?.performClick()
                     ?: Trace.refused("remote", "no key called $name")
             }
         }
@@ -1875,7 +2179,15 @@ class MainActivity : AppCompatActivity() {
     private val adbControl = object : android.content.BroadcastReceiver() {
         override fun onReceive(c: android.content.Context, intent: Intent) {
             val cmd = intent.getStringExtra("cmd")?.lowercase() ?: "state"
-            val v = intent.getStringExtra("v")?.trim()?.lowercase().orEmpty()
+            // v144: the switch in the settings (MORE → ADB CONTROL); shut, nothing is done and nothing is told
+            if (!settings.adbControl) {
+                Trace.refused("adb", "$cmd: ADB CONTROL is off in the settings")
+                resultData = "ADB control is off (Settings → MORE → ADB CONTROL)"
+                return
+            }
+            // v144: a setting's value keeps its case (a source name, a folder)
+            val raw = intent.getStringExtra("v")?.trim().orEmpty()
+            val v = if (cmd == "set") raw else raw.lowercase()
             val said = runCatching { adbCommand(cmd, v) }.getOrElse { Trace.fault("adb", it); "error: ${it.javaClass.simpleName}" }
             Trace.control("adb", "$cmd $v", said)
             resultData = said + "\n" + adbState()
@@ -1894,6 +2206,47 @@ class MainActivity : AppCompatActivity() {
     private fun adbCommand(cmd: String, v: String): String {
         val engine = pipeline.engine
         if (cmd == "state") return "state"
+        // v144 (Marko, 26.10.2026: "remotely adjust any parameters of this camera, any settings"): every setting of
+        // the settings screen by its name. What the camera decides when it is built (size, rate, depth, path, the
+        // outputs, the sound) makes it again, the stream kept, as coming back from the settings screen does.
+        if (cmd == "settings") return "settings\n" + settings.all().entries.joinToString("\n") { "${it.key}=${it.value}" }
+        if (cmd == "set") {
+            val name = v.substringBefore(' ').trim()
+            if (name.isEmpty()) return "set takes a name and a value: set fps 25 (mcam settings lists them)"
+            val was = snapshot()
+            val said = settings.set(name, v.substringAfter(' ', "").trim())
+            if (!said.contains('=')) return said
+            restoreMode = pipeline.mode
+            applyChanged(was)
+            focusSquare.size = settings.focusBoxSize
+            exposureCircle.size = settings.circleSize
+            showMeter()
+            focusMeter.keys = Mechanism.decodeKeys(settings.focusKeys)
+            focus.speedMmS = settings.focusSpeedMmS
+            focus.trackSpeedMmS = settings.trackSpeedMmS
+            focus.holdMs = settings.focusHoldMs
+            focus.rampMs = settings.focusRackMs
+            if (pipeline.isRunning && pipeline.engine.hasFlash()) {
+                pipeline.engine.setTorchLevel(settings.torchLevel)
+                pipeline.engine.setTorch(settings.torch)
+            }
+            telemetry.visibility = if (!fullScreen && settings.showOutputs) View.VISIBLE else View.GONE
+            say("ADB: $said")
+            refreshZones()
+            refreshKeys()
+            return said
+        }
+        if (cmd == "restart") {
+            restoreMode = pipeline.mode
+            pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
+            if (preview.isAvailable) openCamera()
+            return "Camera made again"
+        }
+        // v144: what the UPDATE key in the settings does — the newest release, downloaded by Android
+        if (cmd == "update") {
+            Updater.check(this) { said -> say(said) }
+            return "Asking GitHub for the newest release"
+        }
         // v141 (Marko: "Lens two is the best"): a lens by its number in the drawer, L1, L2 …, the stream kept
         if (cmd == "lens") {
             val n = v.removePrefix("l").toIntOrNull() ?: return "lens takes a number, 1 to ${lenses.size}"
@@ -1905,7 +2258,15 @@ class MainActivity : AppCompatActivity() {
         if (cmd != "key" && !pipeline.isRunning) return "the camera is not running"
         val said: String = when (cmd) {
             "torch", "light" -> {
-                if (!engine.hasFlash()) return "this lens has no lamp"
+                if (!engine.hasFlash()) { notSupported("torch on this lens"); return "${PhoneSupport.SENTENCE}: torch on this lens" }
+                // v145: a brightness in percent turns it on at that level (torch 30%)
+                v.removeSuffix("%").toIntOrNull()?.takeIf { v.endsWith("%") }?.let { pct ->
+                    settings.torchLevel = pct
+                    settings.torch = true
+                    engine.setTorchLevel(settings.torchLevel)
+                    engine.setTorch(true)
+                    return "Light ${settings.torchLevel}% (level of ${engine.torchStrengthMax()})"
+                }
                 val on = when (v) { "on", "1" -> true; "off", "0" -> false; else -> !settings.torch }
                 settings.torch = on
                 engine.setTorch(on)
@@ -1953,14 +2314,50 @@ class MainActivity : AppCompatActivity() {
                 engine.setWhiteBalanceKelvin(wbKelvin)
                 "White balance " + WhiteBalance.format(wbKelvin)
             }
-            "focus" -> if (v == "auto") { setParamAuto(2, true, quiet = true); "Focus automatic" } else {
+            "focus" -> if (v == "auto") { rackTicket++; setParamAuto(2, true, quiet = true); "Focus automatic" } else {
                 if (!engine.supportsManualFocus()) return "this lens has fixed focus"
                 val f = v.toFloatOrNull() ?: return "focus takes 0 (infinity) to 1 (closest) or auto"
                 focusFraction = f.coerceIn(0f, 1f)
+                rackTicket++                                  // v153: a hand on the focus ends a rack (the review)
                 stopTrack()
                 if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
                 engine.setManualFocus(focusFraction)
                 String.format(java.util.Locale.ROOT, "Focus %.2f", focusFraction)
+            }
+            // v145: the lens at an exact distance, in dioptres (4.0), centimetres (25cm), millimetres (250mm) or metres (0.25m)
+            "focusd" -> {
+                if (!engine.supportsManualFocus()) return "this lens has fixed focus"
+                val dpt = adbDioptres(v) ?: return "focusd takes dioptres (4.0), 250mm, 25cm or 0.25m"
+                rackTicket++
+                stopTrack()
+                if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
+                val closest = engine.minimumFocusDistance()
+                focusFraction = (dpt / closest).coerceIn(0f, 1f)
+                engine.setFocusDistance(dpt.coerceIn(0f, closest))
+                String.format(java.util.Locale.ROOT, "Focus %.4f dpt", dpt.coerceIn(0f, closest))
+            }
+            // v145: a rack to a distance, eased in and out over a time (rack 40cm 3000), as a focus puller does it
+            "rack" -> {
+                if (!engine.supportsManualFocus()) return "this lens has fixed focus"
+                val parts = v.split(' ').filter { it.isNotBlank() }
+                val to = parts.getOrNull(0)?.let { adbDioptres(it) } ?: return "rack takes a distance and ms: rack 40cm 3000"
+                rackTo(to, parts.getOrNull(1)?.toLongOrNull()) ?: return "the camera is not running"
+            }
+            // v149: the focus puller's meter: meter on|off, meter add 40cm, meter clear, meter next
+            "meter" -> {
+                val parts = v.split(' ').filter { it.isNotBlank() }
+                when (parts.getOrNull(0)) {
+                    "on", "off" -> { settings.focusPuller = parts[0] == "on"; showMeter(); "Focus puller ${parts[0]}" }
+                    "add" -> {
+                        val d = parts.getOrNull(1)?.let { adbDioptres(it) } ?: return "meter add takes a distance: meter add 40cm"
+                        val keys = Mechanism.decodeKeys(settings.focusKeys) + d.coerceIn(0f, engine.minimumFocusDistance())
+                        settings.focusKeys = Mechanism.encodeKeys(keys); focusMeter.keys = keys
+                        "Key point " + Mechanism.formatFocusDistance(d) + " (${keys.size})"
+                    }
+                    "clear" -> { settings.focusKeys = ""; focusMeter.keys = emptyList(); "Key points cleared" }
+                    "keys" -> return "keys " + Mechanism.decodeKeys(settings.focusKeys).joinToString(" ") { Mechanism.formatFocusDistance(it) }
+                    else -> return "meter takes on, off, add 40cm, clear, keys"
+                }
             }
             // any key of the rails, by the name the link uses (REC, MARK0, a key's label)
             "key" -> { pressKey(v.uppercase()); return "key ${v.uppercase()}" }
@@ -1972,12 +2369,189 @@ class MainActivity : AppCompatActivity() {
                 "+", "-" -> { stepShutter(if (v == "+") 1 else -1); return lastSaid }
                 else -> return "circle takes iso, wb, tap, + or -"
             }
-            else -> return "unknown command $cmd: state, lens, torch, exposure, iso, shutter, ev, wb, focus, circle, key"
+            else -> return "unknown command $cmd: state, settings, set, restart, update, lens, torch, exposure, iso, shutter, ev, wb, focus, focusd, rack, meter, circle, key"
         }
         say("ADB: $said")
         refreshZones()
         refreshKeys()
         return said
+    }
+
+    /** v145: a rack running from adb; a new one, or any other focus command, takes over. */
+    private var rackTicket = 0
+
+    /**
+     * v145/v149: the lens racked to [dpt], eased in and out (smootherstep), over [ms] or, without it, at FOCUS SPEED
+     * (or the ramp, at CAMERA). The adb `rack` and the focus puller's meter both come here. Null when there is no lens
+     * to move; otherwise what was done.
+     */
+    private fun rackTo(dpt: Float, ms: Long? = null): String? {
+        if (!pipeline.isRunning) return null
+        val engine = pipeline.engine
+        if (!engine.supportsManualFocus()) return "this lens has fixed focus"
+        stopTrack()
+        focus.cancelWalk()
+        if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
+        val closest = engine.minimumFocusDistance()
+        val from = engine.lastFocusDistance ?: 0f
+        val target = dpt.coerceIn(0f, closest)
+        val time = ms ?: Mechanism.focusTravelMs(from, target, settings.focusSpeedMmS).takeIf { it > 0 } ?: settings.focusRackMs
+        val started = android.os.SystemClock.uptimeMillis()
+        val mine = ++rackTicket
+        ui.post(object : Runnable {
+            override fun run() {
+                if (rackTicket != mine || !pipeline.isRunning) return
+                val p = ((android.os.SystemClock.uptimeMillis() - started).toFloat() / time.coerceAtLeast(1)).coerceIn(0f, 1f)
+                val at = Mechanism.rackPosition(from, target, p)
+                focusFraction = (at / closest).coerceIn(0f, 1f)
+                pipeline.engine.setFocusDistance(at)
+                if (p < 1f) ui.postDelayed(this, 33) else say("Rack arrived: " + Mechanism.formatFocusDistance(target))
+            }
+        })
+        Trace.control("rack", Mechanism.formatFocusDistance(from) + " → " + Mechanism.formatFocusDistance(target), "$time ms")
+        return "Rack " + Mechanism.formatFocusDistance(from) + " → " + Mechanism.formatFocusDistance(target) + " in $time ms"
+    }
+
+    /** v149: the lens straight to [dpt], by the hand on the meter's white triangle (no ease: the hand is the ease). */
+    private fun pullTo(dpt: Float) {
+        if (!pipeline.isRunning || !pipeline.engine.supportsManualFocus()) return
+        rackTicket++
+        focus.cancelWalk()                              // v153: a tap's walk must not fight the hand
+        stopTrack()
+        if (focus.mode == FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.MANUAL)
+        val closest = pipeline.engine.minimumFocusDistance()
+        val at = dpt.coerceIn(0f, closest)
+        focusFraction = (at / closest).coerceIn(0f, 1f)
+        pipeline.engine.setFocusDistance(at)
+    }
+
+    /** v149: the meter shown when the settings say so and the lens focuses; its lens triangle follows the capture result. */
+    /**
+     * v155 (Marko, 26.10.2026: "make it the same as free space, the same design, maybe in the blue color"): the
+     * battery above (level and ▲ charging, ▼ discharging, = balanced), the time under it (to empty, or to full);
+     * red under 20 % or 20 minutes, as the drive's readout goes red under ten.
+     */
+    // v155 (Marko, 26.10.2026: "the numbers of discharging and charging are changing too rapidly. You need to average
+    // the value ... make it less fast"): the time shown follows the readings over about a minute, the readout is
+    // written every POWER_SHOW_MS, at once only when the flow turns (plugged in, unplugged, full)
+    private var shownSeconds: Double? = null
+    private var shownFlow: PowerMonitor.Flow? = null
+    private var shownAt = 0L
+
+    private fun refreshPower(raw: PowerMonitor.Reading) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (raw.flow != shownFlow) { shownSeconds = null; shownAt = 0L }
+        raw.seconds?.let { s -> shownSeconds = shownSeconds?.let { it + (s - it) * 0.06 } ?: s.toDouble() }
+        if (raw.flow == shownFlow && now - shownAt < POWER_SHOW_MS) return
+        shownFlow = raw.flow; shownAt = now
+        val r = raw.copy(seconds = shownSeconds?.toLong() ?: raw.seconds)
+        lastPower = r
+        val arrow = when (r.flow) {
+            PowerMonitor.Flow.CHARGING -> "▲"; PowerMonitor.Flow.DISCHARGING -> "▼"
+            PowerMonitor.Flow.BALANCED -> "="; PowerMonitor.Flow.FULL -> ""
+        }
+        powerKey.label = "${r.level}%$arrow"
+        powerKey.sub = when {
+            r.flow == PowerMonitor.Flow.FULL -> "FULL"
+            r.seconds == null -> if (r.flow == PowerMonitor.Flow.BALANCED) "BAL" else "--:--"
+            else -> PowerMonitor.Calc.format(r.seconds) + " h"
+        }
+        // v155 (Marko, 26.10.2026): ▲ charging green, ▼ discharging yellow, = balanced white; red only when it is
+        // critical (discharging under 20 % or under 20 minutes)
+        val low = r.flow == PowerMonitor.Flow.DISCHARGING && (r.level < 20 || (r.seconds ?: Long.MAX_VALUE) < 20 * 60)
+        powerKey.state = if (low) RailButton.State.ARMED else RailButton.State.SHOWN
+        powerKey.tint = when {
+            low -> null
+            r.flow == PowerMonitor.Flow.CHARGING || r.flow == PowerMonitor.Flow.FULL -> POWER_GREEN
+            r.flow == PowerMonitor.Flow.DISCHARGING -> STORAGE_YELLOW
+            else -> null                                               // SHOWN without a tint: white
+        }
+        powerKey.contentDescription = PowerMonitor.Calc.describe(r)
+    }
+
+    /**
+     * v155 (Marko, 26.10.2026: "On the long press on the False colors, please make legend what each color means in
+     * exposure values"): the bands of PreviewEffects' false colour, as the shader draws them (the picture's level as
+     * recorded, before the LUT), with their place in stops from middle grey.
+     */
+    private fun showFalseColourLegend() {
+        val rows = listOf(
+            Triple(0xFF8000CC.toInt(), "PURPLE   under 2.5 %", "crushed black, no detail (≈ −6 EV and below)"),
+            Triple(0xFF1A4DFF.toInt(), "BLUE     2.5 – 10 %", "near black, shadow detail (≈ −4 EV)"),
+            Triple(0xFF26D940.toInt(), "GREEN    38 – 42 %", "middle grey, 18 % grey card (0 EV)"),
+            Triple(0xFFFF73B3.toInt(), "PINK     52 – 56 %", "one stop over: light skin (+1 EV)"),
+            Triple(0xFFFFE61A.toInt(), "YELLOW   97 – 99 %", "nearly clipped, last highlight detail (≈ +4 EV)"),
+            Triple(0xFFFF1A1A.toInt(), "RED      over 99 %", "clipped: white, no detail"),
+            Triple(0xFF8A8A8A.toInt(), "GREY     elsewhere", "the picture's own brightness, so the bands stand out"),
+        )
+        val sb = android.text.SpannableStringBuilder()
+        for ((colour, band, meaning) in rows) {
+            val at = sb.length
+            sb.append("■ ")
+            sb.setSpan(android.text.style.ForegroundColorSpan(colour), at, at + 1, 0)
+            sb.setSpan(android.text.style.RelativeSizeSpan(1.4f), at, at + 1, 0)
+            val b = sb.length
+            sb.append(band)
+            sb.setSpan(android.text.style.TypefaceSpan("monospace"), b, sb.length, 0)
+            sb.append("\n    $meaning\n")
+        }
+        sb.append("\nLevels are the picture as recorded, before a LUT. The stops are for HLG and REC.709; on a log curve middle grey sits lower, so set exposure by the green band. Monitor only: the recording is untouched.")
+        android.app.AlertDialog.Builder(this).setTitle("FC · FALSE COLOUR").setMessage(sb).setPositiveButton("OK", null).show()
+    }
+
+    /** v155: the POWER MONITOR's numbers, in words, as a V-mount's menu shows them. */
+    private fun showPower() {
+        val r = lastPower ?: return
+        val time = when (r.flow) {
+            PowerMonitor.Flow.CHARGING -> "Full in ${PowerMonitor.Calc.format(r.seconds)} h"
+            PowerMonitor.Flow.DISCHARGING -> "Empty in ${PowerMonitor.Calc.format(r.seconds)} h at this draw"
+            PowerMonitor.Flow.BALANCED -> "In balance: the charger gives what the camera takes"
+            PowerMonitor.Flow.FULL -> "Full"
+        }
+        val lines = listOf(
+            time,
+            "${r.level} %" + (r.chargeMah?.let { "  ·  $it mAh in the cell" } ?: ""),
+            "${PowerMonitor.Calc.signed(r.netMa)}  ·  " + String.format(java.util.Locale.ROOT, "%.2f V  ·  %.1f W", r.volts, r.watts),
+            if (r.plugged.isEmpty()) "On battery" else "Plugged in: ${r.plugged}",
+            String.format(java.util.Locale.ROOT, "Battery %.1f °C", r.tempC),
+            if (r.measured) "Measured: the cell's own charge counter over the last minutes"
+            else "First estimate from the current now; measured after two minutes"
+        )
+        // v173 (Marko, 29.10.2026: "On the left side, there is OK. On the right side, put Settings")
+        android.app.AlertDialog.Builder(this).setTitle("POWER MONITOR").setMessage(lines.joinToString("\n"))
+            .setNegativeButton("OK", null)
+            .setPositiveButton("SETTINGS") { _, _ -> openSettings() }.show()
+    }
+
+    private fun showMeter() {
+        val closest = if (pipeline.isRunning) pipeline.engine.minimumFocusDistance() else 0f
+        val on = settings.focusPuller && closest > 0f && !fullScreen
+        focusMeter.visibility = if (on) View.VISIBLE else View.GONE
+        focusMeter.closest = if (on) closest else 0f
+        if (::rulerPlay.isInitialized) {
+            rulerPlay.visibility = if (on && !lensesOpen) View.VISIBLE else View.GONE
+            railLeft.post { alignRulerPlay() }
+        }
+    }
+
+    /** v169: the rail's ▶ moved up or down so its middle is exactly on the ruler's line. */
+    private fun alignRulerPlay() {
+        if (!::rulerPlay.isInitialized || rulerPlay.visibility != View.VISIBLE || focusMeter.height == 0) return
+        val meter = IntArray(2).also { focusMeter.getLocationOnScreen(it) }
+        val rail = IntArray(2).also { railLeft.getLocationOnScreen(it) }
+        val lineY = meter[1] + focusMeter.lineOffset()
+        val keyMiddle = rail[1] + rulerPlay.top + rulerPlay.height / 2f
+        rulerPlay.translationY = lineY - keyMiddle
+    }
+
+    /** v145: 4.0 (dioptres), 250mm, 25cm, 0.25m or inf as dioptres. */
+    /** Plain dioptres are the lens's own; a distance (mm, cm, m) is a REAL one, through the calibration (v159). */
+    private fun adbDioptres(v: String): Float? = when {
+        v == "inf" || v == "∞" -> 0f
+        v.endsWith("mm") -> v.removeSuffix("mm").toFloatOrNull()?.let { Mechanism.lensDioptres(1000f / it) }
+        v.endsWith("cm") -> v.removeSuffix("cm").toFloatOrNull()?.let { Mechanism.lensDioptres(100f / it) }
+        v.endsWith("m") -> v.removeSuffix("m").toFloatOrNull()?.let { Mechanism.lensDioptres(1f / it) }
+        else -> v.removeSuffix("dpt").toFloatOrNull()
     }
 
     /** 1/50, 0.02 or 20ms as nanoseconds. */
@@ -1997,6 +2571,7 @@ class MainActivity : AppCompatActivity() {
             "lens" to (activeLens + 1),
             "lenses" to lenses.mapIndexed { i, l -> "L${i + 1}:" + l.label.replace(' ', '_') + (l.equivalentMm.takeIf { it > 0 }?.let { "_${it}mm" } ?: "") }.joinToString(","),
             "torch" to (if (e.hasFlash()) settings.torch else "none"),
+            "torch_level" to (if (e.hasFlash()) "${settings.torchLevel}% of ${e.torchStrengthMax()} levels" else "-"),
             "exposure" to Mechanism.exposureMode(isoAuto, shutterAuto).name.lowercase(),
             "iso" to (if (isoAuto) "auto" else iso),
             "shutter" to (if (shutterAuto) "auto" else Mechanism.formatShutter(shutterNs)),
@@ -2008,18 +2583,33 @@ class MainActivity : AppCompatActivity() {
             "circle" to circleLabel().lowercase(),
             "wb_measured" to (if (running) e.measuredKelvin() else null),
             "focus" to (if (focus.mode == FocusDirector.Mode.AUTO) "auto" else String.format(java.util.Locale.ROOT, "%.2f", focusFraction)),
+            // v145: where the lens really is (the capture result), how far it goes, and how far its numbers are true
+            "focus_dpt" to e.lastFocusDistance?.let { String.format(java.util.Locale.ROOT, "%.5f", it) },
+            "focus_at" to e.lastFocusDistance?.let { Mechanism.formatFocusDistance(it) },
+            "focus_closest_dpt" to (if (running) String.format(java.util.Locale.ROOT, "%.4f", e.minimumFocusDistance()) else null),
+            "focus_calibration" to (if (running) e.focusCalibration() else null),
+            "hyperfocal_dpt" to e.hyperfocalDistance()?.let { String.format(java.util.Locale.ROOT, "%.4f", it) },
+            "focus_label" to focusLabel()?.replace('\n', ' '),
             "brightness" to sampleBrightness()?.let { String.format(java.util.Locale.ROOT, "%.2f", it) },
             "rec" to rolling,
+            // v155: the POWER MONITOR, for the Mac and the remote
+            "power" to lastPower?.let { PowerMonitor.Calc.describe(it) },
+            "power_level" to lastPower?.level,
+            "power_flow" to lastPower?.flow?.name?.lowercase(),
+            "power_ma" to lastPower?.netMa,
+            "power_w" to lastPower?.let { String.format(java.util.Locale.ROOT, "%.2f", it.watts) },
+            "power_time" to lastPower?.let { PowerMonitor.Calc.format(it.seconds) },
+            "power_measured" to lastPower?.measured,
             "status" to lastSaid.replace('\n', ' ')
         )
         return m.entries.joinToString("\n") { "${it.key}=${it.value ?: "-"}" }
     }
 
-    private fun keyName(k: RailButton): String = when (k.glyph) {
+    private fun keyName(k: RailButton): String = if (::rulerPlay.isInitialized && k === rulerPlay) "NEXTKEY" else when (k.glyph) {
         RailButton.Glyph.SQUARE -> "MARK0"
         RailButton.Glyph.CIRCLE -> "MARK1"
         RailButton.Glyph.TRIANGLE -> "MARK2"
-        RailButton.Glyph.NONE -> k.label
+        RailButton.Glyph.NONE, RailButton.Glyph.ROTATE, RailButton.Glyph.ZEBRA, RailButton.Glyph.PEAKING, RailButton.Glyph.FALSECOLOUR -> k.label
         else -> k.glyph.name.lowercase()
     }
 
@@ -2048,21 +2638,32 @@ class MainActivity : AppCompatActivity() {
 
     // --- the marks (v103; v143 the square and one circle) ---------------------------
 
-    /** Grey → white → orange → grey, for the square (0) and the circle (1). */
+    /** v173: grey → white → green → grey, for the square (0) and the circle (1); green takes it from the other. */
     private fun stepMark(i: Int) {
         val bit = 1 shl i
         val shown = settings.marksShown and bit != 0
         when {
-            !shown -> settings.marksShown = settings.marksShown or bit
+            !shown -> {
+                settings.marksShown = settings.marksShown or bit
+                if (settings.pinchTarget == i) settings.pinchTarget = -1   // out of grey it is WHITE first, never green
+            }
             settings.pinchTarget != i -> settings.pinchTarget = i
             else -> {
                 settings.marksShown = settings.marksShown and bit.inv()
-                // the orange goes to the next mark still on the picture, or stays (a pinch with none is nothing)
-                (0..1).firstOrNull { settings.marksShown and (1 shl it) != 0 }?.let { settings.pinchTarget = it }
+                settings.pinchTarget = -1                    // nothing is green until a key is made green again
                 if (i == 1) { releaseCircle(); exposureCircle.state = MarkView.State.IDLE }
             }
         }
         Trace.control("marks", "shown ${settings.marksShown}, pinch ${settings.pinchTarget}", "key ${i}")
+        // v178 (Marko, 29.10.2026: "display a quick toast: what's going on. E exposure off; then when it's white,
+        // exposure on; when it's green, default touching mode"): the colour the key now has, in words
+        val name = if (i == 0) "F  FOCUS" else "E  EXPOSURE"
+        val words = when {
+            settings.marksShown and bit == 0 -> "$name OFF"
+            settings.pinchTarget == i -> "$name: DEFAULT TOUCHING MODE"
+            else -> "$name ON"
+        }
+        showTip(words)
         say(lastSaid)
         refreshMarks()
         refreshKeys()
@@ -2072,12 +2673,18 @@ class MainActivity : AppCompatActivity() {
     private fun refreshMarks() {
         val canShow = !zonesOn && !fullScreen
         val shown = settings.marksShown
-        // the square always takes the tap that focuses; grey only stops it being drawn
+        // v173: grey is not drawn; a grey mark with TOUCH WHEN HIDDEN is still there, unseen, and works
         focusSquare.visibility = if (canShow) View.VISIBLE else View.GONE
         focusSquare.drawn = shown and 1 != 0
-        exposureCircle.visibility = if (canShow && shown and 2 != 0) View.VISIBLE else View.GONE
-        focusSquare.pinchResizesMe = settings.pinchTarget == 0
-        focusSquare.tapMovesMe = settings.pinchTarget == 0
+        exposureCircle.visibility = when {
+            !canShow -> View.GONE
+            shown and 2 != 0 -> View.VISIBLE
+            settings.marksTouchHidden and 2 != 0 -> View.INVISIBLE
+            else -> View.GONE
+        }
+        val target = tapTarget()
+        focusSquare.pinchResizesMe = target == 0
+        focusSquare.tapMovesMe = target == 0
     }
 
     /**
@@ -2088,7 +2695,8 @@ class MainActivity : AppCompatActivity() {
         // v125: a tap on one or more marks sets every one of them where they are (the monitor's taps too)
         // The armed mark still goes where the finger is, unless it is already there.
         val under = marksUnder(x, y)
-        if (settings.pinchTarget.coerceIn(0, 1) in under) {
+        val target = tapTarget()
+        if (target in under) {
             Trace.control("tap", String.format("%.2f,%.2f", x, y), "on marks " + under.joinToString())
             under.forEach { fireMark(it) }
             return
@@ -2097,15 +2705,49 @@ class MainActivity : AppCompatActivity() {
             Trace.control("tap", String.format("%.2f,%.2f", x, y), "also on marks " + under.joinToString())
             under.forEach { fireMark(it) }
         }
-        when (settings.pinchTarget) {
+        when (target) {
             1 -> {
                 exposureCircle.moveTo(x, y)
                 settings.circleX = exposureCircle.centreX; settings.circleY = exposureCircle.centreY
                 Trace.control("tap", String.format("%.2f,%.2f", x, y), "circle " + circleLabel())
                 fireCircle()
             }
-            else -> focusAt(x, y)
+            0 -> focusAt(x, y)
+            else -> if (under.isEmpty()) Trace.control("tap", String.format("%.2f,%.2f", x, y), "nothing green: no mark takes it")
         }
+    }
+
+    /**
+     * v173: which mark a tap anywhere on the picture serves: the GREEN one; with none green, a grey one that has
+     * TOUCH WHEN HIDDEN (square first); else none (-1).
+     */
+    private fun tapTarget(): Int {
+        val green = settings.pinchTarget
+        if (green in 0..1 && settings.marksShown and (1 shl green) != 0) return green
+        return (0..1).firstOrNull { settings.marksShown and (1 shl it) == 0 && settings.marksTouchHidden and (1 shl it) != 0 } ?: -1
+    }
+
+    /** v173: a long press on the square's or the circle's key: TOUCH WHEN HIDDEN, and what the colours mean. */
+    private fun markMenu(i: Int) {
+        val name = if (i == 0) "FOCUS SQUARE" else "EXPOSURE CIRCLE"
+        val bit = 1 shl i
+        // a dialog's message hides its list (Android), so the words and the tick are one small view
+        val dp = resources.displayMetrics.density
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding((24 * dp).toInt(), (8 * dp).toInt(), (24 * dp).toInt(), 0) }
+        box.addView(TextView(this).apply {
+            text = "A tap on the key: GREY hidden, WHITE shown (a tap on it works), GREEN every tap and pinch go to it. One green at a time."
+        })
+        box.addView(android.widget.CheckBox(this).apply {
+            text = "TOUCH WHEN HIDDEN: taps on the picture still reach it while it is grey"
+            isChecked = settings.marksTouchHidden and bit != 0
+            setOnCheckedChangeListener { _, on ->
+                settings.marksTouchHidden = if (on) settings.marksTouchHidden or bit else settings.marksTouchHidden and bit.inv()
+                Trace.control("marks", "touch when hidden ${settings.marksTouchHidden}", "key ${i} long press")
+                refreshMarks(); refreshKeys()
+            }
+        })
+        android.app.AlertDialog.Builder(this).setTitle(name).setView(box)
+            .setPositiveButton("OK", null).show()
     }
 
     /**
@@ -2150,7 +2792,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
-        if (settings.pinchTarget != 0 && !zonesOn && !fullScreen) markPinch.onTouchEvent(ev)
+        if (tapTarget() == 1 && !zonesOn && !fullScreen) markPinch.onTouchEvent(ev)
         return super.dispatchTouchEvent(ev)
     }
 
@@ -2158,7 +2800,7 @@ class MainActivity : AppCompatActivity() {
     private fun sensorRegionOf(b: FloatArray): FloatArray? {
         if (!pipeline.isRunning) return null
         val engine = pipeline.engine
-        val degrees = Mechanism.sensorToViewDegrees(engine.sensorOrientation, displayDegrees(), engine.isFrontFacing, manualQuarterTurns)
+        val degrees = (Mechanism.sensorToViewDegrees(engine.sensorOrientation, displayDegrees(), engine.isFrontFacing, manualQuarterTurns) + selfieTurn()) % 360
         val onStream = Mechanism.viewRegionToSensor(b[0], b[1], b[2], b[3], degrees, previewMirrored)
         val array = engine.activeArray() ?: return onStream
         return Mechanism.streamRegionToArray(onStream, bufferSize.width, bufferSize.height, array.width(), array.height())
@@ -2195,6 +2837,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setCircleMode(mode: Int) {
+        if (mode == CIRCLE_WB && can()?.manualWhiteBalance == false) { notSupported("white balance by the circle"); return }
+        if (mode != CIRCLE_WB && can()?.manualExposure == false) { notSupported("ISO by the circle (no manual exposure)"); return }
         releaseCircle()
         spotTicket++
         settings.circleMode = mode
@@ -2252,20 +2896,191 @@ class MainActivity : AppCompatActivity() {
         row.addView(shutter)
         row.addView(chip("+", false) { stepShutter(+1); showShutter() })
         box.addView(row)
-        // above the circle, or below it when there is no room above; inside the screen either way
+        // v158: TRACK, whatever the circle does: every 2 s it reads again and glides past the delta
+        box.addView(chip(if (settings.circleTrack) "TRACK ON" else "TRACK OFF", settings.circleTrack) {
+            setCircleTrack(!settings.circleTrack); popup.dismiss()
+        })
+        showMenuAt(popup, box, exposureCircle, exposureCircle.normalisedBounds(), exposureCircle.centreX)
+    }
+
+    /** v158: a mark's menu above it, or below it when there is no room above; inside the screen either way. */
+    private fun showMenuAt(popup: android.widget.PopupWindow, box: LinearLayout, anchor: View, b: FloatArray, centreX: Float) {
+        val dp = resources.displayMetrics.density
         box.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val at = IntArray(2)
-        exposureCircle.getLocationOnScreen(at)
-        val b = exposureCircle.normalisedBounds()
-        val cx = at[0] + exposureCircle.width * exposureCircle.centreX
-        val top = at[1] + exposureCircle.height * b[1]
-        val bottom = at[1] + exposureCircle.height * b[3]
+        anchor.getLocationOnScreen(at)
+        val cx = at[0] + anchor.width * centreX
+        val top = at[1] + anchor.height * b[1]
+        val bottom = at[1] + anchor.height * b[3]
         val screen = resources.displayMetrics
         val x = (cx - box.measuredWidth / 2f).toInt().coerceIn(0, (screen.widthPixels - box.measuredWidth).coerceAtLeast(0))
         val above = (top - box.measuredHeight - 8 * dp).toInt()
         val y = (if (above >= 0) above else (bottom + 22 * dp).toInt())
             .coerceIn(0, (screen.heightPixels - box.measuredHeight).coerceAtLeast(0))
-        popup.showAtLocation(exposureCircle, android.view.Gravity.NO_GRAVITY, x, y)
+        popup.showAtLocation(anchor, android.view.Gravity.NO_GRAVITY, x, y)
+    }
+
+    /**
+     * v158: the square's long press (held still): TRACK on or off. On, focus found is watched every 2 s and walks to
+     * the new mark only when the square's sharpness falls past the delta; off, it is held where it was found.
+     */
+    private fun openSquareMenu() {
+        val dp = resources.displayMetrics.density
+        val green = android.graphics.Color.parseColor("#33D17A")
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((8 * dp).toInt(), (6 * dp).toInt(), (8 * dp).toInt(), (6 * dp).toInt())
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xE6101010.toInt()); cornerRadius = 10 * dp; setStroke((1 * dp).toInt(), 0x55FFFFFF)
+            }
+        }
+        val popup = android.widget.PopupWindow(box, android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT, true).apply { isOutsideTouchable = true; elevation = 8 * dp }
+        box.addView(TextView(this).apply {
+            text = if (settings.squareTrack) "TRACK ON" else "TRACK OFF"
+            textSize = 15f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(if (settings.squareTrack) green else android.graphics.Color.WHITE)
+            gravity = android.view.Gravity.CENTER
+            setPadding((12 * dp).toInt(), (10 * dp).toInt(), (12 * dp).toInt(), (10 * dp).toInt())
+            setOnClickListener { setSquareTrack(!settings.squareTrack); popup.dismiss() }
+        })
+        showMenuAt(popup, box, focusSquare, focusSquare.normalisedBounds(), focusSquare.centreX)
+    }
+
+    /**
+     * v159 (27.10.2026): THE SQUARE'S SHARPNESS. FocusDirector's watch compares the sharpness in the square with the
+     * best it has been, and nothing ever set it (it stayed 0, so the watch never saw a subject go soft). Twice a
+     * second, while AF holds with TRACK on: the variance of the Laplacian of the luma inside the square, on the
+     * preview as shown at a quarter of its size.
+     */
+    private val sharpnessTick = object : Runnable {
+        override fun run() {
+            if (focus.mode == FocusDirector.Mode.AUTO && settings.squareTrack && preview.isAvailable)
+                runCatching { squareSharpness() }.getOrNull()?.let { focus.currentSharpness = it }
+            ui.postDelayed(this, 500)
+        }
+    }
+
+    private fun squareSharpness(): Double? {
+        val w = (preview.width / 4).coerceAtLeast(64)
+        val h = (preview.height / 4).coerceAtLeast(64)
+        val bmp = shownBitmap(w, h) ?: return null
+        val b = focusSquare.normalisedBounds()
+        val x0 = (b[0] * w).toInt().coerceIn(0, w - 3); val x1 = (b[2] * w).toInt().coerceIn(x0 + 3, w)
+        val y0 = (b[1] * h).toInt().coerceIn(0, h - 3); val y1 = (b[3] * h).toInt().coerceIn(y0 + 3, h)
+        val cw = x1 - x0; val ch = y1 - y0
+        val px = IntArray(cw * ch)
+        bmp.getPixels(px, 0, cw, x0, y0, cw, ch)
+        bmp.recycle()
+        val l = DoubleArray(px.size) { val c = px[it]; 0.299 * ((c shr 16) and 255) + 0.587 * ((c shr 8) and 255) + 0.114 * (c and 255) }
+        var sum = 0.0; var sum2 = 0.0; var n = 0
+        for (y in 1 until ch - 1) for (x in 1 until cw - 1) {
+            val i = y * cw + x
+            val v = l[i - 1] + l[i + 1] + l[i - cw] + l[i + cw] - 4 * l[i]
+            sum += v; sum2 += v * v; n++
+        }
+        if (n == 0) return null
+        val mean = sum / n
+        return sum2 / n - mean * mean
+    }
+
+    private fun setSquareTrack(on: Boolean) {
+        settings.squareTrack = on
+        focus.watching = on
+        Trace.control("square track", if (on) "on" else "off", "long press")
+        say(if (on) "Square: TRACK — focus is checked every 2 s and glides when the subject moves"
+            else "Square: TRACK off — focus stays where it was found")
+    }
+
+    private fun setCircleTrack(on: Boolean) {
+        settings.circleTrack = on
+        ui.removeCallbacks(circleTrackTick)
+        if (on) ui.postDelayed(circleTrackTick, TRACK_EVERY_MS)
+        Trace.control("circle track", if (on) "on" else "off", circleLabel())
+        say(if (on) "Circle: TRACK ${circleLabel()} — read every 2 s, glides when the light changes"
+            else "Circle: TRACK off — ${circleLabel()} stays")
+        refreshKeys()
+    }
+
+    /**
+     * v158: THE CIRCLE'S TRACK. Every [TRACK_EVERY_MS] the circle is read once; past the delta (trackDeltaWb,
+     * trackDeltaIso) one step is taken, eased over [TRACK_GLIDE_MS] in ratios, so a change of light becomes a slow
+     * cinematic drift over a few steps and a steady picture never moves. Nothing while a tap's own rounds run.
+     */
+    private val circleTrackTick = object : Runnable {
+        override fun run() {
+            if (!settings.circleTrack) return
+            runCatching { circleTrackStep() }.onFailure { Trace.fault("circle track", it) }
+            ui.postDelayed(this, TRACK_EVERY_MS)
+        }
+    }
+
+    /** v158: when the last TRACK glide ended; the picture shows it a moment later (MEASURED: a reading 0.5 s after a
+     * glide still saw the old light and stepped again, a small overshoot), so the next reading waits [TRACK_SETTLE_MS]. */
+    private var trackGlideDoneAt = 0L
+
+    private fun circleTrackStep() {
+        if (!pipeline.isRunning || wbRamp.running || exposureRamp.running) return
+        if (android.os.SystemClock.uptimeMillis() - trackGlideDoneAt < TRACK_SETTLE_MS) return
+        if (exposureCircle.state == MarkView.State.MEASURING) return
+        val engine = pipeline.engine
+        if (settings.circleMode == CIRCLE_WB) {
+            val rgb = sampleSpotRgb(choose = true) ?: return
+            val gains = engine.currentGains() ?: return
+            val off = maxOf(kotlin.math.abs(kotlin.math.ln(rgb[0] / rgb[1])), kotlin.math.abs(kotlin.math.ln(rgb[2] / rgb[1])))
+            val moves = off > settings.trackDeltaWb
+            Trace.state(String.format(java.util.Locale.ROOT, "circle track WB: r/g %.3f b/g %.3f, off %.3f, delta %.3f%s",
+                rgb[0] / rgb[1], rgb[2] / rgb[1], off, settings.trackDeltaWb, if (moves) " → glide" else ""))
+            if (!moves) return
+            val learn = WhiteBalance.SpotLearn(spotResponse[curveIndex]
+                ?: doubleArrayOf(WhiteBalance.CAUTIOUS_RESPONSE, WhiteBalance.CAUTIOUS_RESPONSE))
+            val next = learn.next(gains, rgb)
+            wbAuto = false
+            wbRamp.run(TRACK_GLIDE_MS,
+                step = { p ->
+                    settings.circleTrack && engine.setWhiteBalanceGains(
+                        FloatArray(4) { Mechanism.rampLog(gains[it].toDouble(), next[it].toDouble(), p).toFloat() },
+                        0, trace = p >= 1f)
+                },
+                done = {
+                    trackGlideDoneAt = android.os.SystemClock.uptimeMillis()
+                    engine.adoptSpotAsAnchor()?.let { wbKelvin = it }; wbLockedAt = wbLockText(); refreshZones()
+                })
+        } else {
+            val range = engine.isoRange() ?: return
+            if (isoAuto || shutterAuto) {
+                iso = (if (isoAuto) engine.lastIso else iso) ?: return
+                shutterNs = (if (shutterAuto) engine.lastExposureNs else shutterNs) ?: return
+                isoAuto = false; shutterAuto = false
+                applyExposure()
+                return                                  // read again once the camera holds these by hand
+            }
+            val linear = sampleCircleLinear() ?: return
+            val error = Mechanism.circleExposureError(linear)
+            val moves = kotlin.math.abs(error) > settings.trackDeltaIso
+            Trace.state(String.format(java.util.Locale.ROOT, "circle track ISO: light %.3f, %+.2f stops, delta %.2f%s",
+                linear, error, settings.trackDeltaIso, if (moves) " → glide" else ""))
+            if (!moves) return
+            val response = exposureResponse[curveIndex] ?: 1.0
+            val iso0 = iso
+            val (iso1, _) = Mechanism.splitExposure((error / response).coerceIn(-2.0, 2.0),
+                iso0, shutterNs, range.lower, range.upper, shutterNs, shutterNs)
+            if (iso1 == iso0) return
+            exposureRamp.run(TRACK_GLIDE_MS,
+                step = { p ->
+                    settings.circleTrack && run {
+                        iso = Math.round(Mechanism.rampLog(iso0.toDouble(), iso1.toDouble(), p)).toInt()
+                        engine.setManualExposure(iso, shutterNs, trace = p >= 1f)
+                    }
+                },
+                done = {
+                    trackGlideDoneAt = android.os.SystemClock.uptimeMillis()
+                    exposureLockedAt = "track ISO $iso · " + Mechanism.formatShutter(shutterNs)
+                    isoPosition = Mechanism.positionOfValue(iso.toDouble(), range.lower.toDouble(), range.upper.toDouble())
+                    refreshZones()
+                })
+        }
     }
 
     /**
@@ -2274,7 +3089,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun stepShutter(direction: Int) {
         if (!pipeline.isRunning) { say("The camera is not open"); return }
-        val (low, high) = shutterBounds() ?: run { say("This lens has no manual shutter"); return }
+        val (low, high) = shutterBounds() ?: run { notSupported("manual shutter"); return }
         val from = if (shutterAuto) pipeline.engine.lastExposureNs ?: shutterNs else shutterNs
         val next = Mechanism.shutterStep(from, direction, low, high)
         if (next == null) {
@@ -2304,7 +3119,7 @@ class MainActivity : AppCompatActivity() {
         val shutter0 = if (shutterAuto) engine.lastExposureNs else shutterNs
         if (engine.isoRange() == null || iso0 == null || shutter0 == null) {
             exposureCircle.state = MarkView.State.FAILED
-            say("ISO: this lens does not report its exposure")
+            notSupported("ISO by the circle (this lens does not report its exposure)")
             return
         }
         iso = iso0
@@ -2324,7 +3139,7 @@ class MainActivity : AppCompatActivity() {
         if (!preview.isAvailable) return null
         val w = (preview.width / 4).coerceAtLeast(48)
         val h = (preview.height / 4).coerceAtLeast(48)
-        val bmp = runCatching { preview.getBitmap(w, h) }.getOrNull() ?: return null
+        val bmp = runCatching { shownBitmap(w, h) }.getOrNull() ?: return null
         val bd = exposureCircle.normalisedBounds()
         val curve = LogCurves.Curve.entries[curveIndex]
         var sum = 0.0
@@ -2426,7 +3241,7 @@ class MainActivity : AppCompatActivity() {
         // black around them: "nothing lit in the triangle" over a lit keyboard (trace 2.10.2026 03:47).
         val w = (preview.width / 2).coerceAtLeast(64)
         val h = (preview.height / 2).coerceAtLeast(64)
-        val bmp = runCatching { preview.getBitmap(w, h) }.getOrNull() ?: return null
+        val bmp = runCatching { shownBitmap(w, h) }.getOrNull() ?: return null
         val bd = exposureCircle.normalisedBounds()
         val x0 = (bd[0] * w).toInt().coerceIn(0, w - 1)
         val x1 = (bd[2] * w).toInt().coerceIn(x0 + 1, w)
@@ -2591,7 +3406,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun sampleBrightness(): Double? {
         if (!preview.isAvailable) return null
-        val bmp = runCatching { preview.getBitmap(24, 14) }.getOrNull() ?: return null
+        val bmp = runCatching { shownBitmap(24, 14) }.getOrNull() ?: return null
         var sum = 0.0
         var n = 0
         for (y in 4 until 10) for (x in 8 until 16) {
@@ -2949,7 +3764,7 @@ class MainActivity : AppCompatActivity() {
             focusComplaintFor = key
             Trace.refused("focus", "$lens has no focus travel; it is fixed")
         }
-        say("$lens is fixed focus — there is nothing to pull")
+        say("${PhoneSupport.SENTENCE}: focus — $lens is fixed focus")
     }
 
     /**
@@ -3128,6 +3943,9 @@ class MainActivity : AppCompatActivity() {
         placeStatus()
         vu.visibility = hidden
         timecode.visibility = hidden
+        // v154 (seen 26.10.2026 in the page's screenshots): the focus-puller scale with its play key stayed on a
+        // clean feed; FULL is nothing but the picture
+        showMeter()
         // The zones and the focus box come back to whichever of them was up.
         zones.visibility = if (!on && zonesOn) View.VISIBLE else View.GONE
         refreshMarks()
@@ -3171,6 +3989,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** What this lens is called in the preferences: its id, and its sub-lens. */
+    /** v177: what the lens in use can do (PhoneSupport), or null before the lenses are known. */
+    private fun can(): PhoneSupport.Lens? = if (lenses.isEmpty()) null else PhoneSupport.lens(this, lensKey())
+
+    /** v177: the one sentence for a feature this phone or lens does not have, on the screen and in the trace. */
+    private fun notSupported(what: String) {
+        say("${PhoneSupport.SENTENCE}: $what")
+        Trace.refused("not supported", "$what on ${PhoneSupport.phoneName}, ${lenses.getOrNull(activeLens)?.label ?: "?"}")
+    }
+
+    /**
+     * v177: the first start on a phone (or after the app came to another one): what is on it and what is not, said
+     * once, so nobody is surprised by a key that answers "Not supported".
+     */
+    private fun greetNewPhone() {
+        val phone = PhoneSupport.phoneName
+        val prefs = getSharedPreferences("phone", MODE_PRIVATE)
+        if (prefs.getString("model", null) == phone || lenses.isEmpty()) return
+        prefs.edit().putString("model", phone).apply()
+        val perLens = lenses.mapNotNull { l -> PhoneSupport.lens(this, l.id + (l.physicalId?.let { ":$it" } ?: ""))?.let { l to it } }
+        val nowhere = listOf("10-bit", "manual exposure", "manual white balance", "log curves")
+            .filter { f -> perLens.isNotEmpty() && perLens.all { f in it.second.missing() } }
+        val extra = listOfNotNull("10-bit (no 10-bit encoder)".takeIf { !PhoneSupport.hevcMain10 && "10-bit" !in nowhere },
+            "TRK (the tracker)".takeIf { !PhoneSupport.tracker })
+        Trace.state("phone: $phone, ${lenses.size} lenses; " + perLens.joinToString("; ") { (l, c) ->
+            l.label + ": " + (c.missing().ifEmpty { listOf("everything") }.joinToString(", ")) })
+        val lacking = nowhere + extra
+        say("$phone" + if (lacking.isEmpty()) ": every feature is supported" else " — ${PhoneSupport.SENTENCE}: " + lacking.joinToString(", "))
+    }
+
     private fun lensKey(): String {
         val lens = lenses.getOrNull(activeLens) ?: return "0"
         return lens.id + (lens.physicalId?.let { ":$it" } ?: "")
@@ -3185,6 +4032,58 @@ class MainActivity : AppCompatActivity() {
      * The eleven slots moved to settings, where LUTs are added and removed;
      * this key only switches between them. A long press opens settings.
      */
+    /** v173: the LUT key's tap: the last LUT on, or off. With none loaded, the file picker. */
+    private fun toggleLut() {
+        val loaded = (1..LutSlots.COUNT).filter { slots.slot(it).loaded }
+        if (loaded.isEmpty()) { say("No LUT yet: choose a .cube file"); pickLut.launch(arrayOf("*/*")); return }
+        activeSlot = if (activeSlot > 0) 0 else settings.lastLutSlot.takeIf { it in loaded } ?: loaded.first()
+        if (activeSlot > 0) settings.lastLutSlot = activeSlot
+        applyLook(); refreshKeys()
+        say(if (activeSlot == 0) "LUT off" else "LUT: " + (slots.slot(activeSlot).label ?: "$activeSlot"))
+        Trace.control("LUT", activeSlot, if (activeSlot == 0) "off" else slots.slot(activeSlot).label)
+    }
+
+    /** v173: the LUT key's long press: LOAD A .CUBE FILE, OFF, and every LUT loaded so far (the history) to switch to. */
+    private fun lutMenu() {
+        val loaded = (1..LutSlots.COUNT).filter { slots.slot(it).loaded }
+            .sortedByDescending { java.io.File(filesDir, "lut_slot_$it.cube").lastModified() }
+        val names = listOf("LOAD A .CUBE FILE …", (if (activeSlot == 0) "● " else "   ") + "OFF") +
+            loaded.map { (if (it == activeSlot) "● " else "   ") + (slots.slot(it).label ?: "LUT $it") + "  · ${slots.slot(it).size}³" }
+        android.app.AlertDialog.Builder(this).setTitle("LUTS")
+            .setItems(names.toTypedArray()) { _, w ->
+                when (w) {
+                    0 -> pickLut.launch(arrayOf("*/*"))
+                    1 -> { activeSlot = 0; applyLook(); refreshKeys(); say("LUT off") }
+                    else -> {
+                        activeSlot = loaded[w - 2]; settings.lastLutSlot = activeSlot
+                        applyLook(); refreshKeys(); say("LUT: " + (slots.slot(activeSlot).label ?: "$activeSlot"))
+                    }
+                }
+                Trace.control("LUT", activeSlot, "menu")
+            }
+            .setNegativeButton("CLOSE", null).show()
+    }
+
+    /** v173: a .cube from the menu: into a free place, or over the LUT loaded longest ago when all eleven are full;
+     *  then it is on. */
+    private val pickLut =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@registerForActivityResult
+            val place = (1..LutSlots.COUNT).firstOrNull { !slots.slot(it).loaded }
+                ?: (1..LutSlots.COUNT).minBy { java.io.File(filesDir, "lut_slot_$it.cube").lastModified() }
+            val name = runCatching {
+                contentResolver.query(uri, null, null, null, null)?.use { c ->
+                    val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (i >= 0 && c.moveToFirst()) c.getString(i) else null
+                }
+            }.getOrNull()
+            val size = slots.import(place, uri, name)
+            if (size == null) { say("That file is not a 3D cube LUT"); return@registerForActivityResult }
+            activeSlot = place; settings.lastLutSlot = place
+            applyLook(); refreshKeys()
+            say("LUT: ${slots.slot(place).label}, $size cubed")
+        }
+
     private fun nextLut() {
         val loaded = (1..LutSlots.COUNT).filter { slots.slot(it).loaded }
         // An empty library is not a dead key: it is the way in to filling it.
@@ -3194,6 +4093,22 @@ class MainActivity : AppCompatActivity() {
         refreshKeys()
         say(if (activeSlot == 0) "LUT off" else "LUT: " + (slots.slot(activeSlot).label ?: "$activeSlot"))
         Trace.control("LUT", activeSlot, if (activeSlot == 0) "off" else slots.slot(activeSlot).label)
+    }
+
+    // --- v145: THE LAST CAPTURE, inside the record button ----------------------------------------------------------
+
+    private var takeThumb: android.graphics.Bitmap? = null
+
+    private fun lastCaptureFile() = java.io.File(filesDir, "last_capture.jpg")
+
+    /** Off the main thread: [picture] made small, shown in the record button, and kept for the next run. */
+    private fun keepLastCapture(picture: android.graphics.Bitmap) {
+        runCatching {
+            val h = (THUMB_PX * picture.height / maxOf(1, picture.width)).coerceAtLeast(1)
+            val small = android.graphics.Bitmap.createScaledBitmap(picture, THUMB_PX, h, true)
+            lastCaptureFile().outputStream().use { small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }
+            ui.post { lastKey.thumbnail = small }
+        }.onFailure { Trace.fault("last capture", it) }
     }
 
     /** The last take: this session's, or the one remembered from before. */
@@ -3212,6 +4127,18 @@ class MainActivity : AppCompatActivity() {
         } else {
             say("No player on this phone opens the take")
         }
+    }
+
+    /** v151: the round PLAY key: whatever was captured last — a still in the phone's viewer, else the last take. */
+    private fun playLastCapture() {
+        val still = settings.lastStill?.let { Uri.parse(it) }
+        if (settings.lastIsStill && still != null) {
+            val view = Intent(Intent.ACTION_VIEW).setDataAndType(still, "image/png").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (runCatching { startActivity(view); true }.getOrDefault(false)) { Trace.control("play", still.toString(), "still opened"); return }
+            say("No viewer on this phone opens the still")
+            return
+        }
+        playLastTake()
     }
 
     /**
@@ -3235,9 +4162,9 @@ class MainActivity : AppCompatActivity() {
     private fun applyShootMode() {
         // An older version's "follow the phone" becomes the way the screen is now.
         settings.shootMode = Mechanism.shootResolved(settings.shootMode, screenIsLandscape())
-        requestedOrientation = if (settings.shootMode == 1)
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
-        else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+        // v164: the screen never turns, PORTRAIT included (Marko, 28.10.2026: "no screen should be rotated"); in v162
+        // PORTRAIT turned it and the upright layout collapsed into the top corner. The keys turn instead (holding).
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
     }
 
     /**
@@ -3262,12 +4189,23 @@ class MainActivity : AppCompatActivity() {
             storageKey.label = "NO DRIVE"
             storageKey.sub = null
             storageKey.state = RailButton.State.ARMED
+            storageKey.tint = null
             return
         }
-        val left = Mechanism.secondsLeft(free, pipeline.videoBitRate.toLong(), 192_000L)
-        storageKey.label = Mechanism.formatFree(free)
-        storageKey.sub = Mechanism.formatTimeLeft(left)
-        storageKey.state = if (left < 10 * 60) RailButton.State.ARMED else RailButton.State.OFF
+        // v173: the time left at the rate the take WILL be written at (the format's, AUTO), not the last start's
+        val left = Mechanism.secondsLeft(free, settings.recordMbps * 1_000_000L, 192_000L)
+        // v173 (Marko, 29.10.2026: "enlarge gigabytes ... It must be the same as 90% battery"): the number alone is
+        // the key's word, as big as the battery's; its unit goes under it with the time left
+        // then (the same day, after seeing it): "what is more important is to see how much time is left rather than
+        // gigabytes. So time should be bigger and gigabytes should be smaller": the time left is the big word, as big as
+        // the battery's, and its unit with the gigabytes is the small line under it
+        // (the unit rides on the big word, "5:03h" / "47m": "h · 41.1 GB" did not fit the rail and was cut)
+        storageKey.label = if (left >= 3600) String.format(java.util.Locale.ROOT, "%d:%02dh", left / 3600, (left / 60) % 60)
+            else "${(left / 60).coerceAtLeast(0)}m"
+        storageKey.sub = Mechanism.formatFree(free)
+        // v145: yellow, the settings' key; red under ten minutes, as before
+        storageKey.state = if (left < 10 * 60) RailButton.State.ARMED else RailButton.State.SHOWN
+        storageKey.tint = if (left < 10 * 60) null else STORAGE_YELLOW
     }
 
     /** Record-run timecode, ticking ten times a second while a take runs. */
@@ -3336,7 +4274,7 @@ class MainActivity : AppCompatActivity() {
             zebraLevel = settings.zebraLevel
         )
         if (!ok) {
-            say("This phone will not run the preview shader")
+            say("${PhoneSupport.SENTENCE}: the preview shader (looks, LUTs, peaking)")
             Trace.refused("preview shader", "rejected by the graphics layer")
             peaking = false
             falseColour = false
@@ -3350,19 +4288,35 @@ class MainActivity : AppCompatActivity() {
     private fun refreshKeys() {
         lenses.getOrNull(activeLens)?.equivalentMm?.takeIf { it > 0 }?.let { lensChooser.sub = "${it}mm" }
         lensChooser.state = if (lensesOpen) RailButton.State.ARMED else RailButton.State.ON
-        lensKeys.forEach { it.visibility = if (lensesOpen) View.VISIBLE else View.GONE }
-        // v130: while the drawer is open it is the whole rail; every other key steps aside
-        for (i in 0 until railLeft.childCount) {
-            val k = railLeft.getChildAt(i)
-            if (k !== lensChooser && k !in lensKeys) k.visibility = if (lensesOpen) View.GONE else View.VISIBLE
+        // v130/v173: an open drawer is the whole right rail; every other key steps aside and comes back when it closes
+        val assists = listOf<View>(peakKey, falseKey, zebraKey)
+        for (i in 0 until railRight.childCount) {
+            val k = railRight.getChildAt(i)
+            k.visibility = when {
+                lensesOpen -> if (k in lensKeys) View.VISIBLE else View.GONE      // v180: no opener; the lens in use closes it
+                assistOpen -> if (k === assistKey || k in assists) View.VISIBLE else View.GONE
+                else -> if (k in lensKeys || k in assists) View.GONE else View.VISIBLE
+            }
         }
+        for (k in listOf(peakKey, falseKey, zebraKey)) k.scale = if (assistOpen) 1.35f else 1f
+        val on = listOfNotNull("PEA".takeIf { peaking }, "FC".takeIf { falseColour }, "ZEB".takeIf { zebra })
+        assistKey.sub = if (on.isEmpty()) "OFF" else on.joinToString(" ")
+        assistKey.state = when { assistOpen -> RailButton.State.ARMED; on.isNotEmpty() -> RailButton.State.ON; else -> RailButton.State.OFF }
+        // v169: the ruler's ▶ only while the ruler is up; green with key points to go to, dark without
+        rulerPlay.visibility = if (!lensesOpen && focusMeter.visibility == View.VISIBLE) View.VISIBLE else View.GONE
+        rulerPlay.state = if (focusMeter.keys.isEmpty()) RailButton.State.DEAD else RailButton.State.ON
         // v107: each mark key wears its shape's colour of the moment (white, orange searching, green locked,
         // red failed), grey when the shape is off; a bar under it says which one is armed.
+        rulerKey.state = if (settings.focusPuller) RailButton.State.ON else RailButton.State.OFF
+        infoKey.state = if (settings.showStatus) RailButton.State.ON else RailButton.State.OFF
+        // v173 (Marko, 29.10.2026): no bar under the key any more, only colours. GREY: hidden, and a tap on the
+        // picture does nothing for it (unless TOUCH WHEN HIDDEN, its long press); WHITE: shown, a tap ON it works as
+        // before; GREEN: every tap on the picture and every pinch go to it; one green at a time.
         markKeys.forEachIndexed { i, key ->
             val on = settings.marksShown and (1 shl i) != 0
-            key.state = if (on) RailButton.State.SHOWN else RailButton.State.OFF
-            key.tint = if (!on) null else if (i == 0) focusSquare.colour() else exposureCircle.colour()
-            key.marked = on && settings.pinchTarget == i
+            key.state = when { !on -> RailButton.State.OFF; settings.pinchTarget == i -> RailButton.State.ON; else -> RailButton.State.SHOWN }
+            key.tint = null
+            key.marked = false
             key.invalidate()
         }
         lensKeys.forEachIndexed { i, key ->
@@ -3382,9 +4336,9 @@ class MainActivity : AppCompatActivity() {
         focusKey.state =
             if (focus.mode == FocusDirector.Mode.AUTO) RailButton.State.ON
             else RailButton.State.OFF
-        peakKey.state = if (peaking) RailButton.State.ON else RailButton.State.OFF
+        peakKey.state = if (peaking) RailButton.State.ON else RailButton.State.SHOWN    // v155: orange outline off, green on
         snapKey.state =
-            if (pipeline.isRunning) RailButton.State.OFF else RailButton.State.DEAD
+            if (pipeline.isRunning) RailButton.State.SHOWN else RailButton.State.DEAD   // SHOWN: its orange (v155)
         logKey.sub = curveLabel(LogCurves.Curve.entries[curveIndex]).take(5)
         logKey.state =
             if (LogCurves.Curve.entries[curveIndex] == LogCurves.Curve.REC709)
@@ -3400,13 +4354,14 @@ class MainActivity : AppCompatActivity() {
         lutKey.sub = if (activeSlot > 0) slots.slot(activeSlot).label?.take(5) ?: "$activeSlot" else "OFF"
         lutKey.state = if (activeSlot > 0) RailButton.State.ON else RailButton.State.OFF
         if (activeSlot == 0 && slots.loadedCount() == 0) lutKey.sub = "ADD"
-        falseKey.state = if (falseColour) RailButton.State.ON else RailButton.State.OFF
-        zebraKey.state = if (zebra) RailButton.State.ON else RailButton.State.OFF
+        if (activeSlot > 0) settings.lastLutSlot = activeSlot
+        falseKey.state = if (falseColour) RailButton.State.ON else RailButton.State.SHOWN
+        zebraKey.state = if (zebra) RailButton.State.ON else RailButton.State.SHOWN
         zebraKey.sub = if (zebra) "${settings.zebraLevel}%" else null
-        shootKey.label = if (settings.shootMode == 1) "LANDSCAPE" else "PORTRAIT"
-        shootKey.state = RailButton.State.OFF
+        shootKey.label = if (settings.shootMode == 1) "LAN" else "POR"   // v155: three letters (Marko, 26.10.2026), the name
+        shootKey.across = settings.shootMode == 1                     // v155: and the icon lies across in landscape
+        shootKey.state = RailButton.State.SHOWN                       // v155: orange, as the photo key (Marko, 26.10.2026)
         playKey.state = if (lastTakeUri() != null) RailButton.State.OFF else RailButton.State.DEAD
-        gearKey.state = RailButton.State.OFF
 
         recKey.dead = !pipeline.isRunning
         recKey.recording = rolling
@@ -3421,7 +4376,7 @@ class MainActivity : AppCompatActivity() {
     private fun say(text: String) {
         lastSaid = text
         lastSaidAt = android.os.SystemClock.elapsedRealtime()
-        status.text = markStatus() + text
+        status.text = text                          // v172: no mark words on the line (Marko, 28.10.2026: "Remove it")
         Trace.state(text)
     }
 
@@ -3437,16 +4392,44 @@ class MainActivity : AppCompatActivity() {
      * hidden — no gap (Marko, 2.10.2026: "when my outputs are gone, the status line has a gap").
      */
     private fun placeStatus() {
-        val lp = status.layoutParams as? android.view.ViewGroup.MarginLayoutParams ?: return
+        // v165: the outputs and the status share one row (activity_main.xml), shown unless FULL or INFO hides it,
+        // and the REC time sits right under it, or at the very top without it (Marko, 28.10.2026)
+        if (!::statusRow.isInitialized) return
+        statusRow.visibility = if (!fullScreen && settings.showStatus) View.VISIBLE else View.GONE
+        val lp = timecode.layoutParams as? android.view.ViewGroup.MarginLayoutParams ?: return
         val dp = resources.displayMetrics.density
-        lp.topMargin = ((if (telemetry.visibility == View.VISIBLE) 22 else 2) * dp).toInt()
-        status.layoutParams = lp
+        lp.topMargin = if (statusRow.visibility == View.VISIBLE) (statusRow.height.takeIf { it > 0 } ?: (20 * dp).toInt()) else 0
+        timecode.layoutParams = lp
+        if (statusRow.visibility == View.VISIBLE && statusRow.height == 0) statusRow.post { if (statusRow.height > 0) placeStatus() }
     }
 
-    private fun markStatus(): String = when (settings.pinchTarget) {
+    private fun markStatus(): String = when (tapTarget()) {
+        -1 -> ""
         1 -> if (settings.circleMode == CIRCLE_WB) "WB CIRCLE" + (wbLockedAt?.let { " $it" } ?: "") + "  ·  "
             else "ISO CIRCLE" + (exposureLockedAt?.let { " $it" } ?: "") + "  ·  "
         else -> "FOCUSING SQUARE" + (focusLockedAt?.let { " $it" } ?: "") + "  ·  "
+    }
+
+    /**
+     * v145, under the square (Marko, 26.10.2026: "In the same style as we have ISO under the circle ... put the meters,
+     * which are centimeters or meters, where the focus is actually adjusted, so we always know the distance"): FOC: and
+     * where the lens really is, from the capture result, running while it searches.
+     */
+    private val focusLabelTick = object : Runnable {
+        override fun run() {
+            ui.postDelayed(this, 150)
+            focusSquare.label = focusLabel()
+            if (focusMeter.visibility == View.VISIBLE) focusMeter.lens = if (pipeline.isRunning) pipeline.engine.lastFocusDistance else null
+        }
+    }
+
+    private fun focusLabel(): String? {
+        if (!pipeline.isRunning) return null
+        val e = pipeline.engine
+        // v145, his second word (26.10.2026): "It can be FOC. Then column, then centimeters. The set thing. I don't need
+        // to have it ... while it's searching, instead of auto, it goes to display the number" — one line, the number runs
+        if (e.minimumFocusDistance() <= 0f) return "FOC: FIXED"
+        return "FOC: " + (e.lastFocusDistance?.let { Mechanism.formatFocusDistance(it) } ?: "--")
     }
 
     private fun focusLockText(): String? {
@@ -3471,8 +4454,8 @@ class MainActivity : AppCompatActivity() {
         lastWatching = connections
         val depth = if (pipeline.isTenBit) "10-bit" else "8-bit"
         val grey = greyReadout?.let { " · $it" } ?: ""
-        status.text = if (fps > 0.5) String.format(java.util.Locale.ROOT, "%s%s · %.1f fps%s · %s", markStatus(), depth, fps, grey, lastSaid)
-            else "${markStatus()}$depth$grey · $lastSaid"
+        status.text = if (fps > 0.5) String.format(java.util.Locale.ROOT, "%s%s · %.1f fps%s · %s", "", depth, fps, grey, lastSaid)
+            else "$depth$grey · $lastSaid"
         refreshTelemetry()
     }
 
@@ -3486,14 +4469,20 @@ class MainActivity : AppCompatActivity() {
         if (!::telemetry.isInitialized || !::pipeline.isInitialized) return
         val parts = Mechanism.telemetry(
             settings.armFile, pipeline.isRecording, pipeline.videoBitRate / 1_000_000.0,
-            settings.armNdi, settings.ndiKind, pipeline.mode != CameraPipeline.Mode.OFF,
+            // v152: the kind actually streaming (FULL refused by a lens streams HX; the line said FULL over HX's 16 Mb/s)
+            settings.armNdi, when (pipeline.mode) { CameraPipeline.Mode.FULL -> 2; CameraPipeline.Mode.HX -> 1; else -> settings.ndiKind },
+            pipeline.mode != CameraPipeline.Mode.OFF,
             lastMbps, lastWatching,
-            wire = Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter ?: pipeline.currentAdapter()),
+            // v170: the wire stays in Settings (Marko, 28.10.2026: "remove this text completely. Put this text inside Settings")
+            wire = "",
             sound = if (meter != null && settings.ndiAudio) audioLabel.ifEmpty { "MIC" } else ""
         )
         val text = android.text.SpannableStringBuilder()
         parts.forEachIndexed { i, p ->
-            if (i > 0) text.append("   ")
+            // v168: the outputs touch, FILEUSBNDIHXYT, grey off and white armed (Marko, 28.10.2026: "without any
+            // spaces in between ... It takes space"); only a note after a name keeps one space before the next
+            // v170: a dot where a space was, FILE.USB.NDI.HX.YT, a full stop (Marko, 28.10.2026: "normal dot, like a full stop dot")
+            if (i > 0) text.append(".")
             val start = text.length
             if (p.state == Mechanism.Output.LIVE) {
                 text.append("● ")
@@ -3502,7 +4491,7 @@ class MainActivity : AppCompatActivity() {
             }
             val wordStart = text.length
             text.append(p.name)
-            if (p.detail.isNotEmpty()) text.append(" ").append(p.detail)
+            if (p.detail.isNotEmpty()) text.append(" ").append(p.detail.replace(" — ", " ").replace(" - ", " "))
             val colour = when (p.state) {
                 Mechanism.Output.OFF -> android.graphics.Color.argb(120, 200, 204, 208)
                 Mechanism.Output.READY -> android.graphics.Color.WHITE
@@ -3529,6 +4518,14 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         if (adbRegistered) runCatching { unregisterReceiver(adbControl) }
+        // v157 (27.10.2026, THE BACKGROUND FREEZE): the ticks die with the activity. onPause re-posts them when NDI goes
+        // on behind other apps, so an activity swiped away kept its rateTick, and its syncService (nothing streaming
+        // here) stopped the next activity's stream service every second; behind other apps nothing started it again,
+        // Android cut the camera ("disabled by policy") and the picture froze.
+        ui.removeCallbacks(rateTick)
+        ui.removeCallbacks(remoteTick)
+        ui.removeCallbacks(sharpnessTick)
+        ui.removeCallbacks(circleTrackTick)
         keptRunning = false
         pipeline.stop()
         meter?.stop()
@@ -3541,6 +4538,7 @@ class MainActivity : AppCompatActivity() {
      * refuses a camera service started from behind); stopped as soon as the stream is off.
      */
     private fun syncService() {
+        if (isDestroyed) return
         val streaming = pipeline.isRunning && pipeline.mode != CameraPipeline.Mode.OFF
         if (streaming && !StreamService.running && !keptRunning) {
             StreamService.start(this, "Streaming NDI on " + Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter))
@@ -3568,3 +4566,7 @@ private const val CIRCLE_SETTLE_MS = 300L
 private const val CIRCLE_ISO = 0
 private const val CIRCLE_WB = 1
 private const val SPOT_TOLERANCE = 0.03
+/** v158: the TRACK of the square and the circle reads every 2 s and glides over most of that. */
+private const val TRACK_EVERY_MS = 2000L
+private const val TRACK_GLIDE_MS = 1500L
+private const val TRACK_SETTLE_MS = 1500L

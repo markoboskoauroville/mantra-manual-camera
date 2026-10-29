@@ -18,7 +18,15 @@ import java.io.DataOutputStream
  *                      STATE   UTF-8 "key=value;…"  (rec 0/1, since ms of the take, clean 0/1, name)
  *   monitor → camera   TOUCH   actionMasked | pointer index << 4 (byte), then per pointer: id (byte), x, y (float, 0…1 of the picture)
  *                      KEY     UTF-8 name: a rail key ("REC", "L", …) or "BACK"
- *                      MODE    byte: 0 the window, 1 the clean picture
+ *                      MODE    byte: 0 the window, 1 the clean picture, 2 the camera's own stream, 3 the stream and
+ *                              the window together (v161: the Mac app is the webcam and the remote at once)
+ *
+ * v161, THE STREAM (Marko, 27.10.2026: "NDI ... drops frames. It's a big lag ... find, maybe through ADB, a way to send
+ * the picture quickly and then forward it through the webcam"): in MODE 2 the camera sends the frames of its own
+ * hardware stream encoder (the one NDI HX used: the full picture, its frame rate, SDR) untouched, for the Mac app
+ * Mantra Camera, which reaches port 48100 through `adb forward` on the USB cable and decodes in hardware.
+ *   camera → Mac       SCONFIG codec (byte: 0 H.264, 1 H.265), w, h (int), vps, sps, pps (len + bytes each; vps 0 for H.264)
+ *                      SFRAME  flags (byte: 1 = keyframe), pts µs (long), the access unit as the encoder gave it
  */
 object Link {
     const val PORT = 48100
@@ -27,6 +35,8 @@ object Link {
     const val CONFIG: Byte = 1
     const val FRAME: Byte = 2
     const val STATE: Byte = 3
+    const val SCONFIG: Byte = 4
+    const val SFRAME: Byte = 5
     const val TOUCH: Byte = 10
     const val KEY: Byte = 11
     const val MODE: Byte = 12

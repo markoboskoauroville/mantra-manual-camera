@@ -25,6 +25,7 @@
 #include <cstring>
 #include <cstdint>
 #include <mutex>
+#include <string>
 #include <vector>
 #include <android/log.h>
 
@@ -39,6 +40,9 @@
 namespace {
 
 NDIlib_send_instance_t g_send_instance = nullptr;
+// v158: what the living sender was made with, so the same request keeps it
+std::string g_sender_name;
+std::string g_sender_config;
 
 // Guards g_send_instance against the capture thread sending a frame at the
 // moment the service is tearing the sender down — which is exactly what a turn
@@ -123,8 +127,32 @@ Java_com_mantraproductions_ndi_NdiSender_nativeCreate(
         return JNI_FALSE;
     }
 
+    // v158: the same name on the same wire is the same source: kept, so a receiver stays connected (NDI Virtual
+    // Input does not follow a source that is closed and opened again; it froze on its last frame after a lens change)
+    {
+        std::lock_guard<std::mutex> lock(g_send_mutex);
+        if (g_send_instance && g_sender_name == name && g_sender_config == (config ? config : "")) {
+            LOGI("NDI sender kept: the same name and the same wire");
+            env->ReleaseStringUTFChars(sourceName, name);
+            if (config) env->ReleaseStringUTFChars(configJson, config);
+            return JNI_TRUE;
+        }
+    }
     NDIlib_send_instance_t fresh = NDIlib_send_create_v2(&create_desc, config);
+    if (!fresh) {
+        // v158 (27.10.2026, "NDI source could not be opened" every 2 s after a lens change or FULL -> HX): the old
+        // sender still held the same name, and NDI refuses a second source of one name. The old one goes first then;
+        // a moment without a source beats none at all.
+        std::scoped_lock lock(g_send_mutex, g_meta_mutex, g_audio_mutex);
+        if (g_send_instance) {
+            NDIlib_send_destroy(g_send_instance);
+            g_send_instance = nullptr;
+            LOGI("NDI sender: the old one held the name, destroyed it and asked again");
+            fresh = NDIlib_send_create_v2(&create_desc, config);
+        }
+    }
     if (config) LOGI("NDI sender config %s", config);
+    if (fresh) { g_sender_name = name; g_sender_config = config ? config : ""; }
     env->ReleaseStringUTFChars(sourceName, name);
     if (config) env->ReleaseStringUTFChars(configJson, config);
 

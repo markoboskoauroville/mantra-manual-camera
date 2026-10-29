@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.mantraproductions.ndi.monitor-mergeDebugResources-21:/values-v21/values-v21.xml",
+            "outputFile": "com.mantraproductions.ndi.monitor-mergeDebugResources-22:/values-v21/values-v21.xml",
             "map": [
                 {
                     "source": "/Users/markobosko/.gradle/caches/8.14.2/transforms/381ee265ec7548c23263fea15567fa21/transformed/core-1.13.1/res/values-v21/values-v21.xml",

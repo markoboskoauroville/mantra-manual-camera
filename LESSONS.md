@@ -159,3 +159,90 @@ before calling the picture right or wrong. Ramps (time, smoothness) can be judge
     (`LinkServer.fromMonitorJustNow()`), not the camera's screen.
 21. **Zero frames = a read timeout** (soTimeout 2.5 s) that drops and reopens the socket; the camera answers a new
     monitor with a fresh encoder (a keyframe first).
+22. **Ask EGL for 10-bit without the recordable flag too** (v148, 26.10.2026): the Pixel 7 on Android 17 has no
+    RGBA1010102 config with EGL_RECORDABLE_ANDROID, so the 10-bit GPU stage fell back to the direct path on every open
+    for days, unseen. Without the flag the encoders take its surfaces fine (HEVC Main 10 HLG, 30 fps). Ask a list of
+    configs and trace the one taken; say a fallback on the screen.
+23. **The lens's dioptres are its real distance here** (calibration APPROXIMATE on the Pixel 7 main lens): the motor's
+    finest step is 0.034 dpt, about 280 positions from ∞ to 10.5 cm; L1 and the front lenses are fixed focus.
+24. **scrcpy 4.1's wire is not 2.x's** (v150, measured by dumping the first bytes from the Mac): codec id is 4 bytes,
+    the size comes in a SESSION packet (top bit set, then width and height) sent first and on every size change, and
+    the frame flags moved down a bit (62 config, 61 key frame). In a forward tunnel the device name and codec come only
+    after the control socket is open too. `cleanup=true` deletes the pushed jar: push it every start.
+25. **ADB pairing from an app needs the app's own Conscrypt** (org.conscrypt): the system's hides exportKeyingMaterial.
+
+## 26. A test on an empty battery tests the battery (26.10.2026)
+
+The Pixel switched itself off in the middle of an NDI test (`getprop sys.boot.reason` = `shutdown,battery`), at
+0 % while "AC powered" on a 5 V charger: the camera, the torch at 100 %, 10-bit HEVC, NDI and two remotes over ADB
+drew more than that charger gives. Its last minutes looked exactly like the bug being hunted (picture stall, sound
+on, then nothing). Before any long or NDI test: `adb shell dumpsys battery` (level, Max charging voltage); under
+50 % or a 5 V charger, the result is not evidence. The torch off unless the test needs it.
+
+## 27. A webcam receiver may not take what the monitor takes (27.10.2026)
+
+NDI Virtual Input (the Mac's NDI webcam) decodes no HEVC Main10. A 10-bit HX stream did not fail: it FROZE on the
+last 8-bit frame, which looks like a live picture in a still room. Every test of a picture path checks that it moves
+(frame-to-frame difference over seconds, or Marko waving), never only that it is not black. A webcam is 8-bit SDR:
+the stream to it is drawn 8-bit, the take stays 10-bit.
+
+## 28. getBitmap() is the texture, not the screen (27.10.2026)
+
+TextureView.getBitmap ignores setTransform. Once the GPU stage made the texture the sensor's raw orientation, every
+reader of the preview (the still, the WB and exposure circles, the remote's picture) got it turned and squeezed, and
+the circles measured another place than where they are drawn. Read the preview through its transform (asShown).
+
+## 29. A handler tick outlives its activity (27.10.2026)
+
+A Runnable re-posted in onPause to keep a stream alive behind other apps is still running after onDestroy unless
+onDestroy removes it. The dead activity's tick then fought the live one (its service stopped every second), and
+behind other apps Android cut the camera. Ticks are removed in onDestroy and act only in a live activity.
+
+## 30. A receiver may not follow a source that is closed and opened again (27.10.2026)
+
+v158's first cure for "NDI source could not be opened" closed the old sender and made a new one of the same name. The
+error went, and NDI Virtual Input froze on its last frame after every lens change: it does not reconnect. A sender
+asked for again with the same name on the same wire is now KEPT. Every change to a picture path is tested with the
+receiver still attached, through the change, with the frozen check.
+
+## 31. A measuring tool can freeze too (27.10.2026)
+
+ffmpeg reading avfoundation into a raw pipe handed the same frame over and over (the screen capture and, once, the
+NDI camera), and a focus sweep "measured" a constant. Every measuring script checks first that its own feed moves
+when the lens moves, and stops with FROZEN FEED rather than produce numbers.
+
+## 32. One phone, two networks, one name (27.10.2026)
+
+An Android phone is "Android.local" on every network it is on. With the USB tether AND Wi-Fi up, a Mac resolves the
+name to either address. A sender pinned to the cable's address then gives the receivers that chose the other one
+sound and no picture: it looks like a decoder freeze, comes and goes with reconnects, and an app restart "cures" it
+by chance. Look at `netstat` (which address), the bytes per interface, and `dns-sd -G v4 Android.local` first.
+
+## 33. A value nobody sets (27.10.2026)
+
+FocusDirector.currentSharpness was documented as "set by the screen" and set nowhere, so the AF watch (the hold that
+refocuses when the subject moves) never fired, for a whole version history. A watch is tested by moving the subject
+and seeing it act, never by reading the code that says it would.
+
+## 34. Prove a borrowed engine on the Mac first (27.10.2026)
+
+libmv was built as a 60-line Mac program and run on the live NDI picture against the ball's real position before a
+line of Android code: it showed LOC holds and AFFINE diverges on a small subject, and gave the numbers to beat on the
+phone. On the phone two costs then stood out: reading the whole luma copy back (read only the search area) and a
+debug build of Ceres (native code is now always built optimised; 6–17 ms became 2.4–7.7 ms).
+
+## 35. A server with one client must let only the current one clean up (27.10.2026)
+
+LinkServer closes the old client when a new one connects; the old reader's `finally` then ran after the new client had
+switched the stream on and switched it off again. Cleanup that touches shared state checks it is still the current
+client (`if (out === o)`). And a test that opens its own connection (nc, a probe) to a one-client server kicks the
+real client off: probe with the app's own status, not with a second connection.
+
+## 29.10.2026: the Pixel not found over wireless debugging
+
+- adb's own discovery (openscreen, `adb mdns services`) listens only on the networks that existed when the adb server
+  started. After the Mac's restart (04:44) the cable, the tunnel and the Wi-Fi changed later, so it heard nothing for
+  hours while the Pixel announced itself the whole time: macOS's `dns-sd -B _adb-tls-connect._tcp` saw it at once. A
+  restarted adb server hears it again. mcam now falls back to dns-sd itself (browse, resolve, connect by address).
+- The first `adb connect` to a dozing phone often answers "No route to host"; the next one a second later works.
+  mcam tries four times.

@@ -2,6 +2,7 @@ package com.mantraproductions.ndi
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -188,8 +189,12 @@ class SettingsActivity : AppCompatActivity() {
         val t = settings.ndiTransport
         val adapter = Routing.adapterFor(t, UsbLink.nics())
         findViewById<TextView>(R.id.ndiWire).apply {
+            // v159: on the cable with the Wi-Fi up, the phone is one name on two networks; a receiver may take either
+            val wifiToo = t == Routing.Transport.USB && adapter != null && UsbLink.nics().any { it.kind == Routing.Kind.WIFI }
             text = Routing.wireLabel(t, adapter) +
-                (if (adapter != null) "\nIn the receiver, if the source is not listed, add this address by hand." else "")
+                (if (adapter != null) "\nIn the receiver, if the source is not listed, add this address by hand." else "") +
+                (if (wifiToo) "\nThe phone's Wi-Fi is on too: a receiver may take the picture over it. For the cable only, " +
+                    "turn the phone's Wi-Fi off." else "")
             setTextColor(if (adapter != null) RailButton.GREEN else resources.getColor(R.color.sand, theme))
         }
     }
@@ -234,6 +239,10 @@ class SettingsActivity : AppCompatActivity() {
             // phone's own torch switch works here; back on the camera, the camera takes the lamp over (v104).
             lampNow(settings.torch)
         }
+        // v145: the light's brightness, 1 to 100 % of what the lamp gives; moved, the lamp shows it at once
+        slider(R.id.torchLevel, R.id.torchLevelValue, value = settings.torchLevel - 1,
+            label = { "brightness  ${it + 1}%" },
+            onSet = { settings.torchLevel = it + 1; if (settings.torch) lampNow(true) })
         // v111: the three marks in one line, each its icon and its size as a drop-down in steps of 25 % ("You go
         // by 25% that's the scale"). 25 % is the smallest a mark may be, 100 % the largest.
         val quarters = listOf("25%", "50%", "75%", "100%")
@@ -252,18 +261,24 @@ class SettingsActivity : AppCompatActivity() {
         size(R.id.sizeCircle, R.id.iconCircle, RailButton.Glyph.CIRCLE, settings.circleSize, 0.06f, 0.5f) { settings.circleSize = it }
 
         // v111: THE TABS instead of one long scroll. The last one chosen comes back.
-        val tabs = listOf(R.id.tabCamera to R.id.pageCamera, R.id.tabOutputs to R.id.pageOutputs,
-            R.id.tabDisplay to R.id.pageDisplay, R.id.tabMore to R.id.pageMore)
+        // v147: seven short tabs (Marko, 26.10.2026: "break the settings into more logical tabs ... not so much
+        // scrolling down. Mostly it's going left or right"); a swipe goes to the next or the one before
+        val tabs = listOf(R.id.tabCamera to R.id.pageCamera, R.id.tabFocus to R.id.pageFocus, R.id.tabTrack to R.id.pageTrack,
+            R.id.tabOutputs to R.id.pageOutputs, R.id.tabSound to R.id.pageSound, R.id.tabDisplay to R.id.pageDisplay,
+            R.id.tabMore to R.id.pageMore)
         val prefs = getSharedPreferences("settings_screen", MODE_PRIVATE)
         fun showTab(n: Int) {
             tabs.forEachIndexed { i, (t, pg) ->
                 findViewById<TextView>(t).setTextColor(if (i == n) RailButton.GREEN else RailButton.GREY)
                 findViewById<View>(pg).visibility = if (i == n) View.VISIBLE else View.GONE
             }
-            prefs.edit().putInt("tab", n).apply()
+            prefs.edit().putInt("tab2", n).apply()
+            shownTab = n
         }
+        tabCount = tabs.size
+        swipeTo = { n -> showTab(n) }
         tabs.forEachIndexed { i, (t, _) -> findViewById<TextView>(t).setOnClickListener { showTab(i) } }
-        showTab(prefs.getInt("tab", 0).coerceIn(0, tabs.size - 1))
+        showTab(prefs.getInt("tab2", 0).coerceIn(0, tabs.size - 1))
 
         // Zebra from 50% to 100%.
         slider(
@@ -305,6 +320,9 @@ class SettingsActivity : AppCompatActivity() {
             fpsKey.text = "${settings.fps} FPS"
             depthKey.text = if (settings.wantTenBit) "10-BIT" else "8-BIT"
             resKey.text = resName(settings.captureWidth)
+            // v173: AUTO's number follows the format keys at once
+            if (settings.bitRateAuto) findViewById<TextView>(R.id.bitRateValue)?.text =
+                "AUTO · ${settings.autoMbps(settings.captureWidth, settings.fps, settings.wantTenBit)} Mbit/s"
         }
         paintQuick()
         fpsKey.setOnClickListener {
@@ -312,18 +330,30 @@ class SettingsActivity : AppCompatActivity() {
             settings.fps = rates[(rates.indexOf(settings.fps) + 1) % rates.size]
             paintQuick()
         }
-        depthKey.setOnClickListener { settings.wantTenBit = !settings.wantTenBit; paintQuick() }
+        depthKey.setOnClickListener {
+            // v177 (Marko, 29.10.2026: "if the camera is not 10-bit, then it says Not supported feature"): 10-bit only
+            // when this lens gives HLG 10-bit and the phone has a 10-bit HEVC encoder
+            val lens = intent.getStringExtra(EXTRA_LENS)
+            if (!settings.wantTenBit && lens != null && PhoneSupport.lens(this, lens)?.tenBit == false) {
+                Toast.makeText(this, "${PhoneSupport.SENTENCE}: 10-bit", Toast.LENGTH_LONG).show()
+                Trace.refused("not supported", "10-bit on ${PhoneSupport.phoneName}, lens $lens")
+                return@setOnClickListener
+            }
+            settings.wantTenBit = !settings.wantTenBit; paintQuick()
+        }
         resKey.setOnClickListener {
             settings.captureWidth = offered[(offered.indexOf(settings.captureWidth) + 1) % offered.size]
             fitRate()                      // a size can change which rates the lenses hold
             paintQuick()
         }
 
+        // v173: the far left is AUTO, the file's rate from the format (shown, and following the size, rate and depth
+        // keys above); right of it the number by hand, 2 to 100 Mbit/s
         slider(
             R.id.bitRate, R.id.bitRateValue,
-            value = settings.bitRateMbps - 2,
-            label = { "${it + 2} Mbit/s" },
-            onSet = { settings.bitRateMbps = it + 2 }
+            value = if (settings.bitRateAuto) 0 else settings.bitRateMbps - 1,
+            label = { if (it == 0) "AUTO · ${settings.autoMbps(settings.captureWidth, settings.fps, settings.wantTenBit)} Mbit/s" else "${it + 1} Mbit/s" },
+            onSet = { if (it == 0) settings.bitRateAuto = true else { settings.bitRateAuto = false; settings.bitRateMbps = it + 1 } }
         )
         slider(
             R.id.streamBitRate, R.id.streamBitRateValue,
@@ -356,6 +386,18 @@ class SettingsActivity : AppCompatActivity() {
         slider(R.id.trackFollow, R.id.trackFollowValue, value = settings.trackFollow - 10,
             label = { "mark follows ${it + 10}% of the way per search" },
             onSet = { settings.trackFollow = it + 10 })
+        // v149: the focus puller's meter on the camera's screen
+        findViewById<android.widget.Switch>(R.id.focusPuller).apply {
+            isChecked = settings.focusPuller
+            setOnCheckedChangeListener { _, on -> settings.focusPuller = on; Trace.control("focus puller", if (on) "on" else "off", "settings") }
+        }
+        // v147: the speeds, mm/s; 0 is the camera's own glide
+        slider(R.id.focusSpeed, R.id.focusSpeedValue, value = settings.focusSpeedMmS / 10,
+            label = { "focus  " + Mechanism.speedLabel(Mechanism.speedFromSlider(it)) },
+            onSet = { settings.focusSpeedMmS = Mechanism.speedFromSlider(it) })
+        slider(R.id.trackSpeed, R.id.trackSpeedValue, value = settings.trackSpeedMmS / 10,
+            label = { "tracking  " + Mechanism.speedLabel(Mechanism.speedFromSlider(it)) },
+            onSet = { settings.trackSpeedMmS = Mechanism.speedFromSlider(it) })
         slider(
             R.id.hold, R.id.holdValue,
             value = (settings.focusHoldMs / 100).toInt(),
@@ -459,8 +501,66 @@ class SettingsActivity : AppCompatActivity() {
                 Trace.control("version", "tapped", "opens $LATEST_RELEASE")
             }
         }
+        // v144: UPDATE in the row of F and E, the same as a tap on the version but asked of GitHub here, and the
+        // newest camera APK handed to Android to download and install.
+        findViewById<Button>(R.id.updateApp).setOnClickListener {
+            Trace.control("update", "tapped", "asks GitHub")
+            Updater.check(this) { said -> Toast.makeText(this, said, Toast.LENGTH_LONG).show() }
+        }
+        // v144: the adb door, on by default
+        findViewById<android.widget.Switch>(R.id.adbControl).apply {
+            isChecked = settings.adbControl
+            setOnCheckedChangeListener { _, on -> settings.adbControl = on; Trace.control("adb control", if (on) "on" else "off", "settings") }
+        }
+        // v150: the wireless debugging guide, the same words as in Mantra Monitor
+        findViewById<Button>(R.id.adbGuide).setOnClickListener {
+            android.app.AlertDialog.Builder(this).setTitle("ADB OVER WI-FI, ONCE").setMessage(ADB_GUIDE).setPositiveButton("OK", null).show()
+        }
         findViewById<TextView>(R.id.version).text =
             if (NdiSender.available) "NDI SDK present" else "built without the NDI SDK"
+    }
+
+    // --- v147: left and right between the tabs ------------------------------------------------------------------
+
+    private var shownTab = 0
+    private var tabCount = 1
+    private var swipeTo: (Int) -> Unit = {}
+    private var swipeFromSlider = false
+
+    private val swipe by lazy {
+        android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean {
+                swipeFromSlider = underSlider(findViewById(android.R.id.content), e.rawX, e.rawY)
+                return false
+            }
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
+                val start = e1 ?: return false
+                if (swipeFromSlider) return false
+                val dx = e2.x - start.x
+                val dy = e2.y - start.y
+                if (kotlin.math.abs(dx) < 100 * resources.displayMetrics.density || kotlin.math.abs(dx) < 2 * kotlin.math.abs(dy)) return false
+                val next = (shownTab + if (dx < 0) 1 else -1).coerceIn(0, tabCount - 1)
+                if (next == shownTab) return false
+                swipeTo(next)
+                Trace.control("settings tab", next, "swiped")
+                return true
+            }
+        })
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        swipe.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
+    }
+
+    /** A slider or a drop-down under the finger owns a sideways move; the swipe leaves it alone. */
+    private fun underSlider(v: View, x: Float, y: Float): Boolean {
+        if (v.visibility != View.VISIBLE) return false
+        val at = IntArray(2); v.getLocationOnScreen(at)
+        if (x < at[0] || y < at[1] || x > at[0] + v.width || y > at[1] + v.height) return false
+        if (v is SeekBar || v is android.widget.Spinner || v is android.widget.HorizontalScrollView) return true
+        if (v is ViewGroup) for (i in 0 until v.childCount) if (underSlider(v.getChildAt(i), x, y)) return true
+        return false
     }
 
     private fun showFolder() {
@@ -565,8 +665,14 @@ class SettingsActivity : AppCompatActivity() {
                     c.get(android.hardware.camera2.CameraCharacteristics.LENS_FACING) ==
                     android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
             } ?: return
-            cm.setTorchMode(id, on)
-            Trace.control("torch", on, "settings, through the camera manager")
+            // v145: at the chosen brightness where the phone takes a level (Android 13+, a lamp with more than one)
+            val max = if (android.os.Build.VERSION.SDK_INT >= 33)
+                cm.getCameraCharacteristics(id).get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_STRENGTH_MAXIMUM_LEVEL) ?: 1
+            else 1
+            if (on && max > 1 && android.os.Build.VERSION.SDK_INT >= 33) {
+                cm.turnOnTorchWithStrengthLevel(id, Math.round(max * settings.torchLevel / 100f).coerceIn(1, max))
+            } else cm.setTorchMode(id, on)
+            Trace.control("torch", on, "settings, through the camera manager, ${settings.torchLevel}% of $max")
         }.onFailure { Trace.refused("torch", "settings: " + Trace.describe(it)) }
     }
 

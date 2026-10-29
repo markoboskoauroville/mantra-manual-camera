@@ -38,12 +38,9 @@
         android:theme="@style/Theme.MantraNdi"
         android:supportsRtl="true">
 
-        <!-- Both ways up, like any app on a phone.
-
-             This was locked to landscape for two versions, to get the rotation
-             argument down to one case while it was being solved. It is solved
-             — the camera's own quarter turn is read off the producer's texture
-             matrix and taken off the angle — so the lock has done its job.
+        <!-- v163: LANDSCAPE, ALWAYS. The screen never turns; when the phone does, only the rail keys' words and the
+             focus ruler's distances turn to stay upright (MainActivity.holding; Marko, 28.10.2026). v162's upright
+             layout collapsed into the top corner.
 
              The turn is handled here rather than by being recreated:
              recreating would tear down the capture session and the NDI source,
@@ -51,7 +48,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="fullUser"
+            android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

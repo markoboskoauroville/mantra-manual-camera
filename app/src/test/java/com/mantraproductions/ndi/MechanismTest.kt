@@ -1390,7 +1390,7 @@ class MechanismTest {
         val rolling = Mechanism.telemetry(true, true, 50.0, true, 2, true, 212.4, 3)
         assertEquals(Mechanism.Output.LIVE, rolling[0].state)
         assertEquals("50 Mb/s", rolling[0].detail)
-        assertEquals("NDI FULL", rolling[2].name)
+        assertEquals("NDI.FULL", rolling[2].name)
         assertEquals("212.4 Mb/s · 3 watching", rolling[2].detail)
         // NDI only, the file disarmed: the file says so and stays in its place
         val ndiOnly = Mechanism.telemetry(false, false, 50.0, true, 1, true, 8.0, -1)
@@ -1597,5 +1597,55 @@ class MechanismTest {
     @Test fun theFollowerNeverGoesBack() {
         val path = follow({ 0.8 })
         for (i in 1 until path.size) assertTrue("frame $i", path[i] >= path[i - 1] - 1e-6)
+    }
+
+    // v147: focus speed in mm/s
+    @Test fun focusTravelIsDistanceOverSpeed() {
+        // 50 cm (2 dpt) to 15 cm (6.667 dpt) is 350 mm: at 100 mm/s, 3.5 s
+        assertEquals(3500L, Mechanism.focusTravelMs(2f, 100f / 15f, 100))
+        // the same back
+        assertEquals(3500L, Mechanism.focusTravelMs(100f / 15f, 2f, 100))
+        // infinity counts as 10 m: 1 m to infinity is 9 m, at 1000 mm/s 9 s
+        assertEquals(9000L, Mechanism.focusTravelMs(1f, 0f, 1000))
+        // never under 150 ms, never over 20 s, and 0 mm/s is the camera's own glide
+        assertEquals(150L, Mechanism.focusTravelMs(4f, 4.01f, 1000))
+        assertEquals(20_000L, Mechanism.focusTravelMs(0f, 9.5f, 10))
+        assertEquals(0L, Mechanism.focusTravelMs(1f, 2f, 0))
+    }
+
+    @Test fun focusDistanceReadsInMillimetresCentimetresMetres() {
+        assertEquals("∞", Mechanism.formatFocusDistance(0f))
+        assertEquals("95 mm", Mechanism.formatFocusDistance(1000f / 95f))
+        assertEquals("21.7 cm", Mechanism.formatFocusDistance(4.60668f))
+        assertEquals("1.25 m", Mechanism.formatFocusDistance(0.8f))
+    }
+
+    // v149: the focus puller's meter
+    @Test fun theMeterRunsFromTheClosestToInfinity() {
+        val closest = 9.5238f
+        assertEquals(0f, Mechanism.meterPosition(closest, closest), 1e-5f)
+        assertEquals(1f, Mechanism.meterPosition(0f, closest), 1e-5f)
+        assertEquals(0.5f, Mechanism.meterPosition(closest / 2f, closest), 1e-5f)
+        // there and back
+        for (p in listOf(0f, 0.25f, 0.6f, 1f)) assertEquals(p, Mechanism.meterPosition(Mechanism.meterDioptres(p, closest), closest), 1e-5f)
+        // a fixed lens has no meter
+        assertEquals(0f, Mechanism.meterPosition(1f, 0f), 0f)
+    }
+
+    @Test fun keyPointsSurviveTheirText() {
+        assertEquals(listOf(4f, 2f, 0f), Mechanism.decodeKeys(Mechanism.encodeKeys(listOf(4f, 2f, 0f))))
+        assertEquals(emptyList<Float>(), Mechanism.decodeKeys(null))
+        assertEquals(listOf(1.5f), Mechanism.decodeKeys("x, 1.5,,-3"))
+    }
+
+    @Test fun theDistanceMeterIsCalibrated() {
+        val was = Mechanism.focusCal
+        try {
+            Mechanism.focusCal = floatArrayOf(1.10f, 0.12f)
+            assertEquals("70.0 cm", Mechanism.formatFocusDistance(1.1900f))          // his ball, 70 cm
+            assertEquals("3.00 m", Mechanism.formatFocusDistance(0.1939f))           // his cloth, 3 m
+            assertEquals(1f / 0.7f, Mechanism.realDioptres(Mechanism.lensDioptres(1f / 0.7f)), 1e-5f)
+            assertEquals("8.33 m", Mechanism.formatFocusDistance(0f))                // the lens's far end is not infinity
+        } finally { Mechanism.focusCal = was }
     }
 }

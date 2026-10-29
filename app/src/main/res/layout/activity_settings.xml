@@ -123,24 +123,41 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingTop="4dp">
+            <!-- v144: F and E pressed together to their own width, UPDATE at the end of the same row (Marko,
+                 26.10.2026: "You need to compress this and add an update button in that same row") -->
             <com.mantraproductions.ndi.RailButton
                 android:id="@+id/iconSquare"
-                android:layout_width="40dp"
-                android:layout_height="40dp" />
+                android:layout_width="36dp"
+                android:layout_height="36dp" />
             <Spinner
                 android:id="@+id/sizeSquare"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
             <com.mantraproductions.ndi.RailButton
                 android:id="@+id/iconCircle"
-                android:layout_width="40dp"
-                android:layout_height="40dp" />
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp" />
             <Spinner
                 android:id="@+id/sizeCircle"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
+            <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+            <Button
+                android:id="@+id/updateApp"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="UPDATE"
+                android:textAllCaps="false"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/amber"
+                android:fontFamily="monospace" />
     </LinearLayout>
 
     <LinearLayout
@@ -158,8 +175,32 @@
                 android:paddingBottom="10dp"
                 android:fontFamily="monospace"
                 android:textStyle="bold"
-                android:textSize="13sp"
+                android:textSize="11sp"
                 android:text="CAMERA" />
+            <TextView
+                android:id="@+id/tabFocus"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:textSize="11sp"
+                android:text="FOCUS" />
+            <TextView
+                android:id="@+id/tabTrack"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:textSize="11sp"
+                android:text="TRACK" />
             <TextView
                 android:id="@+id/tabOutputs"
                 android:layout_width="0dp"
@@ -170,8 +211,20 @@
                 android:paddingBottom="10dp"
                 android:fontFamily="monospace"
                 android:textStyle="bold"
-                android:textSize="13sp"
+                android:textSize="11sp"
                 android:text="OUTPUTS" />
+            <TextView
+                android:id="@+id/tabSound"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:textSize="11sp"
+                android:text="SOUND" />
             <TextView
                 android:id="@+id/tabDisplay"
                 android:layout_width="0dp"
@@ -182,8 +235,8 @@
                 android:paddingBottom="10dp"
                 android:fontFamily="monospace"
                 android:textStyle="bold"
-                android:textSize="13sp"
-                android:text="DISPLAY" />
+                android:textSize="11sp"
+                android:text="LOOK" />
             <TextView
                 android:id="@+id/tabMore"
                 android:layout_width="0dp"
@@ -194,7 +247,7 @@
                 android:paddingBottom="10dp"
                 android:fontFamily="monospace"
                 android:textStyle="bold"
-                android:textSize="13sp"
+                android:textSize="11sp"
                 android:text="MORE" />
     </LinearLayout>
     <View
@@ -218,33 +271,14 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="visible">
-        <!-- v112: the two bit rates, named by what they are for (Marko: "Just say recording and streaming") -->
-        <!--
-             The wire first.
-
-             This is the one he changes on nearly every shoot, and it was four
-             blocks down the page under two things that get set once and left.
-             What is touched most often goes at the top.
-        -->
-        <TextView style="@style/MantraLabel" android:text="@string/bitrate" />
-        <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/bitrate_hint" />
-        <TextView
-            android:id="@+id/bitRateValue"
-            style="@style/MantraValue" />
+        <!-- v145: the light's brightness (Marko, 26.10.2026: "in our settings we can have brightness control for the LED") -->
+        <TextView style="@style/MantraLabel" android:text="LIGHT" />
+        <TextView android:id="@+id/torchLevelValue" style="@style/MantraValue" />
         <SeekBar
-            android:id="@+id/bitRate"
+            android:id="@+id/torchLevel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:max="98" />
-        <TextView style="@style/MantraLabel" android:text="@string/stream_bitrate" />
-        <TextView
-            android:id="@+id/streamBitRateValue"
-            style="@style/MantraValue" />
-        <SeekBar
-            android:id="@+id/streamBitRate"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="48" />
+            android:max="99" />
         <!-- v97: the picture path, and the stream's own bit rate on the GPU stage -->
         <TextView style="@style/MantraLabel" android:text="@string/picture_path" />
         <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/picture_path_hint" />
@@ -255,6 +289,44 @@
             android:orientation="horizontal" />
         <TextView android:tag="hint" style="@style/MantraHint"
             android:text="@string/depth_hint" />
+            </LinearLayout>
+            <!-- v147: FOCUS, its own tab (Marko, 26.10.2026: "there should be a special tab for focus, because focus is
+                 now becoming very sophisticated with all its helpers") -->
+            <LinearLayout
+                android:id="@+id/pageFocus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+        <!-- v149: the focus puller's meter (Marko, 26.10.2026: "Focus pulling is the function of the second phone and on
+             this phone as well. This is in Settings") -->
+        <Switch
+            android:id="@+id/focusPuller"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:textColor="@color/sand"
+            android:text="FOCUS PULLER" />
+        <TextView android:tag="hint" style="@style/MantraHint" android:text="A meter along the picture's long edge. The lens is the white triangle with its white circle: drag the circle up and down to pull focus by hand, hold it for ADD KEYFRAME or DELETE KEYFRAME. Tap a keyframe's amber circle to rack there at FOCUS SPEED (or over the ramp at CAMERA), hold it to delete it. ▶ goes to the next keyframe." />
+        <!-- v147: the speeds in millimetres per second (Marko, 26.10.2026: "a speed of tracking and a speed of focusing ...
+             let's put millimeters per second") -->
+        <TextView style="@style/MantraLabel" android:text="SPEED" />
+        <TextView android:tag="hint" style="@style/MantraHint" android:text="How fast the lens travels, as distance in front of the camera per second, eased in and out. FOCUS is a tap, a rack or a new mark; TRACKING is the lens following a tracked subject. Leftmost is CAMERA: the camera's own glide, which never jumps but cannot be timed. With a speed the camera first finds the mark, then the lens walks there." />
+        <TextView android:id="@+id/focusSpeedValue" style="@style/MantraValue" />
+        <SeekBar
+            android:id="@+id/focusSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100" />
+        <TextView android:id="@+id/trackSpeedValue" style="@style/MantraValue" />
+        <SeekBar
+            android:id="@+id/trackSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100" />
+
         <!-- Focus -->
         <TextView style="@style/MantraLabel" android:text="@string/focus" />
         <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/focus_hint" />
@@ -271,6 +343,29 @@
             android:layout_height="wrap_content"
             android:max="100" />
 
+        <!-- Peaking -->
+        <TextView style="@style/MantraLabel" android:text="@string/peaking" />
+        <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/peaking_hint" />
+        <TextView android:id="@+id/peakValue" style="@style/MantraValue" />
+        <SeekBar
+            android:id="@+id/peak"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100" />
+        <RadioGroup
+            android:id="@+id/peakColour"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="6dp" />
+            </LinearLayout>
+            <!-- v147: TRACK, tracking focus on its own tab (Marko, 26.10.2026: "more logical tabs ... not so much scrolling down") -->
+            <LinearLayout
+                android:id="@+id/pageTrack"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
         <!-- v99: tracking focus, every parameter -->
         <TextView style="@style/MantraLabel" android:text="@string/tracking" />
         <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/tracking_hint" />
@@ -311,6 +406,33 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
+        <!-- v112: the two bit rates, named by what they are for (Marko: "Just say recording and streaming") -->
+        <!--
+             The wire first.
+
+             This is the one he changes on nearly every shoot, and it was four
+             blocks down the page under two things that get set once and left.
+             What is touched most often goes at the top.
+        -->
+        <TextView style="@style/MantraLabel" android:text="@string/bitrate" />
+        <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/bitrate_hint" />
+        <TextView
+            android:id="@+id/bitRateValue"
+            style="@style/MantraValue" />
+        <SeekBar
+            android:id="@+id/bitRate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="99" />
+        <TextView style="@style/MantraLabel" android:text="@string/stream_bitrate" />
+        <TextView
+            android:id="@+id/streamBitRateValue"
+            style="@style/MantraValue" />
+        <SeekBar
+            android:id="@+id/streamBitRate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="48" />
         <TextView style="@style/MantraLabel" android:text="@string/outputs" />
         <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/outputs_hint" />
         <LinearLayout
@@ -474,32 +596,7 @@
                 android:background="@color/surface"
                 android:padding="10dp" />
         </LinearLayout>
-        <!-- v135: SOUND, which microphone feeds the meter, the file and the stream -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingTop="10dp">
-            <TextView style="@style/MantraLabel" android:text="SOUND SOURCE" />
-            <TextView android:tag="hint" style="@style/MantraHint"
-                android:text="Feeds the meter, the file and the NDI stream. AUTO takes a USB-C microphone, audio interface or wireless receiver when one is plugged in, else the phone microphone. Plugging in or pulling out is followed live." />
-            <RadioGroup
-                android:id="@+id/audioSource"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical" />
-            <Switch
-                android:id="@+id/audioStereo"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="monospace"
-                android:textColor="@color/sand"
-                android:text="STEREO (when the device has two channels)" />
-            <TextView
-                android:id="@+id/audioNow"
-                style="@style/MantraValue"
-                android:paddingBottom="6dp" />
-        </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -536,6 +633,40 @@
             android:background="@color/slate" />
 
 
+            </LinearLayout>
+            <!-- v147: SOUND on its own tab -->
+            <LinearLayout
+                android:id="@+id/pageSound"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+        <!-- v135: SOUND, which microphone feeds the meter, the file and the stream -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="10dp">
+            <TextView style="@style/MantraLabel" android:text="SOUND SOURCE" />
+            <TextView android:tag="hint" style="@style/MantraHint"
+                android:text="Feeds the meter, the file and the NDI stream. AUTO takes a USB-C microphone, audio interface or wireless receiver when one is plugged in, else the phone microphone. Plugging in or pulling out is followed live." />
+            <RadioGroup
+                android:id="@+id/audioSource"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+            <Switch
+                android:id="@+id/audioStereo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textColor="@color/sand"
+                android:text="STEREO (when the device has two channels)" />
+            <TextView
+                android:id="@+id/audioNow"
+                style="@style/MantraValue"
+                android:paddingBottom="6dp" />
+        </LinearLayout>
             </LinearLayout>
             <LinearLayout
                 android:id="@+id/pageDisplay"
@@ -575,21 +706,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:max="50" />
-        <!-- Peaking -->
-        <TextView style="@style/MantraLabel" android:text="@string/peaking" />
-        <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/peaking_hint" />
-        <TextView android:id="@+id/peakValue" style="@style/MantraValue" />
-        <SeekBar
-            android:id="@+id/peak"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100" />
-        <RadioGroup
-            android:id="@+id/peakColour"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingTop="6dp" />
             </LinearLayout>
             <LinearLayout
                 android:id="@+id/pageMore"
@@ -597,6 +713,24 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
+        <!-- v144: the adb door (Marko, 26.10.2026: "add a switch ADB control, which is on by default") -->
+        <Switch
+            android:id="@+id/adbControl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:textColor="@color/sand"
+            android:text="ADB CONTROL" />
+        <TextView android:tag="hint" style="@style/MantraHint"
+            android:text="On, a Mac on the cable or on wireless debugging drives every key and every setting of this camera through adb (scripts/mcam). Only adb's shell can, no app on the phone." />
+        <!-- v150 (Marko, 26.10.2026: "in settings, there must be a guide on how to set up ADB wireless") -->
+        <Button
+            android:id="@+id/adbGuide"
+            style="@style/MantraKey"
+            android:layout_width="match_parent"
+            android:text="WIRELESS DEBUGGING: THE GUIDE" />
         <!-- The trace -->
         <TextView style="@style/MantraLabel" android:text="@string/trace" />
         <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/trace_hint" />

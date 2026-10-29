@@ -69,6 +69,20 @@ class Settings(context: Context) {
         set(value) = prefs.edit().putInt(BITRATE, value.coerceIn(2, 100)).apply()
 
     /**
+     * v173, THE FILE'S BIT RATE FOLLOWS THE FORMAT (Marko, 29.10.2026: "these 4 hours under 41.1 GB is not correct.
+     * When I'm changing file formats inside my settings, this number is fixed"). Measured on his Pixel: 720p and 4K
+     * both wrote 24 Mbit/s, so the time left never moved and 4K was starved. AUTO (the default) takes the rate from
+     * the size, the frame rate and the bit depth; the number by hand stays for whoever wants it.
+     */
+    var bitRateAuto: Boolean
+        get() = prefs.getBoolean(BITRATE_AUTO, true)
+        set(value) = prefs.edit().putBoolean(BITRATE_AUTO, value).apply()
+
+    /** What the take is really written at, in Mbit/s: AUTO by the format, else the number by hand. */
+    val recordMbps: Int
+        get() = if (bitRateAuto) autoMbps(captureWidth, fps, wantTenBit) else bitRateMbps
+
+    /**
      * Quarter turns added to the preview by hand, kept between runs.
      *
      * The automatic angle is the sensor's mounting against the display's
@@ -174,6 +188,44 @@ class Settings(context: Context) {
         get() = prefs.getFloat(CIRCLE_SIZE, 0.16f)
         set(value) = prefs.edit().putFloat(CIRCLE_SIZE, value.coerceIn(0.06f, 0.5f)).apply()
 
+    /**
+     * v158 (Marko, 27.10.2026: "tracking mode is a long press and then on or off, for both the rectangle and the circle
+     * ... every 2 seconds it updates and smoothly transitions to the new situation"): the circle's TRACK (off until he
+     * turns it on) and the square's TRACK (on: the held focus watch AF always had). The deltas are how far the new
+     * situation must be from the old before anything moves, so a steady picture never pulsates.
+     */
+    var circleTrack: Boolean
+        get() = prefs.getBoolean("circleTrack", false)
+        set(value) = prefs.edit().putBoolean("circleTrack", value).apply()
+
+    var squareTrack: Boolean
+        get() = prefs.getBoolean("squareTrack", true)
+        set(value) = prefs.edit().putBoolean("squareTrack", value).apply()
+
+    /** v159: the distance meter's calibration, real dioptres = focusCalA x lens + focusCalB (see Mechanism.focusCal). */
+    var focusCalA: Float
+        get() = prefs.getFloat("focusCalA", 1.10f)
+        set(value) = prefs.edit().putFloat("focusCalA", value.coerceIn(0.5f, 2f)).apply()
+
+    var focusCalB: Float
+        get() = prefs.getFloat("focusCalB", 0.12f)
+        set(value) = prefs.edit().putFloat("focusCalB", value.coerceIn(-1f, 1f)).apply()
+
+    /** v158: white balance moves only past this, the larger of |ln r/g| and |ln b/g| in the circle (0.04 ≈ 4 %). */
+    var trackDeltaWb: Float
+        get() = prefs.getFloat("trackDeltaWb", 0.04f)
+        set(value) = prefs.edit().putFloat("trackDeltaWb", value.coerceIn(0.005f, 0.5f)).apply()
+
+    /** v158: ISO moves only past this many stops of error in the circle. */
+    var trackDeltaIso: Float
+        get() = prefs.getFloat("trackDeltaIso", 0.2f)
+        set(value) = prefs.edit().putFloat("trackDeltaIso", value.coerceIn(0.05f, 2f)).apply()
+
+    /** v158: focus moves only when the square's sharpness falls below this fraction of its best (0.75 = 25 % lower). */
+    var trackFocusHold: Float
+        get() = prefs.getFloat("trackFocusHold", 0.75f)
+        set(value) = prefs.edit().putFloat("trackFocusHold", value.coerceIn(0.3f, 0.98f)).apply()
+
     /** v143: what a tap on the circle does: 0 exposure by ISO alone, 1 white balance. A long press changes it. */
     var circleMode: Int
         get() = prefs.getInt(CIRCLE_MODE, 0)
@@ -187,9 +239,23 @@ class Settings(context: Context) {
     var marksShown: Int
         get() = prefs.getInt(MARKS, 0b11) and 0b11
         set(value) = prefs.edit().putInt(MARKS, value and 0b11).apply()
+    /** v173: the GREEN mark, the one every tap on the picture and every pinch goes to; -1 = none is green
+     *  (Marko, 29.10.2026: "When there is a green color ... its default tapping is registered only for that circle or
+     *  focus ... only one can be green at a time"). */
     var pinchTarget: Int
-        get() = prefs.getInt(PINCH, 0).coerceIn(0, 1)
-        set(value) = prefs.edit().putInt(PINCH, value.coerceIn(0, 1)).apply()
+        get() = prefs.getInt(PINCH, 0).coerceIn(-1, 1)
+        set(value) = prefs.edit().putInt(PINCH, value.coerceIn(-1, 1)).apply()
+
+    /** v173: which marks take touches even while grey (hidden): bit 0 square, bit 1 circle; off by default
+     *  (Marko, 29.10.2026: "Long pressing registers touches even if invisible ... by default they are off"). */
+    var marksTouchHidden: Int
+        get() = prefs.getInt(TOUCH_HIDDEN, 0) and 0b11
+        set(value) = prefs.edit().putInt(TOUCH_HIDDEN, value and 0b11).apply()
+
+    /** v173: the LUT the LUT key turns back on (0 = none yet). */
+    var lastLutSlot: Int
+        get() = prefs.getInt(LAST_LUT, 0)
+        set(value) = prefs.edit().putInt(LAST_LUT, value).apply()
 
     /** SHOOT: 0 follows the phone's own rotation, 1 landscape, 2 portrait. */
     var shootMode: Int
@@ -269,6 +335,11 @@ class Settings(context: Context) {
     // --- tracking focus (v99): every parameter, so he can experiment ---------------
 
     /** The search zone, as a multiple of the pattern (the pinched box), x10: 15..40. */
+    /** v160: libmv's motion model for TRK (LibmvTracker.MODEL_*): LOC unless he chooses, as in Blender. */
+    var trackModel: Int
+        get() = prefs.getInt("trackModel", LibmvTracker.MODEL_LOC)
+        set(value) = prefs.edit().putInt("trackModel", value.coerceIn(0, 5)).apply()
+
     var trackSearch: Int
         get() = prefs.getInt("trackSearch", 25)
         set(value) = prefs.edit().putInt("trackSearch", value.coerceIn(15, 40)).apply()
@@ -293,7 +364,107 @@ class Settings(context: Context) {
         get() = prefs.getInt("trackFollow", 60)
         set(value) = prefs.edit().putInt("trackFollow", value.coerceIn(10, 100)).apply()
 
+    /** v151: the still written last, and whether the last capture was a still (the round PLAY key opens it) or a take. */
+    var lastStill: String?
+        get() = prefs.getString("lastStill", null)
+        set(value) = prefs.edit().putString("lastStill", value).apply()
+    var lastIsStill: Boolean
+        get() = prefs.getBoolean("lastIsStill", false)
+        set(value) = prefs.edit().putBoolean("lastIsStill", value).apply()
+
+    /** v149: the focus puller's meter on the camera's screen (FOCUS → FOCUS PULLER). */
+    var focusPuller: Boolean
+        get() = prefs.getBoolean("focusPuller", false)
+        set(value) = prefs.edit().putBoolean("focusPuller", value).apply()
+
+    /** v165: the status line on or off (the INFO key on the left rail). */
+    var showStatus: Boolean
+        get() = prefs.getBoolean("showStatus", true)
+        set(value) = prefs.edit().putBoolean("showStatus", value).apply()
+
+    /** v149: the meter's key points, dioptres in the order marked ([Mechanism.encodeKeys]). */
+    var focusKeys: String
+        get() = prefs.getString("focusKeys", "") ?: ""
+        set(value) = prefs.edit().putString("focusKeys", value).apply()
+
+    /** v148: the lens the camera was left on, by its number in the drawer (1 = L1); it opens on it again. */
+    var lens: Int
+        get() = prefs.getInt("lens", 1)
+        set(value) = prefs.edit().putInt("lens", value.coerceIn(1, 16)).apply()
+
+    /**
+     * v147: the lens's speed, millimetres of distance in front of the camera per second (Marko, 26.10.2026: "a speed of
+     * tracking and a speed of focusing ... let's put millimeters per second"). 0 is CAMERA: the camera's own glide.
+     */
+    var focusSpeedMmS: Int
+        get() = prefs.getInt("focusSpeedMmS", 0)
+        set(value) = prefs.edit().putInt("focusSpeedMmS", value.coerceIn(0, 1000)).apply()
+
+    /** v147: the same for a tracked subject; 0 is CAMERA. */
+    var trackSpeedMmS: Int
+        get() = prefs.getInt("trackSpeedMmS", 0)
+        set(value) = prefs.edit().putInt("trackSpeedMmS", value.coerceIn(0, 1000)).apply()
+
+    /**
+     * v145: the light's brightness, percent of what the lamp can give (Marko, 26.10.2026: "brightness control for the
+     * LED"). The Pixel 7's lamp takes 45 levels while the camera runs (FLASH_STRENGTH_LEVEL, Android 15).
+     */
+    var torchLevel: Int
+        get() = prefs.getInt("torchLevel", 100)
+        set(value) = prefs.edit().putInt("torchLevel", value.coerceIn(1, 100)).apply()
+
+    /**
+     * v144: the adb door open or shut (Marko, 26.10.2026: "you need to add a switch ADB control, which is on by
+     * default"). Shut, the camera answers adb only with "ADB control is off". adb itself cannot open or shut it.
+     */
+    var adbControl: Boolean
+        get() = prefs.getBoolean("adbControl", true)
+        set(value) = prefs.edit().putBoolean("adbControl", value).apply()
+
+    /**
+     * v144: every setting by its name, for adb (`mcam settings`, `mcam set fps 25`). Read and written through the
+     * getters and setters above, so a value set over adb is held to the same limits as the screen's.
+     */
+    fun all(): Map<String, String> = javaClass.methods
+        .filter { it.name.startsWith("get") && it.parameterCount == 0 && it.declaringClass == Settings::class.java }
+        .map { it.name.removePrefix("get").replaceFirstChar { c -> c.lowercase() } to it }
+        .filter { (name, _) -> name !in ADB_HIDDEN }
+        .sortedBy { it.first }
+        .associate { (name, getter) -> name to (getter.invoke(this)?.let { if (it is Set<*>) it.joinToString(",") else it.toString() } ?: "-") }
+
+    /** v144: one setting by its name; returns what it is now, or why not. */
+    fun set(name: String, value: String): String {
+        if (name in ADB_HIDDEN) return "$name is not set over adb"
+        val setter = javaClass.methods.firstOrNull {
+            it.name.equals("set$name", ignoreCase = true) && it.parameterCount == 1 && it.declaringClass == Settings::class.java
+        } ?: return "no setting $name: mcam settings lists them"
+        val type = setter.parameterTypes[0]
+        val v = value.trim()
+        val arg: Any? = when {
+            type == Int::class.javaPrimitiveType -> v.toIntOrNull()
+            type == Long::class.javaPrimitiveType -> v.toLongOrNull()
+            type == Float::class.javaPrimitiveType -> v.toFloatOrNull()
+            type == Boolean::class.javaPrimitiveType -> when (v.lowercase()) { "on", "true", "1" -> true; "off", "false", "0" -> false; else -> null }
+            // v153 (the review): only the nullable settings take "-" as nothing; the others get the text, "" included
+            type == String::class.java -> if (v == "-" && name.lowercase() in NULLABLE) null else if (v == "-") "" else v
+            type.isEnum -> type.enumConstants?.firstOrNull { (it as Enum<*>).name.equals(v, ignoreCase = true) }
+            Set::class.java.isAssignableFrom(type) -> v.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            else -> return "$name cannot be set over adb"
+        }
+        if (arg == null && type != String::class.java) {
+            val choices = if (type.isEnum) ": " + type.enumConstants!!.joinToString(" ") { (it as Enum<*>).name } else ""
+            return "$name does not take \"$v\"$choices"
+        }
+        setter.invoke(this, arg)
+        val canonical = setter.name.removePrefix("set").replaceFirstChar { it.lowercase() }
+        return "$canonical=" + (all()[canonical] ?: "-")
+    }
+
     private companion object {
+        /** The door itself, and the wiring behind the screen, stay with the phone's owner. */
+        val ADB_HIDDEN = setOf("adbControl", "prefs")
+        /** The String settings that may be nothing (null): a folder, the last take, the last still. */
+        val NULLABLE = setOf("recordfolder", "lasttake", "laststill")
         const val SOURCE = "sourceName"
         const val HOLD = "focusHoldMs"
         const val RACK = "focusRackMs"
@@ -315,6 +486,9 @@ class Settings(context: Context) {
         const val CIRCLE_MODE = "circleMode"
         const val MARKS = "marksShown"
         const val PINCH = "pinchTarget"
+        const val TOUCH_HIDDEN = "marksTouchHidden"
+        const val LAST_LUT = "lastLutSlot"
+        const val BITRATE_AUTO = "bitRateAuto"
         const val SHOOT = "shootMode"
         const val FOLDER = "recordFolder"
         const val LAST_TAKE = "lastTake"
@@ -328,5 +502,13 @@ class Settings(context: Context) {
         const val NDI_AUDIO = "ndiAudio"
         const val AUDIO_SOURCE = "audioSource"
         const val AUDIO_STEREO = "audioStereo"
+    }
+
+    /** HEVC at 30 frames: 720p 24, 1080p 40, 1440p 60, 4K 100 Mbit/s; by the frame rate, and a quarter more at
+     *  10 bits. 720p24 8-bit = 19, 1080p24 = 32, 4K24 = 80, 4K30 10-bit = 125 (the most is 150). */
+    fun autoMbps(width: Int, fps: Int, tenBit: Boolean): Int {
+        val at30 = when { width >= 3840 -> 100.0; width >= 2560 -> 60.0; width >= 1920 -> 40.0; else -> 24.0 }
+        val v = at30 * (fps.coerceIn(1, 120) / 30.0) * (if (tenBit) 1.25 else 1.0)
+        return v.toInt().coerceIn(8, 150)
     }
 }

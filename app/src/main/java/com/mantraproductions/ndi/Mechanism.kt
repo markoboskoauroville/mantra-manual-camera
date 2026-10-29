@@ -160,6 +160,73 @@ object Mechanism {
         else -> "1/${shutterDenominator(ns)}"
     }
 
+    /** v147: beyond this a dioptre is "far": travel to infinity is counted to here, so a speed still gives a time. */
+    const val FAR_METRES = 10f
+
+    /**
+     * v147: how long a move from [fromDpt] to [toDpt] takes at [mmPerSecond], the distance in front of the camera
+     * (metres, infinity counted as [FAR_METRES]) over the speed. The speed is the average: the eased walk is slower at
+     * both ends and about 1.9 times faster in the middle. Never under 150 ms (a frame or four) nor over 20 s.
+     */
+    fun focusTravelMs(fromDpt: Float, toDpt: Float, mmPerSecond: Int): Long {
+        if (mmPerSecond <= 0) return 0L
+        fun metres(d: Float) = if (d <= 1f / FAR_METRES) FAR_METRES else 1f / d
+        val mm = kotlin.math.abs(metres(fromDpt) - metres(toDpt)) * 1000f
+        return (mm / mmPerSecond * 1000f).toLong().coerceIn(150L, 20_000L)
+    }
+
+    /**
+     * v149, the focus puller's meter: where [dpt] stands along it, 0 at the closest the lens goes, 1 at infinity. Linear
+     * in dioptres, the lens's own steps, so the near distances (where a pull is fine) get the room.
+     */
+    fun meterPosition(dpt: Float, closest: Float): Float =
+        if (closest <= 0f) 0f else (1f - dpt / closest).coerceIn(0f, 1f)
+
+    /** v149: the dioptres at [position] along the meter (the inverse of [meterPosition]). */
+    fun meterDioptres(position: Float, closest: Float): Float =
+        (closest * (1f - position.coerceIn(0f, 1f))).coerceIn(0f, closest.coerceAtLeast(0f))
+
+    /** v149: the key points kept as text, "4.0000,2.0000"; anything unreadable is dropped. */
+    fun encodeKeys(keys: List<Float>): String = keys.joinToString(",") { String.format(java.util.Locale.ROOT, "%.4f", it) }
+    fun decodeKeys(text: String?): List<Float> =
+        text.orEmpty().split(',').mapNotNull { it.trim().toFloatOrNull() }.filter { it >= 0f && it < 100f }
+
+    /** v147: a speed slider's 0..100 as millimetres per second: 0 is CAMERA, then 10 to 1000 in steps of 10. */
+    fun speedFromSlider(v: Int): Int = v.coerceIn(0, 100) * 10
+
+    fun speedLabel(mmPerSecond: Int): String = if (mmPerSecond <= 0) "CAMERA (its own glide)" else "$mmPerSecond mm/s"
+
+    /**
+     * v145: a lens position in dioptres as a distance to read under the square: millimetres under 10 cm, centimetres
+     * (one decimal) under a metre, metres (two decimals) beyond, ∞ at zero.
+     */
+    /**
+     * v159 (27.10.2026): THE DISTANCE METER CALIBRATED. The Pixel 7's main lens says its focus distance only
+     * "approximately", and it says too far: MEASURED on Marko's scene with his tape (ball 70 cm, fan and ball 2.14 m,
+     * cloth 3.00 m) against where each was sharpest, real dioptres = 1.10 x lens + 0.12 (residuals 0.005–0.04 dpt);
+     * the lens's "infinity" is about 8 m. [focusCal] is (a, b); identity until the settings give it.
+     */
+    @Volatile var focusCal: FloatArray = floatArrayOf(1f, 0f)
+
+    /** v159: the lens's dioptres as real dioptres (the distance shown). */
+    fun realDioptres(lens: Float): Float = (focusCal[0] * lens + focusCal[1]).coerceAtLeast(0f)
+
+    /** v159: a real distance's dioptres as the lens's (what is sent to the lens). */
+    fun lensDioptres(real: Float): Float = ((real - focusCal[1]) / focusCal[0]).coerceAtLeast(0f)
+
+    /** [dioptres] are the LENS's (as the camera reports and takes them); shown as the real distance (v159). */
+    fun formatFocusDistance(dioptres: Float): String {
+        val real = realDioptres(dioptres)
+        if (real <= 0.001f) return "∞"
+        val m = 1f / real
+        return when {
+            m < 0.1f -> String.format(java.util.Locale.ROOT, "%.0f mm", m * 1000f)
+            m < 1f -> String.format(java.util.Locale.ROOT, "%.1f cm", m * 100f)
+            m < 100f -> String.format(java.util.Locale.ROOT, "%.2f m", m)
+            else -> "∞"
+        }
+    }
+
     /**
      * v143: the shutters the circle's − and + step through, the ones a video camera offers: the 180 degree
      * shutters of 24, 25 and 30 fps, mains-safe 1/50, 1/60, 1/100, 1/120, then doubling to 1/8000.
@@ -1851,7 +1918,8 @@ object Mechanism {
             armed -> Output.READY
             else -> Output.OFF
         }
-        val ndiName = if (ndiKind == 2) "NDI FULL" else "NDI HX"
+        // v168: no spaces (Marko, 28.10.2026: "even between NDI HX. No space in between"); the colours tell them apart
+        val ndiName = if (ndiKind == 2) "NDI.FULL" else "NDI.HX"
         return listOf(
             Telemetry("FILE", state(armFile, fileLive),
                 if (fileLive) String.format(java.util.Locale.ROOT, "%.0f Mb/s", fileMbps) else ""),

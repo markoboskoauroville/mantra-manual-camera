@@ -25,6 +25,7 @@ ap.add_argument("phone", help="wireless adb address, ip:port")
 ap.add_argument("--source", default="", help="part of the NDI source name")
 ap.add_argument("--minutes", type=float, default=10, help="length of the baseline phase")
 ap.add_argument("--phases", default="baseline,rotate,background,screenoff,full,hxagain")
+ap.add_argument("--turns", type=int, default=6, help="how many portrait/landscape turns in the rotate phase (the stall came at the 6th, 26.10.2026)")
 ap.add_argument("--extra-ips", default="", help="the phone's address when discovery cannot reach it (USB tether)")
 ap.add_argument("--wait", action="store_true", help="wait for the shared Pixel 7 instead of giving up when it is busy")
 a = ap.parse_args()
@@ -111,12 +112,12 @@ def judge(name, start, end, settle=(), want_portrait=None):
 
 
 def launch_hx(kind=1):
-    sh("shell", "am", "start", "-S", "-W", "-n", f"{PKG}/.MainActivity", "--es", "ndi_arm", "1", "--es", "ndi_kind",
+    sh("shell", "am", "start", "-S", "-W", "-n", f"{PKG}/com.mantraproductions.ndi.MainActivity", "--es", "ndi_arm", "1", "--es", "ndi_kind",
        str(kind), "--es", "ndi_audio", "1", "--es", "audio_source", "auto")
 
 
 def front():
-    sh("shell", "am", "start", "-W", "-n", f"{PKG}/.MainActivity")
+    sh("shell", "am", "start", "-W", "-n", f"{PKG}/com.mantraproductions.ndi.MainActivity")
 
 
 def orient(portrait):
@@ -127,7 +128,7 @@ def orient(portrait):
 # --- go ------------------------------------------------------------------------------------------------------------
 
 # The Pixel 7 is shared with DJ Mantra: the lock first, for the run's length plus a margin, given back at exit.
-phase_minutes = {"baseline": a.minutes, "rotate": 2.5, "background": 2, "screenoff": 2, "full": 2.2, "hxagain": 1.2}
+phase_minutes = {"baseline": a.minutes, "rotate": a.turns * 20 / 60 + 0.5, "background": 2, "screenoff": 2, "full": 2.2, "hxagain": 1.2}
 need = sum(phase_minutes.get(p, 2) for p in a.phases.split(",")) + 3
 pixel7_lock.hold_for_this_run(ADB, min(max(15, need), 60), "camera NDI soak", wait=a.wait)
 model = sh("shell", "getprop", "ro.product.model").strip()
@@ -152,7 +153,7 @@ try:
     if "rotate" in phases:
         s = time.monotonic() - t0; event("rotate: portrait / landscape every 20 s")
         settles = []
-        for i in range(6):
+        for i in range(a.turns):
             portrait = i % 2 == 0
             orient(portrait)
             at = time.monotonic() - t0

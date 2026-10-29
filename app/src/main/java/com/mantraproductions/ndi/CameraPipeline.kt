@@ -61,6 +61,10 @@ class CameraPipeline(private val context: Context) {
         private set
     val isTenBit: Boolean get() = engine.isTenBit
 
+    /** v157: the stream encoder's depth; 8-bit beside a 10-bit take when the GPU stage draws the stream SDR. */
+    @Volatile var streamTenBit = false
+        private set
+
     /** The stream's encoder (NDI HX); in the direct path it also feeds the take. */
     private var encoder: HdrVideoEncoder? = null
     private var encoderSurface: Surface? = null
@@ -81,10 +85,11 @@ class CameraPipeline(private val context: Context) {
         set(value) { field = value; gpu?.trackListener = value }
 
     /** @return false without the GPU stage, which is where the tracker lives. */
-    fun startTracking(x: Float, y: Float, w: Float, h: Float, every: Int, search: Float, confidence: Float): Boolean {
+    fun startTracking(x: Float, y: Float, w: Float, h: Float, every: Int, search: Float, confidence: Float,
+                      model: Int = LibmvTracker.MODEL_LOC): Boolean {
         val stage = gpu ?: return false
         stage.trackListener = trackListener
-        stage.startTracking(x, y, w, h, every, search, confidence)
+        stage.startTracking(x, y, w, h, every, search, confidence, model)
         return true
     }
 
@@ -356,22 +361,26 @@ class CameraPipeline(private val context: Context) {
             listener?.onError("No 10-bit HEVC encoder here, falling back to 8-bit")
         }
 
-        val codec = HdrVideoEncoder(
-            width = size.width,
-            height = size.height,
-            fps = fps,
-            bitRate = bitRate,
-            tenBit = tenBit,
-            onFormat = ::onStreamFormat,
-            onFrame = ::onStreamFrame
-        )
-        // The muxer needs the encoder's own format, and the encoder announces
-        // it exactly once, long before anybody presses record. So it is kept.
         // THE GPU STAGE, tried first unless settings say direct. Built before
         // the camera opens, so the session is given either its one surface or
         // the old ones, never a mixture.
         val stage = if (useGpuStage) GpuStage.create(size.width, size.height, tenBit) else null
         gpu = stage
+        // v157: the stream's encoder is 8-bit when the stage draws the stream SDR (a 10-bit HX stream froze in Zoom);
+        // on the direct path it is also the take's, so it keeps the take's depth.
+        streamTenBit = tenBit && stage?.streamEightBit != true
+
+        var codec = HdrVideoEncoder(
+            width = size.width,
+            height = size.height,
+            fps = fps,
+            bitRate = bitRate,
+            tenBit = streamTenBit,
+            onFormat = ::onStreamFormat,
+            onFrame = ::onStreamFrame
+        )
+        // The muxer needs the encoder's own format, and the encoder announces
+        // it exactly once, long before anybody presses record. So it is kept.
 
         if (stage == null) {
             // The direct path: one encoder, fed by the camera, for the take
@@ -385,7 +394,7 @@ class CameraPipeline(private val context: Context) {
         if (stage != null) codec.setBitRate(streamBitRate)
         // v124: on the direct path, once the monitor has chosen a stream rate, a restarted encoder starts at it
         else if (directUsesStreamRate) codec.setBitRate(streamBitRate)
-        val surface = codec.start()
+        var surface = codec.start()
         if (surface == null) {
             listener?.onError("This phone will not encode ${size.width}x${size.height}")
             stage?.release()
@@ -417,6 +426,21 @@ class CameraPipeline(private val context: Context) {
                 Trace.refused("gpu stage", "no second encoder at this size — the direct path is used")
                 stage.release()
                 gpu = null
+                if (streamTenBit != tenBit) {
+                    // v157: the 8-bit stream encoder would now carry the take: made again at the take's 10 bits
+                    codec.stop()
+                    streamTenBit = tenBit
+                    codec = HdrVideoEncoder(
+                        width = size.width, height = size.height, fps = fps, bitRate = bitRate, tenBit = tenBit,
+                        onFormat = ::onStreamFormat, onFrame = ::onStreamFrame
+                    )
+                    surface = codec.start() ?: run {
+                        listener?.onError("This phone will not encode ${size.width}x${size.height}")
+                        return false
+                    }
+                    encoder = codec
+                    encoderSurface = surface
+                }
                 codec.setBitRate(bitRate)
                 codec.onEncodedFormat = { format ->
                     encodedVideoFormat = format
@@ -427,7 +451,7 @@ class CameraPipeline(private val context: Context) {
                 recordEncoder = take
                 stage.setOutput(GpuStage.Output.PREVIEW, previewSurface, enabled = true)
                 stage.setOutput(GpuStage.Output.RECORD, takeSurface, enabled = false)
-                stage.setOutput(GpuStage.Output.STREAM, surface, enabled = false)
+                stage.setOutput(GpuStage.Output.STREAM, surface, enabled = linkWanted)   // v161: a Mac watching keeps it on
                 // v136: the orientation asked for before the camera opened (the activity sets it on every start)
                 if (streamTurns != 0) { val t = streamTurns; streamTurns = 0; applyStreamTurns(t) }
                 Trace.state(
@@ -495,6 +519,26 @@ class CameraPipeline(private val context: Context) {
     private fun onStreamFormat(sps: ByteArray, pps: ByteArray?, vps: ByteArray?) {
         parameterSets = Triple(sps, pps, vps)
         NdiSender.setVideoInfo(sps, pps, vps)
+        if (linkWanted) linkConfig()
+    }
+
+    /**
+     * v161: the Mac app (Mantra Camera, over the USB cable) takes the stream encoder's frames through Mantra Link;
+     * the GPU stage keeps drawing the stream while it watches, NDI on or off.
+     */
+    @Volatile var linkWanted = false
+        private set
+
+    fun setLinkStream(on: Boolean) {
+        linkWanted = on
+        gpu?.setEnabled(GpuStage.Output.STREAM, on || mode == Mode.HX)
+        if (on) { linkConfig(); encoder?.requestKeyframe() }
+        Trace.control("stream", if (on) "to the Mac over the cable" else "not to the Mac", if (gpu != null) "GPU stage" else "direct path: not offered")
+    }
+
+    private fun linkConfig() {
+        val (sps, pps, vps) = parameterSets ?: return
+        LinkServer.streamConfig(encoder?.isHevc ?: true, encoderSize.width, encoderSize.height, vps, sps, pps)
     }
 
     /**
@@ -506,8 +550,20 @@ class CameraPipeline(private val context: Context) {
     fun attachPreview(surface: Surface) { gpu?.setOutput(GpuStage.Output.PREVIEW, surface, enabled = true) }
 
     /** v136: queued, never sent from here (see [NdiVideo]): a slow wire must never hold the encoder. */
+    /** v156: the encoder whose announcements count (see [rebuildStreamEncoder]). */
+    @Volatile private var newestEncoder: HdrVideoEncoder? = null
+
     private fun onStreamFrame(data: ByteArray, keyframe: Boolean, ptsUs: Long, hevc: Boolean) {
         lastEncodedAt = SystemClock.elapsedRealtime()
+        // v156: the safety net: a keyframe going out with no parameter sets known takes them from the codec itself,
+        // so a lost announcement heals at the next keyframe instead of leaving the stream dark
+        if (keyframe && parameterSets == null) {
+            encoder?.currentParameterSets()?.let { (sps, pps, vps) ->
+                Trace.state("stream parameter sets taken from the encoder (none were announced)")
+                onStreamFormat(sps, pps, vps)
+            }
+        }
+        if (linkWanted) LinkServer.streamFrame(data, keyframe, ptsUs)
         if (mode == Mode.HX) {
             NdiVideo.offer(data, keyframe, ptsUs, hevc)
             frames++
@@ -562,10 +618,20 @@ class CameraPipeline(private val context: Context) {
         val dims = turnedSize(streamTurns)
         stage.setOutput(GpuStage.Output.STREAM, null)
         encoder?.stop()
-        val c = HdrVideoEncoder(
-            width = dims.width, height = dims.height, fps = fps, bitRate = streamBitRate, tenBit = isTenBit,
-            onFormat = ::onStreamFormat, onFrame = ::onStreamFrame
+        // v156 (THE NDI PICTURE STALL, found 26.10.2026 by ndi_soak: after the 6th turn the phone sent every frame
+        // and the Mac decoded none, the sound complete): the old parameter sets were cleared AFTER the new encoder
+        // had started, and that encoder announces its own exactly once, from its own thread; when it was quicker
+        // than the clearing, the new ones were wiped and the stream went out undecodable for good. Cleared first
+        // now, and only the newest encoder's announcements count (an old one's late callback is ignored).
+        parameterSets = null
+        NdiSender.clearVideoInfo()
+        lateinit var c: HdrVideoEncoder
+        c = HdrVideoEncoder(
+            width = dims.width, height = dims.height, fps = fps, bitRate = streamBitRate, tenBit = streamTenBit,
+            onFormat = { sps, pps, vps -> if (newestEncoder === c) onStreamFormat(sps, pps, vps) },
+            onFrame = { data, key, pts, hevc -> if (newestEncoder === c) onStreamFrame(data, key, pts, hevc) }
         )
+        newestEncoder = c
         val surface = c.start()
         if (surface == null) {
             Trace.refused("stream encoder", "would not start at ${dims.width}x${dims.height} ($why)")
@@ -575,10 +641,8 @@ class CameraPipeline(private val context: Context) {
         encoder = c
         encoderSurface = surface
         encoderSize = dims
-        parameterSets = null
-        NdiSender.clearVideoInfo()
         NdiSender.setVideoFormat(dims.width, dims.height, fps, 1)
-        stage.setOutput(GpuStage.Output.STREAM, surface, enabled = mode == Mode.HX)
+        stage.setOutput(GpuStage.Output.STREAM, surface, enabled = mode == Mode.HX || linkWanted)
         stage.setTurns(GpuStage.Output.STREAM, streamTurns)
         lastEncodedAt = SystemClock.elapsedRealtime()
         c.requestKeyframe()
@@ -678,7 +742,7 @@ class CameraPipeline(private val context: Context) {
         when (mode) {
             // Left live if a take is running: the file is fed by the encoder,
             // and stopping the stream must never stop the recording.
-            Mode.HX -> if (gpu != null) gpu?.setEnabled(GpuStage.Output.STREAM, false)
+            Mode.HX -> if (gpu != null) gpu?.setEnabled(GpuStage.Output.STREAM, linkWanted)
                 else if (!isRecording) encoderSurface?.let { engine.setTargetLive(it, false) }
             Mode.FULL -> fullSurface?.let { engine.setTargetLive(it, false) }
             Mode.OFF -> Unit
@@ -745,7 +809,8 @@ class CameraPipeline(private val context: Context) {
                 Trace.refused("stream", Routing.wireLabel(transport, null))
                 return false
             }
-            if (!NdiSender.create(sourceName, Routing.ndiConfig(adapter.ip))) {
+            val others = if (transport == Routing.Transport.USB) UsbLink.nics().map { it.ip }.filter { it != "127.0.0.1" } else emptyList()
+            if (!NdiSender.create(sourceName, Routing.ndiConfig(adapter.ip, others))) {
                 listener?.onError("NDI source could not be opened")
                 return false
             }

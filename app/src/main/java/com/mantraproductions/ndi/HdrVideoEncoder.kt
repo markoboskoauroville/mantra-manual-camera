@@ -67,6 +67,17 @@ class HdrVideoEncoder(
      * @return the surface the camera session should target, or null if this
      *   device cannot encode what was asked for.
      */
+    /**
+     * v156: the parameter sets as the codec holds them now (csd-0/1/2 of its output format), for a stream that has
+     * lost them: the encoder announces them only once (found 26.10.2026, the NDI picture stall).
+     */
+    fun currentParameterSets(): Triple<ByteArray, ByteArray?, ByteArray?>? = runCatching {
+        val f = codec?.outputFormat ?: return null
+        fun b(k: String) = if (f.containsKey(k)) f.getByteBuffer(k)?.let { val d = it.duplicate(); ByteArray(d.remaining()).also { a -> d.get(a) } } else null
+        val sps = b("csd-0") ?: return null
+        Triple(sps, b("csd-1"), b("csd-2"))
+    }.getOrNull()
+
     fun start(): Surface? {
         val mime = if (isHevc) MediaFormat.MIMETYPE_VIDEO_HEVC else MediaFormat.MIMETYPE_VIDEO_AVC
 

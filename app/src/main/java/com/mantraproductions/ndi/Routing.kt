@@ -55,12 +55,20 @@ object Routing {
     }
 
     /**
+     * v159 (27.10.2026, THE USB FREEZE): the phone is "Android.local" on every network it is on, so a Mac on the
+     * cable resolved it to the Wi-Fi address as often as to the cable's, connected from its cable address to that,
+     * and got sound but no picture: the sender would send video only from the cable's address. The packets of such a
+     * connection travel the cable all the same, so on the cable the sender also answers on its other addresses
+     * ([alsoAnswerOn]); MEASURED after: the video on the Mac's cable interface. The first is still the wire chosen.
+     *
      * The NDI configuration that pins a sender to one adapter. Passed to `NDIlib_send_create_v2`, the Advanced SDK's
      * per-instance form of `ndi-config.v1.json`. Multicast sending stays off (the SDK's default), so a receiver
      * connects by TCP/UDP unicast to exactly this address.
      */
-    fun ndiConfig(ip: String): String =
-        "{\"ndi\":{\"adapters\":{\"allowed\":[\"" + ip.filter { it.isDigit() || it == '.' } + "\"]}}}"
+    fun ndiConfig(ip: String, alsoAnswerOn: List<String> = emptyList()): String =
+        "{\"ndi\":{\"adapters\":{\"allowed\":[" +
+            (listOf(ip) + alsoAnswerOn).map { a -> a.filter { it.isDigit() || it == '.' } }.filter { it.isNotEmpty() }
+                .distinct().joinToString(",") { "\"$it\"" } + "]}}}"
 
     /** What the outputs line and the settings say about the wire. */
     fun wireLabel(transport: Transport, adapter: Nic?): String = when {

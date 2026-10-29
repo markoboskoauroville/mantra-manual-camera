@@ -147,6 +147,9 @@ object Recordings {
      *
      * @return where it went, or null with the reason traced
      */
+    /** v151: the still written last, so the round PLAY key can open it in the phone's viewer. */
+    @Volatile var lastStillUri: Uri? = null
+
     fun savePng(
         context: Context, bitmap: android.graphics.Bitmap, at: Date = Date(), folder: String? = null
     ): String? = try {
@@ -161,7 +164,7 @@ object Recordings {
             val ok = doc != null && resolver.openOutputStream(doc)?.use {
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
             } == true
-            if (ok) describe(context, tree) + "/" + name
+            if (ok) { lastStillUri = doc; describe(context, tree) + "/" + name }
             else { Trace.refused("still", "the chosen folder would not take the PNG"); null }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val resolver = context.contentResolver
@@ -184,6 +187,7 @@ object Recordings {
                 resolver.update(uri, ContentValues().apply {
                     put(MediaStore.MediaColumns.IS_PENDING, 0)
                 }, null, null)
+                lastStillUri = uri
                 Environment.DIRECTORY_DCIM + "/" + FOLDER + "/" + name
             }
         } else {

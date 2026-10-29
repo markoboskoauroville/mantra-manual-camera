@@ -1,0 +1,4 @@
+ninja: Entering directory `/Users/markobosko/Developer/MANTRA_NDI/monitor/.cxx/Debug/343o4j1i/arm64-v8a'
+[1/3] Building CXX object CMakeFiles/ndi_bridge.dir/ndi_recv_bridge.cpp.o
+[2/3] Building CXX object CMakeFiles/ndi_bridge.dir/ndi_bridge.cpp.o
+[3/3] Linking CXX shared library /Users/markobosko/Developer/MANTRA_NDI/monitor/build/intermediates/cxx/Debug/343o4j1i/obj/arm64-v8a/libndi_bridge.so

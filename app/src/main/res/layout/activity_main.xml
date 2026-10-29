@@ -68,6 +68,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
 
+            <!-- v149: the focus puller's meter, along the long edge; it claims only touches on its strip -->
+            <com.mantraproductions.ndi.FocusMeterView
+                android:id="@+id/focusMeter"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
+
             <!--
                  The audio, down the inside edge of the picture.
 
@@ -99,42 +106,52 @@
                  sending. On a dark band, because grey words over a bright sky
                  were unreadable on his Pixel.
             -->
-            <TextView
-                android:id="@+id/telemetry"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|center_horizontal"
-                android:layout_marginTop="2dp"
-                android:background="#88000000"
-                android:paddingTop="2dp"
-                android:paddingBottom="2dp"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:fontFamily="monospace"
-                android:textStyle="bold"
-                android:textSize="11sp"
-                android:textColor="#FFFFFF" />
-
-            <!-- v111: the whole width ("using the free space available to go to the edge of the screen"); its top
-                 follows the outputs line, set in MainActivity.placeStatus() -->
-            <TextView
-                android:id="@+id/status"
+            <!-- v165: ONE LINE (Marko, 28.10.2026: "get the status in only one line, not in the two lines"): the
+                 outputs, then the status beside them, cut short at the edge rather than wrapped. The row is
+                 hidden by the INFO key on the left rail; the REC time sits under it (MainActivity.placeStatus). -->
+            <LinearLayout
+                android:id="@+id/statusRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="top|center_horizontal"
-                android:background="#66000000"
-                android:layout_marginTop="22dp"
-                android:gravity="center"
-                android:paddingTop="3dp"
-                android:paddingBottom="3dp"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
-                android:fontFamily="monospace"
-                android:textSize="10sp"
-                android:textColor="#E6E8EA"
-                android:shadowColor="#000000"
-                android:shadowRadius="4"
-                android:text="@string/starting" />
+                android:layout_gravity="top"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="#66000000">
+
+                <TextView
+                    android:id="@+id/telemetry"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="#88000000"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:maxLines="1"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold"
+                    android:textSize="11sp"
+                    android:textColor="#FFFFFF" />
+
+                <TextView
+                    android:id="@+id/status"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:paddingTop="3dp"
+                    android:paddingBottom="3dp"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="4dp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:fontFamily="monospace"
+                    android:textSize="10sp"
+                    android:textColor="#E6E8EA"
+                    android:shadowColor="#000000"
+                    android:shadowRadius="4"
+                    android:text="@string/starting" />
+            </LinearLayout>
 
             <!--
                  The iris, in the corner with the other facts.
@@ -160,15 +177,16 @@
                 android:visibility="gone" />
 
             <!--
-                 Bottom middle, v88: the status word (REC, red while a take
-                 runs; PLAY) and the record-run timecode, HH:MM:SS:FF, always
-                 white. The geometry line that sat here went to the trace only.
+                 v88: the status word (REC, red while a take runs; PLAY) and the
+                 record-run timecode, HH:MM:SS:FF, always white. v165: at the top,
+                 under the status line, or at the very top when INFO hides it; at
+                 the bottom the focus ruler ran over it (Marko, 28.10.2026).
             -->
             <TextView
                 android:id="@+id/timecode"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="bottom|center_horizontal"
+                android:layout_gravity="top|center_horizontal"
                 android:padding="4dp"
                 android:fontFamily="monospace"
                 android:textStyle="bold"

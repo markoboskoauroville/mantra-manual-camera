@@ -736,3 +736,540 @@ Needs the GPU stage (Settings → Picture path).
 > "Please update the app with new feature. We used to have square, triangle, and circle. Now it will be different for assistance on adjusting the manual camera. Focus is the same as before, and we have circle for exposure, triangle going out. No, actually triangle will be also a circle, so we have square and 2 circles. And actually, we're going to have a square and one circle because this is the trick. So circle, a long press on the circle, change its mode. Normal mode is— I mean, normal mode, I am selecting the mode. So I am selecting the mode. One mode is to tap to adjust exposure with ISO only. Then second mode, so long press the mode pop-up toast is popping up to change the mode. It's a white balance. And the third option, which is not the mode, which is just to set in the shutter. So idea in manual camera is that what is fixed in the video mode is always shutter speed and aperture. Aperture is fixed, so nothing to change. So shutter speed is fixed. It is never automatic. Of course, in the manual sliders I can put it automatic, but with this round thing, what I expect to change manually with plus and minus buttons— shutter speed. Or rectangle can be ISO exposure or white balance. So triangle going out, that's all improvement in user interface. And then So people know where they are. Under the, the circle, you need to write in small letters ISO or WB, white balance, and that's all." (Marko, 24.10.2026)
 
 56. The square (focus, as before) and one circle; the triangle is gone. A long press on the circle opens its menu: **ISO** (a tap walks ISO alone to 18% grey on the circle, the shutter held where it is), **WB** (a tap balances white on the circle, as the triangle did), and **SHUTTER − / +**, a video stop at a time (1/24 … 1/50, 1/60 … 1/8000, never longer than a frame), by hand from then on. The mode is written small under the circle: ISO or WB. adb: `mcam circle iso|wb|tap|+|-`. — **Status:** v143 asked; built, not yet tried on a phone.
+
+## 26.10.2026 — the ADB switch, every setting over ADB, and UPDATE in the settings (session in ~/Developer/claude-code)
+
+> "please confirm that this camera has in software in code ADB door, which can remotely adjust any parameters of this camera, any settings, to take complete control of this application. If it's not existing, it needs to be done in a setting, you need to add a switch ADB control, which is on by default" (Marko, 26.10.2026)
+
+> "yes, please build that control now Update the app, and one more thing: inside the settings, you need to add an update button to update the app. Clicking on "Version" is a bit difficult. Settings, then there is F 25%, E 50%. You need to compress this and add an update button in that same row." (Marko, 26.10.2026)
+
+57. ADB CONTROL, a switch in the settings, on by default: off, the camera answers adb with "ADB control is off" and does nothing. With it on, adb reaches every setting of the settings page, not only the picture (lens, light, ISO, shutter, EV, WB, focus, circle, keys from v139–v143). — **Status:** v144 built: MORE → ADB CONTROL; `mcam settings` lists every setting, `mcam set NAME VALUE` sets one through the screen's own limits (what the camera is built with makes it again, the stream kept), `mcam restart`, `mcam update`. adb cannot open or shut the door itself. PROVEN 26.10.2026 04:54 on the Pixel 7 (cable): settings listed (39), set fps 25/30 and zebraLevel taken, bad values refused, switch off → "ADB control is off", on → answers again.
+
+58. An UPDATE button in the settings, in the row of F 25% and E 50% (that row compressed to make room): it does what a tap on the version does. — **Status:** v144 built: UPDATE asks GitHub; newer → the camera APK handed to Android to download and install, else "vN is the newest". PROVEN 04:54: the key sits after F 25% and E 50%, the toast said "Update: v144 is the newest".
+
+## 26.10.2026 — FOCUSING under the square, with its distance; the focus measured on every lens
+
+> "In the same style as we have ISO under the circle, I want to have focus under the square, with two modes: focus auto and focus manual. While it's measuring the focus, there will be "focus auto." While it's locked, it will be "focus manual." This is to explain what's going on. Also, please check if the focus works. You need to control the focus. Go to all focal ranges and check if the actual camera application can control the focus of this camera in every lens which is actually enabled to be focused. Please see if that's fine enough. I want to have the maximum possible resolution of focusing movement, so I can go in millimeters. What are the steps which the camera or hardware accepts for focus? The slowest steps. Under the focus text, "focusing auto." We don't do focus manual. We do it like this: "focusing set column auto focusing." Then you need to put the meters, which are centimeters or meters, where the focus is actually adjusted, so we always know the distance." (Marko, 26.10.2026)
+
+59. Under the square, small, as ISO / WB under the circle: FOCUSING: AUTO while the camera measures, FOCUSING: SET once it holds, and under it the distance the lens is really at, in centimetres or metres. — **Status:** v145 built (mm under 10 cm, cm with one decimal under 1 m, m beyond; FIXED FOCUS on a lens without travel); adb `mcam focusd 25cm|250mm|4.0` and the state's focus_dpt, focus_at, focus_closest_dpt, focus_calibration.
+
+60. The focus measured from the Mac on every lens that focuses: whether the app moves it, over the whole range, and the finest step the hardware takes (he wants millimetres). — **Status:** MEASURED 26.10.2026 on v145 (`mcam focusd`, the capture result read back): L1 ultra wide 17 mm, L4 and L5 front: FIXED focus, no motor. L2 25 mm (fused) and L3 50 mm are the same main sensor and motor: infinity to 10.5 cm (9.52 dpt), calibration APPROXIMATE, every position asked is reached (asked 2.381 → reached 2.381). The motor's finest step is 0.034 dpt (about 280 positions infinity → 10.5 cm): about 0.4 mm at 10.5 cm, 0.8 mm at 15 cm, 2 mm at 25 cm, 8 mm at 50 cm, 3.5 cm at 1 m, 14 cm at 2 m. Millimetres hold only closer than about 30 cm.
+
+## 26.10.2026 — no gear: the free space opens the settings; the last take inside the record button
+
+> "another feature is to remove this settings icon, and clicking on the free space will open the settings. That's why you need to color this free space thing in yellow, and then you can spread other controls there. There will be more space, so there's actually less. Inside the record button, instead of this white thing, you need to display the thumbnail of the last clip, either it's photography or video, whatever is last captured with this application. The thumbnail will be inside the record button, and the record button is still the record button" (Marko, 26.10.2026)
+
+61. The gear key goes. The free-space key (44.6 GB / 4:20 h) opens the settings and is coloured yellow; the other keys of the bottom rail spread into the room the gear left. — **Status:** v145 built: the gear is gone, the free-space key is yellow (#F5D90A, red under ten minutes) and opens the settings; the bottom rail's keys share the room.
+
+62. Inside the record button, in place of the white disc, the thumbnail of the last thing this app captured, photo or video, whichever is newest; the button stays the record button. — **Status:** v145 built: a still's picture or a take's first frame, kept as files/last_capture.jpg across runs; red while recording as before.
+
+> "also check if it's possible to adjust the brightness of the LED in the Pixel phone, so in our settings we can have brightness control for the LED" (Marko, 26.10.2026)
+
+63. The light's brightness: find whether the Pixel 7's LED takes a strength level; if it does, a brightness control in the settings. — **Status:** MEASURED 26.10.2026: the Pixel 7 (Android 17, API 37) publishes torchStrengthMaxLevel 45 in a camera session (default 45) and 45 through the camera manager (default 21). v145 built: CAMERA → LIGHT, brightness 1–100 %, at once on the lamp; adb `mcam torch 30%`, `mcam set torchLevel 30`.
+
+## 26.10.2026 — the remote over ADB: wireless debugging and scrcpy's picture
+
+> "now, since we have wireless debugging, we can also upgrade my remote control app to use this protocol: wireless debugging to control the app. I'm not sure what is in that remote controller now, but if it's something, whatever is there, we can have a switch between that thing and ADB. You can name it somehow, but the idea is that ADB can probably now... I want to just experiment. I guess ADB can be more precise and faster than what we have there. Remote controller using ADB, and through ADB you transfer the picture using open-source code from screen copy. Our remote controller is using that" (Marko, 26.10.2026)
+
+> "in settings, there must be a guide on how to set up ADB wireless. Then these two phones are talking through Wi-Fi, and they are able to control each other" (Marko, 26.10.2026)
+
+64. Mantra Monitor (the remote) gets a second way to the camera beside today's (MANTRA LINK over NDI): ADB over wireless debugging, the keys as adb commands and the picture through scrcpy's open-source server, with a switch between the two, to compare which is faster and more precise. — **Status:** v150 PROVEN 26.10.2026, the emulator (Mantra Monitor) driving the real Pixel 7 (the camera) over Wi-Fi: paired by code (libadb-android 3.1.1 + Conscrypt 2.5.3; the system's own Conscrypt hides exportKeyingMaterial), connected over TLS to 192.168.1.101:43917, scrcpy 4.1's server (an asset, from the Mac's Homebrew scrcpy) pushed through ADB sync and started; the camera's whole screen at 30–33 fps, 0.7–2.3 Mbit/s, H.264 1600 px; one tap on the meter's 30 cm circle in the remote racked the Pixel's lens 20.8 → 29.9 cm (scrcpy's 32-byte touch event, unchanged in 4.1). scrcpy 4.1's wire, MEASURED from the Mac: dummy byte; device name and codec only after the control socket is open; codec id is 4 bytes; a SESSION packet (top bit, then width, height) first and on every size change; frames with bit 62 config, bit 61 key frame. Remembers the last camera's address; reconnects at start.
+
+65. In the settings, a guide to set up wireless debugging, so the two phones talk over Wi-Fi and each can control the other. — **Status:** v150: the same guide (shared/kotlin AdbGuide.kt) in Mantra Monitor's sources (GUIDE, seen on the emulator) and in the camera's settings, MORE → WIRELESS DEBUGGING: THE GUIDE; the steps for the other way round are the same with the phones swapped.
+
+> "we have a remote controller in two modes: ADB or not ADB. Maybe that can be the difference in the app. There will be some kind of ADB status line that says ADB is enabled, and then it works through ADB. If I disable it, it works through any protocol you decide to use without ADB" (Marko, 26.10.2026)
+
+66. The remote (Mantra Monitor) has two modes, ADB on and ADB off, and a status line that says which: "ADB enabled" and it drives the camera through ADB; off, it works through the way without ADB (today's MANTRA LINK). — **Status:** v150: in the sources, ADB ON / OFF (on by default) with its line ("ADB ENABLED: a camera is watched and driven through wireless debugging" / "ADB OFF: cameras are watched over MANTRA LINK and NDI"), PAIR, GUIDE, and the phones wireless debugging announces; watching, the status line reads "ADB ENABLED · Pixel 7 · 192.168.1.101:43917 · 33 fps · 0.7 Mbit/s". With ADB on, a LINK camera that also announces ADB is reached over ADB.
+
+## 26.10.2026 — built on the Mac, both apps in one release, the manifest every time
+
+> "put in the manifest every time something new is updated. We update two apps: one is the main app camera and the remote app. On the same latest page, the latest version should be both updates, both latest versions I hope you are building this app on this computer and then sending it to GitHub under Releases. We are not using GitHub Actions to build the APK. It's built locally." (Marko, 26.10.2026)
+
+67. (v145 on GitHub is the Actions build of 3eeb25c, released before the cancel landed; the Mac's build with FOC: and the rack is v146.) Every version is built on the Mac, the camera and Mantra Monitor together, and both APKs go up in the one release marked Latest; GitHub Actions no longer builds on a push (by hand only, workflow_dispatch). Every update is written into the manifest the same turn. — **Status:** from v145.
+
+## 26.10.2026 — FOC: and the number; rack focus; the focus puller's meter on the remote
+
+> "I want the text focusing. It can be shorter. It can be FOC. Then column, then centimeters. The set thing. I don't need to have it. Understand: while it's searching, instead of auto, it goes to display the number. Also, we want to rack focus between different focusing points. Please test rack focusing. It goes easy in, easy out, as the focus puller will do it on the set. We also need to develop a remote control focus-pulling user interface, where the focus puller can mark on the meter, which will be on the screen, different distances, any number, and then with the play button go from one to the other.
+>
+> Actually, this will be like this. Any point he marks is key points or key frames. There will be small circles, like our ISO circle here, which will be the size of the index finger. He can tap on any of these points, and the focus will just slide to that point.
+>
+> There will be one square, one triangle pointing down, in a different color than the key frames. Key frames on the meter will look like an empty triangle looking down, and the current focus will be a full white triangle. When the user clicks on these circles, the triangle will, in this matter of animation, ramp up with the speed and then ramp down and fall on that focusing point where the user presses." (Marko, 26.10.2026)
+
+68. Under the square only "FOC: 21.7 cm": no AUTO, no SET; while it searches the number runs. — **Status:** v145 PROVEN on the Pixel 7: "FOC: 15.0 cm", the number running while it searches or racks.
+
+69. Rack focus between points, eased in and out like a focus puller on set: tested from the Mac. — **Status:** v145 PROVEN 26.10.2026 with `mcam rack 15cm 3000` (smootherstep): 50.1 cm at 0 s, 49.2 at 0.36 s, 37.1 at 0.98 s, 22.9 at 1.63 s, 17.3 at 2.22 s, 15.1 at 2.89 s, 15.0 from 3.25 s — slow out, fast through the middle, slow in.
+
+70. THE FOCUS PULLER'S METER on the remote: a distance scale on the screen; he marks any distances as key points (empty triangles pointing down, each with a circle the size of a fingertip under it, like the ISO circle); the lens is a full white triangle; a tap on a circle racks the focus there, the white triangle accelerating and easing to land on the point; a play button goes from one key point to the next. — **Status:** v149 ON THE CAMERA, PROVEN on the Pixel 7 26.10.2026 with real taps (adb input): Settings → FOCUS → FOCUS PULLER; the meter down the right edge upright (along the bottom sideways), a dioptre scale with 10, 15, 20, 30, 50 cm, 1 m, 2 m, ∞; key points as amber empty triangles with 20 dp circles; the lens a full white triangle from the capture result. A tap on the 15 cm circle racked 29.9 → 15.0 cm in 2 s (29.0, 24.8, 19.2, 16.1, 15.0), eased; ▶ went 30 → 50 → 15 cm, skipping a point the lens is on; a long press on 1 m removed it; a tap on the scale added 50.4 cm; dragging the white triangle pulled 15 → 30.2 cm. Key points kept across starts. adb: `mcam meter on|off|add 40cm|clear|keys`. The remote's own meter waits for 64–66.
+
+> "To test the remote controller, you can open up our local Pixel 7 emulator and control the real Pixel 7 from the emulator to test all its functions. Focus pulling is the function of the second phone and on this phone as well. This is in Settings. We can put focus pulling UI, and it must use the longest edge of the phone's UI, not the short one." (Marko, 26.10.2026)
+
+71. The remote is tested from the Pixel 7 emulator on the Mac driving the real Pixel 7. The focus puller's meter (70) is on both: the remote phone and the camera itself, switched on in the settings; the meter runs along the phone's longest edge. — **Status:** v150: tested from the emulator as asked. Over ADB the remote shows the camera's own screen, so the camera's meter (v149) is on the remote too and works from it (proven: the 30 cm circle tapped on the remote). The real remote phone (the Nothing, 192.168.1.102) is Marko's try.
+
+## 26.10.2026 — a FOCUS tab in the settings; focus speed and tracking speed in mm/s
+
+> "Please, in a setting, there should be a special tab for focus, because focus is now becoming very sophisticated with all its helpers. We have some helpers for manual focusing. How do we call this? Picking focus, picking. Yes.
+>
+> Then we need to have a speed of tracking and a speed of focusing. The speed should be in centimeters or millimeters per second, whatever is better. I think let's put millimeters per second. That's the speed of focusing. Our app is going to have that." (Marko, 26.10.2026)
+
+72. The settings get a FOCUS tab with every focus helper in it: peaking ("picking"), tracking, hold and the focus speeds. — **Status:** v147 built and seen on the Pixel 7: FOCUS = SPEED, Focus (hold, ramp), Peaking.
+
+73. Two speeds in millimetres per second: FOCUS SPEED (a tap, a rack, a pull to a point) and TRACKING SPEED (how fast the lens follows a tracked subject). A move's time is its distance over the speed, eased in and out. — **Status:** v147: 0 (leftmost) is CAMERA, the camera's own glide; 10–1000 mm/s. MEASURED at 100 mm/s, 60 cm → the E16 at 22 cm: the camera's search first shows the target for about 0.4 s, then the lens goes back to 60 cm and walks there in 3.6 s (57.1, 46.0, 33.7, 25.5, 22.5, 22.0 cm). That jump is the price of a timed walk: the target is only known by searching. Left at CAMERA until Marko chooses; `mcam rack 22cm` (no time) walks at FOCUS SPEED with no search.
+
+> "Now we have the Focus tab in the settings, and we try to break the settings into more logical tabs. See how we can do this.
+>
+> We have not so much scrolling down. Mostly it's going left or right." (Marko, 26.10.2026)
+
+74. The settings in more, smaller tabs, each short enough to need little scrolling; a swipe left or right goes to the next tab. — **Status:** v147, seen on the Pixel 7, all seven swiped through: CAMERA (light, picture path), FOCUS, TRACK, OUTPUTS (the two bit rates, then the switchboard), SOUND, LOOK (was DISPLAY), MORE. A swipe that starts on a slider or a drop-down moves the slider, not the tab.
+
+> "At the end of the day, when I say "close the session," you need to go to Cloudflare and simply update the app with the latest screenshots, and the website should be updated." (Marko, 26.10.2026)
+
+75. "Close the session" also updates the app's website on Cloudflare with the latest screenshots and the latest version. — **Status:** the rule is in MANTRA_MANIFEST modules/close-the-session.md.
+
+## 26.10.2026 — test it, debug it, finish it
+
+> "go to the camera and test it and debug it and improve it, see what's left with the features and make it perfect" (Marko, 26.10.2026)
+
+76. A full pass over the camera on the Pixel 7: every feature tried from the Mac, the trace read for faults, what is still open listed and built. — **Status:** v148, found and fixed:
+    - **The 10-bit GPU stage never came up** (every open in seven traces of 26.10: "no RGBA1010102 recordable config — the direct path is used"), so there was no tracking, no turned stream and one bit rate, and nothing said so on screen. The Pixel 7 (Android 17) offers RGBA1010102 only without EGL_RECORDABLE_ANDROID. v148 asks four configs in order and writes the one taken ("gpu stage config: RGBA1010102, window+pbuffer"). PROVEN: GPU stage ready in 10-bit HLG; a 4.3 s take = 130 frames at 30 fps, HEVC Main 10, yuv420p10le, BT.2020 arib-std-b67, upright, clean picture (ffprobe and a frame pulled on the Mac); AF → TRK starts the tracker (best match 0.973).
+    - When the GPU stage cannot start, the status line says so ("GPU STAGE could not start: direct path, no tracking").
+    - **16 KB pages**: libndi_bridge.so linked with -z max-page-size=16384 (libndi_advanced.so was already 0x4000); zipalign -c -P 16 passes; Android's "This app isn't 16 KB compatible" dialog no longer shows.
+    - **The lens is remembered**: it always opened on L1, the fixed-focus ultra wide; now on the one it was left on (proven: L2, force-stop, reopen → L2, FOC: 21.4 cm).
+    Still open: 64–66 (the remote over wireless ADB, scrcpy's picture), 65 (the wireless debugging guide), 70–71 (the focus puller's meter).
+
+> "yes, please start the remote" (Marko, 26.10.2026, to 64–66: the remote over wireless ADB with scrcpy's picture, the ADB switch and status line, the guide)
+
+77. The remote over ADB is started (64–66, 65, and the meter on the remote, 70). — **Status:** v150 released; see 64, 65, 66, 71. The Pixel's Wireless debugging now lists "Mantra Monitor (sdk_gphone64_arm64)", the emulator, as a paired device (revocable there).
+
+> "by the way, please release the next version with the icon in the same style as the ttt advanced keyboard icon" (Marko, 26.10.2026)
+
+78. The next version's icon in the style of the TTT Advanced Keyboard's icon. — **Status:** v151: first five lit keys (Marko: "Icon is not good"), then 86.
+
+> "the app is open. Remote controller for camera on my Note phone. You can access it through wireless debugging" (Marko, 26.10.2026)
+>
+> "please open both phones in two views on the screen copy on my Mac" (Marko, 26.10.2026)
+
+79. On the real remote, the Nothing Phone 2a (A142, Android 16, Mantra Monitor v150): PROVEN 26.10.2026 06:57 — paired with the Pixel by code (205942, port 33821) through the Mac's wireless adb, then "ADB ENABLED · Pixel 7 · 192.168.1.101:43917 · 30 fps · 0.7 Mbit/s", the camera's whole screen with its meter. Both phones open in scrcpy on the Mac ("PIXEL 7 · CAMERA", "NOTHING · REMOTE"). Found: the Nothing had kept "LINK 192.168.1.102", its own address, as its source, and kept retrying it.
+
+> "in the app, the white triangle for focus pulling needs to have the white finger landing thing circle as the yellow one. Same in this. That means manual focusing: tapping inside it and dragging it up and down to make it focus. To leave the keyframe, it's a long press, and then the dialog opens: Add Keyframe or Delete Keyframe. All other keyframes there also have a long press on this circle, and then the user can delete the keyframe" (Marko, 26.10.2026)
+
+80. The lens's white triangle gets a white finger circle like the key points' amber ones: press inside it and drag up and down to focus by hand. A long press on the white circle opens ADD KEYFRAME / DELETE KEYFRAME (delete when a key point stands there); a long press on any key point's circle offers DELETE KEYFRAME. (A tap on a key circle still racks to it; key points are no longer added by a tap on the scale.) On the camera and on the remote alike (the remote shows the camera's own meter). — **Status:** v151 released: the white circle drawn and dragged (seen in the trace, 6.4 → 7.0 dpt under a finger).
+
+> "now we need to fix the user interface. The round button, the record button, should still be the record button as before. But this triangle, which is the playing button, should become this round button with the last picture of the last clip. Then when I press it, it plays. We don't have any more square buttons. We don't have any more triangle buttons. Everything is circular. Please make the recording in the place of the lot, in the middle of the screen" (Marko, 26.10.2026)
+
+81. REC is the plain record button again (white disc, red while recording). The PLAY key (a triangle) becomes a round button showing the last capture; a press plays it (a take in the player, a still in the viewer). No square or triangle buttons on the rail: round. REC moves to the LUT's place, the middle of the rail; the LUT key takes REC's old place. — **Status:** v151 released, seen on the Pixel: LUT · the round PLAY with the last picture · SNAP · PORTRAIT · REC (white, the middle) · PEAK · FALSE · ZEBRA · free space. A still, then PLAY → Android's "open with" for the PNG (more than one viewer on the Pixel; Android asks once).
+
+> "long press on the focusing pulling interface should last two seconds" (Marko, 26.10.2026)
+
+82. On the focus puller's meter a long press is two seconds (the white circle's ADD / DELETE KEYFRAME, a key point's DELETE). — **Status:** v151.
+
+> "add a keyframe in the pop-up menu. It should be some kind of button so people understand that they need to press the button. Now it looks like normal text, not like an action button" (Marko, 26.10.2026)
+
+83. In the meter's pop-up, ADD KEYFRAME and DELETE KEYFRAME are buttons that look pressable (the app's outlined key style), not lines of text. — **Status:** v151.
+
+> "actually, Cancel looks like a button because it has a different color. Add Keyframe can be the same style" (Marko, 26.10.2026)
+
+84. (Replaces 83's look.) ADD KEYFRAME and DELETE KEYFRAME are the pop-up's own buttons, in the same colour and style as CANCEL. — **Status:** v151.
+
+> "we need to have Add Keyframe and Remove Keyframe, both options. It's the keyframe column, and then two yellow buttons: Add or Remove" (Marko, 26.10.2026)
+
+85. (Replaces 83 and 84.) The pop-up reads "KEYFRAME:" with the distance, and always two yellow buttons, ADD and REMOVE. ADD puts a keyframe where the lens is; REMOVE takes away the keyframe pressed (a key point's circle) or the one where the lens stands (the white circle), dimmed when there is none. A tap outside closes it. — **Status:** v151.
+
+> "Icon is not good. Bring the camera back with the same color styling. That's all" (Marko, 26.10.2026)
+
+86. (Replaces 78's keys.) The icon is the camera again (v95's traced camera), drawn in TTT's colours: the dark #0D1117 ground, the camera as lit neon lines with TTT's soft glow, the version under it. The monitor keeps its own old symbol (a screen with a lens) in the same colours. — **Status:** v151 released, seen on both phones' App info: the camera's amber outline, red flash tab, cyan lens ring with its glow, the body in TTT's key colour on #0D1117, v151 under it; the monitor's cyan screen with the green lens and a red REC dot. scripts/make_icons.py writes both.
+
+## 26.10.2026 — the testing ground: stress, outputs, the remote
+
+> "now continue testing. Search for the bugs, optimize the code, test all the outputs. You can control my web browser. You have NDI Monitor. You have OBS. Everything is here. The testing is ready. This is the testing ground. Please stress test the application. Remote controller, search for bugs and optimizations of the code" (Marko, 26.10.2026)
+
+87. A stress pass: every output (FILE, NDI HX and FULL, over Wi-Fi and the cable) received on the Mac (NDI Monitor, OBS), the remote over ADB and over MANTRA LINK under load and reconnects, the code read for bugs and waste. — **Status:** in work.
+
+88. BUG found by the stress pass, 26.10.2026: with NDI HX streaming on L2, `set ndiKind 2` (FULL) answered "Full NDI is not possible on this lens" and the HX stream stopped with it; the Mac's probe then found no source at all. A choice the lens cannot take must leave the stream it had running. — **Status:** v152: FULL that the lens refuses (10-bit takes the extra output) falls back to HX, said once (it was said every 2 s by the wire watch); PROVEN with the probe on the Mac: ndiKind=2 → HX streaming, 30 s, sound 99.87 %, longest gap 120 ms. NDI HX over Wi-Fi, 120 s before it: 30 fps 1080×1920, sound 99.98 %, the six late seconds (137–314 ms) carried picture and sound together (Wi-Fi bursts, the ADB remote on the same Wi-Fi).
+
+> "already developed controlling of this Oxi device A16 over the USB in my computer, so you can animate the LED rings if you want to have some kind of moving picture. You can check for the drop frames or whatever you need to check when the picture is not static. If it's not developed, then you need to develop it." (Marko, 26.10.2026; the Oxi E16 in front of the lens)
+
+89. A moving picture for the stress pass: the Oxi E16's LED rings animated from the Mac over USB MIDI, so dropped frames show in a picture that is not static. — **Status:** done 26.10.2026: ~/Developer/OXI_CONTROLLER tools/e16wave.swift (CoreMIDI, CC 1-16 on USB3, channel 2, a sine around the rings at 30 Hz), the rings seen moving through the camera. A 22.5 s take with the wave and NDI HX to the Mac at once: 676 frames, every gap 33.3 ms (none over 40 ms), 656 frames different from the one before (the 20 others the slow tops of the wave); NDI over the same time: sound 99.82 %, longest gap 267 ms. Also found and fixed in v152: the status line said NDI FULL while the fallback streamed HX (it named the setting, not the stream).
+
+> "use ADB to disable logging off and password on my Pixel, or at least guide me to the screen I can press. This is a test phone. My Pixel. No passwords here for now for testing. Always on screen password can stay, but make screen always on, never logging off. If an app is open, it should keep the screen on, our camera app, right? Is that right" (Marko, 26.10.2026)
+
+90. The Pixel 7 is a test phone: the screen always on, never locking itself; no PIN for testing (he removes it, it needs his PIN). The camera app keeps the screen on while it is open. — **Status:** in work.
+
+91. THE CODE REVIEW (26.10.2026, an independent read of today's code: 13 findings) — fixed in v153: the remote asks the camera phone's address again before every try (a new wireless-debugging port is taken, not a dead one retried forever); "ADB ENABLED" only while the picture comes (a `connected` flag), BACK leaves the monitor when the link is down; the ADB key made once, synchronised and cached (pairing and connecting together could make two); touches keep the session packet's size (a decoder's padded 1088 would have made scrcpy ignore every touch); stop and close off the main thread, the control thread shut down, the certificate stream closed, `running` checked between steps, the scrcpy jar read once; any focus action ends an adb or meter rack, and a hand pull, a rack or a mode change ends a tap's walk; Settings.set gives "" (not null) to non-nullable text settings; REMOVE takes the keyframe by its value. Left: the Updater's "no network" for any failure, the GPU stage's 8-bit config pick on drivers that sort 10-bit first.
+
+92. OPEN, found by the stress pass 26.10.2026 07:40: after `set ndiKind 1` while NDI HX streamed, the camera reported every frame sent (queued 125 sent 125, none dropped, parameter sets re-sent, a keyframe asked) but the Mac's probe decoded no picture for 3 minutes while the sound arrived — the "picture stops, sound goes on" of 9.10. The soak's later phases were spoilt by the screen lock (the Pixel now never locks). To reproduce next: HX streaming → set ndiKind 1/2 → probe. — REPRODUCED 26.10.2026 13:25 on a full battery (ndi_soak, v155): 3 min HX and five turns clean, at the 6th turn the phone went on sending every frame (queued = sent, 30/s, watching 1) and the Mac decoded none, the sound 100 %, never healing. Cause: rebuildStreamEncoder() cleared the parameter sets (parameterSets = null, NdiSender.clearVideoInfo()) AFTER starting the new encoder, which announces its own exactly once from its own thread; when it was quicker, the new parameter sets were wiped. v156: cleared before the start, only the newest encoder's callbacks count, and a keyframe with no parameter sets known takes them from the codec (HdrVideoEncoder.currentParameterSets) so a loss heals at the next keyframe. ndi_soak: --turns N. Being verified with 20 turns.
+
+## 26.10.2026 — the camera from anywhere: the remote through the tunnel
+
+> "it's okay. Just change iTerm settings instead of building a Swift app for this. Continue. Finish testing my app. I'm going to take my phone, and you can test it while I'm away. You can test the app, and if remote is viewing, it's actually working over a tunnel. Can I tunnel my remote controller to my application? No. This is the next feature: we can control this camera from anywhere in the world using the tunnel. Both sides need to accept the tunnel in the website. You're going to write which application we are installing: a free VPN. Then, through the VPN, I can remotely control this camera from anywhere in the world. There is no distance anymore. Distance is not the problem" (Marko, 26.10.2026)
+
+93. The remote (Mantra Monitor on the Nothing) drives the camera (the Pixel) from anywhere through the tunnel: a free VPN (Tailscale) on both phones, both accepted on its website; over the same Wi-Fi it goes straight, away it goes through the tunnel; on mobile data the picture is lighter so the SIM is not wasted. Tested while Marko is away with the Nothing. — **Status:** v154 built (not released yet). The Pixel joined Tailscale as pixel-7, 100.70.23.53, adb on TCP 5555. The remote's TUNNEL key (or `--es tunnel 100.70.23.53:5555`) stores the address; with the VPN up the link uses it. PROVEN 26.10.2026 08:24–08:27: the Nothing on Telemach 4G+ (Wi-Fi off) showed the camera live through the tunnel, "ADB ENABLED · Pixel 7 · 100.70.23.53:5555 · 17 fps"; inside the tunnel the link even survives Wi-Fi -> 4G without a break. Fixed on the way: a lost SYN waited the system's 75 s (picture back after 77 s) -> a 4 s probe first; the heavy Wi-Fi picture kept on 4G -> the once-a-second tick restarts the picture at 2 Mbit/s, 1280 px, 24 fps when mobile data holds 3 s (and back to 8 Mbit/s on Wi-Fi); with the screen off Android blocks the app's network and the link failed every 6 s -> the link rests while hidden and comes back on wake. Waiting for Marko (the Nothing is locked): open the remote outside and see the picture come back on its own.
+
+94. "please also make screen copy work over tunnel, so my phone is still on the screen when I'm away" (Marko, 26.10.2026) — **Status:** `nothing-screen` (MANTRA_REMOTE/scripts, on the PATH): scrcpy on the Nothing's tunnel address 100.67.149.40:5555, light (900 px, 15 fps, 2 Mbit/s), reopened by itself 3 s after any break (tested: killed, back in 3 s). `nothing-screen stop` ends it.
+
+> "After this update, I can debug my remote app over ADB through the tunnel." / "The new feature is resolution scaling, in fractions of 0.9, 0.8, 0.7, 0.6 and 0.5. It saves bandwidth with the new setting, and the status line shows the new number." (Marko, 26.10.2026)
+
+95. Resolution scaling for the remote's ADB picture: 1.0, 0.9, 0.8, 0.7, 0.6, 0.5 of the picture's size; a smaller picture costs less bandwidth; the status line shows the scale. — **Status:** v154: a tap on the status line steps 1.0 → 0.5 → 1.0; size × scale, bit rate × scale². Measured at 0.7 through the tunnel: 1120 px, 3.9 Mbit/s (was 1600 px, 8 Mbit/s). The tap itself not yet tested on the phone.
+
+> "to the camera remote you can add the black and white screen, same as we have in our remote app" (Marko, 26.10.2026)
+
+96. The black-and-white screen of Mantra Remote in the camera remote's ADB picture. — **Status:** v154 built and installed on the Nothing: a long press on the status line turns the picture black and white on the phone (a colour matrix on the picture's layer), the status line ends "· B/W"; `--ez bw true` for tests. scrcpy's H.264 stays colour, so it is the look, not less data (the scale is what saves data). Not yet seen on the phone: Marko was using it.
+
+> "The remote camera quality must be set in the remote camera application. We have different resolutions that are transferred over the internet, Tailscale resolution and the color depth." / "Just copy this app I'm in right now. I have two names, Camera Remote and Computer Remote." / "You need to synchronize the quality features to make this usable on slow networks." (Marko, 26.10.2026, while in Mantra Remote)
+
+97. The camera remote takes Mantra Remote's quality controls, the same keys and the same status line: FPS (tap steps, long press the list), colours (FULL … B/W), SCALE 1.0–0.5, set in the camera remote itself, so it works on slow networks. The two apps are named Camera Remote (Mantra Monitor) and Computer Remote (Mantra Remote). — **Status:** v154 built, installed on the Nothing (not released): while a camera is watched over ADB a rail at the bottom shows WI-FI/4G · FPS (30 24 15 10 5 2 1) · SCALE (1.0–0.5) · MBIT (8 4 2 1 0.5 0.25) · B/W; a tap steps, a long press opens the list; each network keeps its own choice (4G starts 15 FPS, 0.7, 1 Mbit). The status line: ADB · device · 4G · MB · kbit/s · fps of chosen · SCALE · MBIT · B/W. The Mac's colour depth has no meaning for H.264, so MBIT stands where the colours stand. The status-line tap/long press of item 95/96 replaced by the rail. Launcher name: Camera Remote; Mantra Remote's: Computer Remote (its v14 built, not installed while Marko was in it). Not yet seen on the phone.
+
+> "When I say scale, I always mean scaling the resolution of the transfer of the file or the picture over VPN. I never mean rescaling the user interface itself, only the resolution of the transfer." (Marko, 26.10.2026)
+
+- So it is built: SCALE sets scrcpy's max_size (the picture sent over the tunnel) and the bit rate; the remote draws what arrives at full size. The picture is smaller on screen only because v154 fits it between the status line and the rail (so they do not cover the camera's keys), the same at every SCALE.
+
+> "continue testing and debugging the camera" (Marko, 26.10.2026)
+
+98. Testing and debugging go on: FULL shows the focus-puller scale (seen in the screenshots), the NDI picture stall after an HX restart (item 92), then v154. — **Status:** FULL fixed (v154: the focus-puller scale and its play key hide on a clean feed; checked on the Pixel). NDI test 09:39–09:42 with ndi_probe.py: HX ran at ~30 fps but with frame gaps of 120–290 ms and SOUND GAP every second; `set ndiKind 1` while HX did nothing (same value, no restart); `set ndiKind 2` (FULL): 12 s nothing, 18 s FULL, then PICTURE STALL 9 s (sound on, no frames), then nothing. BUT the Pixel switched itself off at 09:43: `sys.boot.reason=shutdown,battery`, level 0 % while on a 5 V charger (AC powered, max 5 000 000 µV): torch 100 %, 10-bit, NDI, two remotes drew more than it gives. The stall and the gaps of this run are not evidence until they are repeated on a full battery and a fast (PD) charger.
+
+> "Please, in my camera app, my manual camera, the best app on this planet, build a feature called power monitor. We now have two points of reference that tell me how long I can keep working. We already have the number for how much space I have left on my SD card, calculated in minutes depending on the current settings. But we also need battery minutes, meaning how long I can keep running like this until my battery dies. If I see this while I'm working on my computer, now that I'm remote, I will be able to predict a shutdown. So please make this feature robust and true to life. Find on GitHub the most forked APK repository that monitors the charging of the phone. They have good code to monitor everything. On my phone I have the Ampere application, which is very good. If it's open source, great, we take the code. If not, I'm sure somebody on GitHub made an application that shows how many amperes we get while charging the phone. So the battery left in hours and minutes is the new special feature of this app, the power monitor. If the phone is charging, it's the opposite: it shows how much time it needs to charge. It should show whether it's charging or discharging, plus or minus, or stable in balance. Please make this battery monitor a professional one, like the displays on batteries for Blackmagic cameras, V-mount batteries, where they show a number. I also have an Anker battery which, when I plug it into the phone, has a nice display. It's a circle with different colors, and it says how much time it needs to charge and how much time it needs to discharge. Maybe we can copy the Anker display." (Marko, 26.10.2026)
+
+99. POWER MONITOR: battery time left in hours and minutes at the present draw (beside the drive's time left), time to full while charging; charging + / discharging − / balanced; the current in mA and the watts; a professional readout like a V-mount or Blackmagic battery, a coloured ring like Anker's; seen on the Camera Remote too, so a shutdown is predicted from afar. — **Status:** v155 built (not released). GitHub: the most forked charging app, BatteryChargeLimit (116 forks), is GPL-3.0 and needs root; Ampere is closed; Capacity Info (Apache-2.0) was read for the traps (µA or mA, either sign). PowerMonitor.kt: the unit by size, the sign from the cell's charge counter, the honest drain = the counter's least-squares slope over the last 2–10 minutes (the smoothed current now until then), a counter that implies a cell outside 1 000–15 000 mAh not believed (the level × the design capacity instead), the window reset when a cable goes in or out; to empty = charge ÷ drain; to full = Android's estimate, else missing ÷ net with the part above 80 % at half the current; BALANCED within ±50 mA. PowerRingView.kt beside the drive's readout (1.2 GB · 6 min): an Anker-like ring of the level (green > 50 %, amber, red < 20 % or < 20 min, cyan charging), the time big in the middle, ▲/▼/= and the current (−900mA, +1.2A) under it; a tap: the POWER MONITOR in words (time, %, mAh, mA, V, W, plugged, °C, measured or first estimate). `mcam state`: power, power_level, power_flow, power_ma, power_w, power_time, power_measured. 7 unit tests. Seen on the emulator: 64 % −900 mA → 3:05 to empty (green); charging → 2:42 to full (cyan). Not yet on the Pixel (locked).
+
+> "this anchor display doesn't work because its display is too small. I don't see anything. You need to make it the same as free space, the same design, maybe in the blue color, so we make it different, and to save on space, what you need to do is make shorter. This portrait peak falls zebra. Everything: three letters, P-O-R, peak, P-E-A, falls, F-A-L, zebra, Z-E-B" (Marko, 26.10.2026)
+
+100. The POWER MONITOR as a readout like the free space (two lines, large), in blue; the right rail's words in three letters: POR (LAN), PEA, FAL, ZEB. — **Status:** v155 on the Pixel: the ring is gone; the readout is a rail key like the free space, blue (#4DB8FF): "27%▲" over "1:29 h" (▼ discharging with the time to empty, = BAL, FULL), red under 20 % or 20 min, a tap the POWER MONITOR's numbers. POR/LAN, PEA, FAL, ZEB; `mcam key FALSE` and the other old names still reach them.
+
+> "long press of any of the action buttons after 2 seconds. Open the help menu explaining what the button does" (Marko, 26.10.2026)
+
+101. A 2-second press on any key of the camera opens its help: what the key does. — **Status:** v155: every rail key, REC and PLAY (Help.kt, one text per key, the POWER MONITOR's with the reading now); the held key is not pressed; LUT keeps its own long press (settings). Tested on the Pixel: PEA held 2.6 s → "PEA · PEAKING", peaking still off.
+
+> "for false color, not VEL. Make it FC" (Marko, 26.10.2026)
+
+102. The false-colour key reads FC (not FAL). — **Status:** v155, then an icon (104).
+
+> "instead of POR, make a standard SVG icon, same as the camera there, just change the orientation, kind of thing. What symbolizes the change of orientation of the screen should be there" / "also, zebra can be simple. You make one square and inside lines in some kind of angle. It can be like zebra" (Marko, 26.10.2026)
+
+103. POR/LAN as an icon in the camera icon's line style: a phone with a turning arrow, upright or lying across; ZEB as a square of slanted lines. — **Status:** v155: ROTATE (redrawn in 106), ZEBRA (a square of slanted lines) as RailButton glyphs; the keys keep their names (POR/LAN, ZEB) for mcam and the remote.
+
+> "Peaking will be the red square with random dots" / "false color are patches of the same color. In false color, it usually looks like patches" (Marko, 26.10.2026)
+
+104. PEA: a square with red dots; FC: a square of false-colour patches. — **Status:** v155 on the Pixel; outlines grey off, green on.
+
+> "now the numbers of discharging and charging are changing too rapidly. You need to average the value and don't and just make it less fast" (Marko, 26.10.2026)
+
+105. The POWER MONITOR steadier: averaged, refreshed less often. — **Status:** v155: the current smoothed 3× slower (α 0.05), the time shown follows over about a minute, the readout written every 5 s (at once when the flow turns); while charging the time is made of the cell's measured net charge once there (Android's estimate assumes an idle phone: 1:34 then 8:33).
+
+> "Icon for changing rotation is not good. It should be just two squares, one vertical, one horizontal, overlapping. Forget the phone, make simple square design Not square rectangle." (Marko, 26.10.2026)
+
+106. The orientation icon: two overlapping rectangles, one upright, one across; no phone. — **Status:** v155: the shooting one bold, the other faint.
+
+> "please make the color of the camera in the same row icon in a different color. Make it a yellow-orange color. Make it orange" / "On the long press on the False colors, please make legend what each color means in exposure values." (Marko, 26.10.2026)
+
+107. The photo camera icon orange; the FC help a legend: each false colour and its exposure value. — **Status:** v155: the camera #FF9500; FC held 2 s: PURPLE < 2.5 % (≈ −6 EV), BLUE 2.5–10 % (≈ −4), GREEN 38–42 % (0 EV, middle grey), PINK 52–56 % (+1, skin), YELLOW 97–99 % (≈ +4), RED > 99 % (clipped), GREY elsewhere — the shader's own bands (PreviewEffects.kt); a note that on log curves grey sits lower.
+
+> "so, please let me know if logic for battery is correct. When the triangle is going up, it means we are charging and the number shows the charging state. That color of the everything should be green means we are charging. When we are discharging, we are yellow, and the number shows how much time we have left to discharge. When we are balanced, then we are white and average values for time, what you calculate every five seconds" (Marko, 26.10.2026)
+
+108. The POWER MONITOR's colours: ▲ charging green (time to full), ▼ discharging yellow (time left; red when critical), = balanced white (the averaged time, every 5 s). — **Status:** v155 on the Pixel: 28%▲ 2:06 h in green while charging; yellow discharging, red under 20 % or 20 min; white when balanced, the time of its slow drift (BAL when still within 5 mA).
+
+> "now I wanted you to do this screen orientation thing. You need to make the icon also orange, same as the camera recording button. Make the outline in red color, please" (Marko, 26.10.2026)
+
+109. The orientation icon orange like the photo camera; the REC button's outline red. — **Status:** v155 on the Pixel.
+
+> "outline for the video player. The one with the thumbnail inside should be green" (Marko, 26.10.2026)
+
+110. PLAY (the thumbnail key): its ring green. — **Status:** v155.
+
+> "Orange should be the theme of this app. Then, around false color peaking and zebra, put an orange outline" (Marko, 26.10.2026)
+
+111. Orange is the app's theme; FC, PEA and ZEB with an orange outline (green while on). — **Status:** v155 on the Pixel (orange #FF9500 for the photo, orientation, FC, PEA, ZEB keys; RailButton.onGreen keeps ON green).
+
+> "inside of the recording button, let it be black. When it's record, it's turn red. When it's not recording, it's black" (Marko, 26.10.2026)
+
+112. REC: black inside, red while recording (the red ring stays). — **Status:** v155 on the Pixel. Also: a first power estimate waits 30 s after the app opens or a cable changes (0:18 h was the work of starting the app); seen: the Pixel reports status 4, NOT CHARGING, on AC at 35 °C (Android paused charging), shown as ▼/balanced.
+
+> "make zebra lines gray, but outline is orange. Picking outline orange. Okay, understand. When it's activated, it's green. Only change the zebra to have these lines on the angle in the color of gray" (Marko, 26.10.2026)
+
+113. ZEB: the slanted lines grey, the outline orange (green when on). — **Status:** v155.
+
+> "okay, we can pose this project back to the camera, test all its functions" (Marko, 26.10.2026)
+
+114. Every function of the camera tested (v155): keys, settings, recording, photos, lenses, curves, focus, NDI, the power monitor, the remote. — **Status:** in work. field_test.py over Wi-Fi: first 8/23 — the script started `.MainActivity` (wrong package: -S stopped the app, the start failed, every check read a dead trace; the same in ndi_soak.py), fixed → 20/23. Left: AUTO to a USB-C mic (none plugged: not a bug); FULL streamed as HX (the session "everything, 10-bit" refused, the ladder keeps 10-bit and drops full NDI, by design since v136; Marko to choose when FULL is asked); the REC key not found (Android 17's uiautomator gives "null root node" over a live camera → the test presses REC through mcam). REC by hand: 10.7 s take, HEVC 1920×1080 10-bit HLG, AAC 48 kHz mono, 322 frames. The pixel7 sharing lock is gone from this Mac: the tests go on unless com.djmantra.app runs.
+- 26.10.2026 13:35 soak on v156 void: the 13:20 soak's screen-off phase had locked the Pixel (its PIN is still set), the next run started behind the lock screen, the camera came up only at 13:41 when Marko unlocked it, and the probe had given up after 20 s ("watching 0" throughout). To repeat unlocked, without screenoff (or after the PIN is removed).
+- 26.10.2026 14:35: Marko removed the Pixel's PIN (Settings → Security & privacy → Device unlock → Screen lock → None); confirmed CredentialType: NONE.
+
+## 27.10.2026: the camera into Zoom through NDI Virtual Input over USB tethering
+
+> your task this morning is to first install on my computer the NDI program, which is free on NDI pages, which can convert NDI to webcam. Then, through USB tethering, our camera, which is now on emulator on Pixel 7, should send the image to that plugin. I have it as Zoom in Zoom call. I have it as webcam. That's the deal. Please make it work. It's a simple task from camera to NDI plugin. I need a program for webcam through USB tethering. Everything is connected. Please make it work. You need to download that from NDI I have it installed, but it's not installed. Please take the screenshot. You will understand what I'm talking about.
+
+**Status:** 27.10.2026, started. NDI Tools 6.3.2 are installed; the NDI Camera Extension is "activated waiting for user" (macOS approval, Marko's hand). USB tethering up: Mac en19 172.22.112.50, Pixel ncm0 172.22.112.72.
+
+**Later the same morning (27.10.2026), while the work ran:**
+
+> Please experiment with 8-bit and 10-bit output from the camera. But both must work: 8-bit and 10-bit, at the end.
+
+> You always need to check if the feed is right or the image is frozen. The image should not be frozen.
+
+> When you are testing if the image is frozen, you can ask me to wave the hand.
+
+> Also test if the camera is working when it's in the background.
+
+> Also, by the way, delete all keyframes from the focus polling. I tried to press with the mouse or screen copy to get a pop-up menu to delete keyframes, and nothing popped up. Maybe that's also the bug, by the way.
+
+> The goal is to get the same picture which I have on the Pixel 7 emulator screen copy right now, and what's coming through NDI. Please compare. You can take a screenshot of the Pixel 7 which is right here on my computer, and with NDI virtual input. If there's a difference, then it's not good. Please make it the same.
+
+**Found so far (v157, not released):** 10-bit HX froze in Zoom: NDI Virtual Input decodes no HEVC Main10. v157 draws the stream 8-bit SDR (HLG BT.2020 to BT.709) in its own RGB888 context; 8-bit and 10-bit both live over USB. In the background the sender is made again and fails ("NDI source could not be opened"): being fixed.
+
+**Status 27.10.2026, 05:51: done, v157 released and installed.** Zoom gets the camera over the cable (NDI Virtual Input,
+source LOCALHOST (Pixel 7 Camera)); 8-bit and 10-bit both live, every curve, the background, and Marko's hand wave.
+Screen, clean still and NDI match (still vs NDI 0.4–3.7/255 in the log curves and 8-bit, 3–7.5 in HLG). WB on the
+white paper, neutral. Focus key points deleted. The still now comes out the right way up.
+
+## 27.10.2026, 06:00: the focus puller tested on a prepared scene
+
+> Now there is a scene prepared for you. I have 2 tennis balls and 1 background. You need to test focus pulling, emulate focus pulling, make keyframes, and check if it lands correctly and how the focus is behaving. Does it focus quickly, precisely, and well?
+>
+> So this is total focus pulling. You invent all the tests to prove that focusing is working correctly in this app.
+
+**Status:** started.
+
+**During the focus test (27.10.2026, 06:20):**
+
+> please record the whole test with the camera on the phone at the same time
+
+> Please also record the test with OBS. You need to record the screen.
+
+> you need to test the focus pulling with all lenses which support focusing
+
+> But before you do the focus, please test the tracking algorithm. The ball is swinging like a pendulum. See if you can get a sample of it and track it. tracking is also for focusing
+
+> Please find on GitHub the best application that replaces something like Houdini or After Effects, or any app like Mocha, which has tracking. You need to get the code from there, to see how to track objects for special effects. It should be open source, so please find it. We need the same user interface and the same quality of tracking.
+
+**So far:** v158 fixes "NDI source could not be opened" after a lens change (the old sender held the name). Only L2 and L3 (the main sensor) focus. The tracking square must be small to take a small subject (focusBoxSize 0.06).
+
+## 27.10.2026, 06:30: tracking mode for the square and the circle, smooth, with a delta
+
+> Please also add tracking for each rectangle. If I'm on the white balance, a long press can switch the white balance to tracking mode. It means it refreshes every 2 seconds and makes a smooth transition between white balances.
+>
+> The idea of this app is that everything is smooth, so it looks cinematic. For focusing too, a long press enters the tracking mode if the user chooses.
+>
+> So tracking mode is a long press and then on or off, for both the rectangle and the circle, whatever function they do. Then there is continuous tracking, where every 2 seconds it updates and smoothly transitions to the new situation.
+>
+> It also needs a delta, meaning how much difference there must be between the old and the new situation, so it doesn't start to pulsate. You need to find the right delta.
+
+**Status:** started (v158 in progress).
+
+**Status 27.10.2026, 07:00: v158 released.** TRACK for the square and the circle (long press, ON/OFF), every 2 s,
+glides past the delta (WB 0.04, ISO 0.2 stops, focus 25 %), measured and proven without pulsing. NDI keeps its source
+through lens changes. The focus puller measured on L2 and L3: keyframes land within ±0.007 dpt, on time, no overshoot;
+AF on small subjects right about half the time. The tracker loses the swinging ball (research for libmv in
+~/Developer/TRACKER_RESEARCH/REPORT.md). Open: a receiver freeze after lens changes (app restart cures it).
+
+## 27.10.2026, 07:05
+
+> please continue testing everything which is not tested. Yes, do that, please
+
+**Status:** started.
+
+> (answer) Test first, then libmv
+
+> don't record any tests in any application or OBS. Nothing
+
+> I am telling you the right distance from the lens for these objects on the screen, so you can calibrate also the distance meter first ball: 66 centimeters a fan distance is two hundred and fourteen second tennis ball is similar distance because they are next to each other the background cloth is 3 meters in distance. These elephants and other Indian symbols
+
+> I move the ball closer
+
+> the distance of the first ball is changed, of course
+
+> please repeat the last voice command you were saying. There was some voicing
+
+> it is moved exactly 30 centimeters
+
+> ball distance now is 70 centimeters. But the meter I was dragging from the lens to the ball goes on an angle because the ball is not aligned directly with the lens. It's not the same height, so angled meter giving that much
+
+**Status 27.10.2026, 07:30: v159.** The freeze found (two networks, one name) and fixed; the square's TRACK made to work (the sharpness was never measured); the distance meter calibrated with his distances (70 cm shows 70.1 cm, 3 m shows 3.02 m). Next: libmv.
+
+## 27.10.2026, 07:35: libmv, then Blender's design
+
+> let's do that. Blender designs its next
+
+**Status:** started (v160: libmv TrackRegion as the camera's motion tracker; then the interface after Blender's).
+
+**Status 27.10.2026, 08:00: v160 released.** libmv (Blender's tracker) is the camera's TRK: it holds the swinging ball where the old one lost it (Mac: 0 of 477 frames lost, 1.25 px; phone: never lost, 24 fps kept). NDI stays live through settings changes. Next: Blender's interface.
+
+## 27.10.2026, 08:05: a Mac app, the virtual camera "Mantra Camera" with remote control
+
+> can we somehow build the virtual camera, which will directly communicate with my camera on my Mac? Same as NDI has an app, we can also have an app, same as Eigen has an app. We can have an app for this camera specifically. Maybe we can get the code from OBS for your camera, so it's easy to connect and configure without too much hassle. You just open that app, which is going to be a Swift app, and it just receives the feed from my cameras and makes it shareable on the local system via virtual webcam, and the webcam has the name Mantra Camera. That's the thing. Let's build that another app, so we have remote control for another phone. Now we have remote control and virtual camera in one
+
+**Status:** started: feasibility (a camera extension needs Apple's signing).
+
+> the issue is the NDI camera doesn't work well. It's not smooth. It drops frames. It's a big lag and delay. So NDI, I don't want to do that. You must find, maybe through ADB, a way to send the picture quickly and then forward it through the webcam
+
+**Status:** started: a USB (adb) link from the camera straight to the Mac app, decoded in hardware, out as the webcam.
+
+> our interface for the webcam, our swift app, should also work as a remote controller for this camera, so i can adjust everything from the computer with my keyboard and mouse
+
+**Plan:** Link MODE 3 = the camera's stream (webcam) and its window (remote) on the one cable connection; the Mac app shows the camera's own window, the mouse is the finger, the keyboard presses its keys.
+
+**Status 27.10.2026, 09:20: v161.** Mantra Link MODE 2/3: the camera's stream (and its window) over the USB cable for the Mac app Mantra Camera; no NDI in that path.
+
+**Status 27.10.2026, 10:15: v162 released** (the Link stream race). The Nothing has the camera on its selfie lens; its stream reaches the Mac over Wi-Fi (29 fps, measured directly); Mantra Virtual Cam's own connection to it was stopped by Little Snitch (see mantra_virtual_cam).
+
+> please close the session and write handovers, and if you need to update any web page, update
+
+**Status 27.10.2026, 10:30: done.** mantramanualcamera.pages.dev updated and deployed (cards 10–13: Blender's tracker, TRACK, the calibrated scale, the Mac webcam on a cable; Coming next; download counter; Speechify keys), checked live; handovers written; every repo pushed. Left: Little Snitch for the Nothing over Wi-Fi, fresh screenshots for the page, the bio card text.
+
+## 28.10.2026 — only the rail keys turn
+
+> my camera has a bug. When I change orientation, look what happened in the changing of orientation. Only the buttons need to change orientation. Only the buttons are rotating, but no screen should be rotated. It's not. Look at my screen, please. Fix my camera quickly
+
+> You are completely correct. Only rail buttons are changing orientation, nothing else
+
+**Seen (v162, Pixel 7 upright):** the whole interface collapsed into a small block in the top corner, words over words.
+**Plan v163:** the screen stays landscape whatever the phone does; only the rail keys' words and marks turn to stay upright.
+
+**Status 28.10.2026, 07:35: v163 + v164 released and installed.** The collapse was the phone, not the app: the Gemini work of
+22.10 left `fixed-to-user-rotation enabled`, so Android letterboxed the landscape app into a 1080x486 box. Set back to
+`default`; the app fills the screen in landscape. v163: rail keys and the focus ruler's distances turn with the phone;
+v164: PORTRAIT no longer turns the screen. To check by Marko: turn the phone upright and see the words turn.
+
+## 28.10.2026 — the record time up, ruler and status keys, status on one line
+
+> my focusing ruler is overlapping with record time what you need to do is bring the record up at the top of the screen and add one more switch so I have F square, E round, and F round. No F F. Basically, make an icon which looks like a circle, square, and triangle, the same as the focusing pusher, and that will be on the left side of the rail menu to switch on and off. This is just an on/off switcher on the rail on the left side, under the E and the recording button. This is overlapping. Please put record numbers in this view at the top of the screen under these status things, and on the left rail, give an on/off switch for status. In that case, the numbers of recording will snap to the even higher, to the top. Please see if you can get the status in only one line, not in the two lines as it is now
+
+**Read as:** (1) the REC time moves from the bottom (under the focus ruler) to the top, under the status; (2) a new left-rail key under E: the focus ruler on/off, its icon drawn like the ruler (triangle on a line, the fingertip circle); (3) a left-rail key: the status on/off, and with the status off the REC time rises to the very top; (4) the status on one line.
+
+> also, the focusing rail symbol is not good. Remove this centimeter part. Just make it bigger. Please write inside the circle. Put the triangle like this, not one above the other one inside the other
+
+**Read as (v167):** the ruler key's mark is only the circle with the triangle inside it, larger; no line, no ticks.
+
+> also, to make more space in the status line info line file, USB NDI, you can write this without any spaces in between, even between ADI HX. No space in between, no minuses. It takes space. Because it's grade, YouTube also puts it as one of the outputs without any space in between with the next option
+
+**Read as (v168):** the outputs written together, FILEUSBNDIHXYT, told apart by their colour (grey off, white armed); NDIHX / NDIFULL; no dash in the NDI note.
+
+> Also extend on my pixel camera this line for focusing, going fully left and fully right on the screen. The play button should be somewhere else, not taking the length of the ruler itself. I want to use the maximum resolution of the ruler possible. A ruler should go from the left to the right edge of the screen completely, and then the play button can be on the rail menu, aligning exactly with that line. There is enough space now to compress the buttons of the left rail menu, so the play button can be on the rail on the left side.
+
+**Read as (v169):** the focus ruler runs the whole width of the picture; its play key leaves the ruler and becomes a key on the left rail, at the bottom, level with the ruler's line.
+
+> also, by the way, fix my camera info line. I don't need USB. No cable. Then turn USB tethering on in my status view. For this USB thing, there is only USB status. USB status is already there, so remove this text completely. Put this text inside Settings under USB on/off. It looks a little bit strange when this is cramped. All this: "File USB NDI HX." Just put a dot in between: "File.USB.NDI.HX." No, just a dot as a placeholder for a space. The second one, the status, in the same line. Everything will fit nicely
+
+**Read as (v170):** no "USB: no cable — turn USB tethering on" on the info line (Settings already shows it under the NDI wire); the outputs with a dot for a space, FILE·USB·NDI·HX·YT; the status beside them on the same line.
+
+> Baba, not that dot. Normal dot. This is dot between. I want dot at the bottom of the text line, normal dot, like a full stop dot
+
+**v171:** a full stop, FILE.USB.NDI.HX.YT.
+
+> focus square lock to remove this completely: this status meter and the obtr. No, I don't need it. Remove it
+
+**v172:** "FOCUSING SQUARE locked at … m (… dpt)" (and the ISO/WB CIRCLE words) off the status line; the rest stays.
+
+## 29.10.2026 (improve the camera, remove the bugs; the Pixel 7 over Wi-Fi)
+
+> next job is to work with my mantra manual camera. Improve it, remove the bugs. My camera is my phone, Pixel 7, connected through Wi-Fi. Let's do this
+
+**Status:** in progress 29.10.2026.
+
+> after you fix detection of ADB over-wire wirelessly, I am going to switch off the Wi-Fi. Let me know can you pinpoint the bug
+
+**Pinpointed 29.10.2026, 06:50:** adb's own discovery started deaf after the restart (it only listens on the networks
+that existed when the adb server started), while macOS's Bonjour heard the Pixel; and the first connect to the dozing
+Wi-Fi fails. mcam: Bonjour fallback and four tries; both roads proven (≈6 s each).
+
+## 29.10.2026 — gigabytes as big as the battery; time left that follows the format; DISPLAY ASSIST and LENS drawers; grey / white / green for the square, circle and F; click-through on a long press; LUT history; Settings from the power monitor
+
+> First, you need to add features to the camera. Then you need to test it all, please.
+>
+> First, you need to enlarge gigabytes. It says 41.1 GB. It must be the same as 90% battery power.
+>
+> Second, of all, these 4 hours under 41.1 GB is not correct. When I'm changing file formats inside my settings, this number is fixed.
+>
+> Second, all these 3 assistants for the screen: Zebra, False Colors, Focus, Speaking, should be under one button, same as selecting the lens principle. So one button is like Display Assistance. Then you open it, and it pushes other items and maximizes its size, so it's easy to click on. Now instead of 3, we have 1, so icons can be a bit larger and better spread. Since we have this kind of shelf opening just next to the shelf on the left side of the record button, move the lens. Lens again, opener. We have assistance for the display, and then a lens chooser with the same kind of mechanism to push other icons away and basically fill up the central stage of that rail. They are coming to the center, so the user can easily understand and click both things. They are replacing all the icons momentarily, and when you close them, they open up again.
+>
+> Old layout, and now the behavior of this focus-pulling icon, which is the exposure circle and the F icon. The idea is that when the icon is active, it has some color. I will tell you what it is. When it is grey, even the clicks don't pass through. I said focus clicking or whatever with an invisible thing, but you can make this on the pop-up menu.
+>
+> If I long press each of these icons on the rail, there will be more options, and that means click through. Or somehow we need to find wording such that even when this is not visible on screen, the touches are registered, but by default they are off. Long pressing registers touches even if invisible.
+>
+> Also, the line under we're removing. We just work with colors. First is white color. It means I show the circle or square, and I do things as before. When there is a green color, which replaces the underlined thing, it means its default tapping is registered only for that circle or focus. It means they will cancel each other; only one can be green at a time. Also, for LUTs, there is a lot of suppression on the LUTs. Short press enables the LUT. Long press gives the file-opening dialog to load the LUT. In the same dialog, we have history of all LUTs, so the user can switch in between. That's all.
+>
+> Now, to make settings available in multiple places, when I am clicking on the battery indicator or the power monitor, it gets all its data. On the left side, there is OK. On the right side, put Settings. We can also enter the settings in this way. That's all. Only these updates. Only a few.
+
+(Dictation: "Speaking" = Peaking; "suppression" probably = confusion.)
+
+**Status:** done 29.10.2026, v173 → v176, tested on his Pixel 7 (cable + wireless adb), no crash:
+- the time left is the big word ("5:03h", "47m"), the gigabytes the line under it (his second message), as big as
+  the battery's 88%.
+- THE BUG, measured: the file was written at one fixed 24 Mbit/s whatever the format (720p and 4K alike), so the time
+  never moved. Now AUTO (default) by format: 720p 19, 4K 80, 4K 10-bit 100 Mbit/s seen in the trace; the rail read
+  5:03h → 1:12h → 58m → 5:03h; Settings shows "AUTO · 19 Mbit/s", the far right still a number by hand.
+- DISPLAY ASSIST (ASSIST under REC) opens a drawer of PEA, FC, ZEB over the whole right rail, icons about twice as
+  big; LENS (L, moved to the right rail above REC) opens its drawer the same way; one drawer at a time.
+- the square (F) and circle (E) keys: grey → white → green, one green at a time, no bar under them; a tap with nothing
+  green does nothing ("nothing green: no mark takes it" in the trace); a long press: TOUCH WHEN HIDDEN (off by
+  default), proven: hidden square + tick → the tap focused.
+- LUT: tap = the last LUT on / off; long press = LOAD A .CUBE FILE, OFF, and every LUT loaded so far, newest first.
+  Not yet tried with a real .cube (the file picker needs his hand).
+- POWER MONITOR: OK on the left, SETTINGS on the right (opens the settings, tried).
+- Not run: the full field test (it records takes, and test recordings are not made).
+
+> Actually, in displaying the free space, what is more important is to see how much time is left rather than gigabytes. So time should be bigger and gigabytes should be smaller. Positions and sizes.
+
+(29.10.2026, after the first v173 screen: the time left becomes the big word, the gigabytes the small line.)
+
+> Check switching of lenses.
+
+**29.10.2026, 07:24:** all five lenses switched from the Mac, each back running in 0.9–1.0 s, the picture and the L
+key's millimetres changing (17, 25, 50, 21, 24 mm), no fault in the trace; the drawer's own switch worked too. Back on L3.
+
+## 29.10.2026 — "Not supported feature on this phone"
+
+> Please detect if this app is installed on a different phone. Then, if the user presses something that the app is not able to do for that phone, in particular, you need to write on the screen "Not supported feature on this phone."
+>
+> For example, if there is a 10-bit recording, the user can press 10-bit, but if the camera is not 10-bit, then it says "Not supported feature." Find what other cases should be so it works across the different phones.
+>
+> You can test this on Nothing Phone.
+
+**Status:** done 29.10.2026, v177 (PhoneSupport.kt). Read from each lens, no list of phone models: 10-bit (HLG from
+the camera AND a 10-bit HEVC encoder), manual exposure, manual white balance, focus travel, torch, EV, log curves, the
+tracker. A key asking for what is missing says "Not supported feature on this phone: …" (status line; a toast in
+Settings) and does nothing; the old varied refusals say the same sentence. A new phone (by model) is greeted once
+with what it lacks, and the trace lists every lens. Tested on the Nothing A142 (v177 installed): greeted "Nothing A142
+— Not supported feature on this phone: 10-bit"; 10-BIT in Settings refused (stays 8-BIT); AF on the fixed front lens
+and the torch refused with the sentence on screen. The Pixel 7: nothing wrongly refused (ultra-wide and front lenses
+fixed focus, front lenses no torch, all true).
+
+## 29.10.2026 — a toast on the F and E keys
+
+> To make things clear, when I'm pressing this button, which is for focus pulling exposure and focus, and they have different colors, you need to display a quick toast: what's going on.
+>
+> - E exposure off
+> - Then when it's white, exposure on
+> - When it's green, default touching mode
+>
+> That's it.
+
+**Status:** done 29.10.2026, v178: a short toast "F FOCUS OFF / ON / DEFAULT TOUCHING MODE", "E EXPOSURE …"; seen on the
+Pixel for all three states of E.
+
+## 29.10.2026 — the assists: orange off, green on, the green twice as thick
+
+> To make a greater difference in the assistance menu, you need to turn orange off and on. Orange is off, and green is on. But you should make it much thicker, double-size green.
+
+**Status:** done 29.10.2026, v179: the frame of peaking, false colour and zebra is 3.6 dp while green (on), 1.8 dp
+orange (off); seen on the Pixel.
+
+## 29.10.2026 — the lens drawer in three rows, larger, following the rotation
+
+> Since we have this display assistance, we have large icons for lenses, which should also enlarge the interface. When I click Lens, far right there is a chosen lens that I don't need. Now we can do it instead of L 5, 24 mm one after the other. L 5 can be one row, then millimeter in the second row, and then features of the lens in the third row. So everything can become bigger.
+
+> Those should follow the rotation of the screen.
+
+**Status:** done 29.10.2026, v180–v181: the lens drawer is three rows per lens ("L1" / "17mm" / "f/2.2 · 12MP · 4K"),
+1.7× larger, and no opener while open (the lens in use closes it); seen on the Pixel. The F/E message is the camera's
+own (on the picture, turned with the keys by keyTurn) instead of Android's toast, which never turns. v180 broke the
+F/E keys' refresh (the message looked up the picture from the TextView, null); v181 fixed it; seen: "F FOCUS OFF",
+"F FOCUS ON". The turn with the phone upright is for Marko's hand.
+
+## 29.10.2026 — the selfie lens upside down in portrait
+
+> Please, in my manual camera fix in portrait mode, the selfie lens is upside down. It's acting very good in landscape mode, but in portrait mode, it's upside down.
+
+**Status:** v182 29.10.2026, on the Pixel and the Nothing. The cause: the screen stays landscape and the selfie
+picture is mirrored across the screen; held upright, across the screen is up-down, so the mirror put it on its head.
+`selfieTurn()`: a half turn more on the front lens while the phone is upright (keyTurn 90/270), for the preview and for
+the taps' regions (focus, circle, tracking); re-applied when the phone turns. The take is not mirrored and unchanged.
+Confirmed by Marko (29.10.2026): "face is fixed now. It works." On the way: the Pixel had auto-rotate stuck on (its tile is greyed while the camera
+asks for landscape) and the Nothing a fixed landscape turn; both set off / upright over adb.

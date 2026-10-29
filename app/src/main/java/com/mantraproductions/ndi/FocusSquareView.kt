@@ -57,6 +57,15 @@ class FocusSquareView @JvmOverloads constructor(
      * the size, the size is the region the camera is given, and the size is
      * kept between runs by whoever listens to [onResized].
      */
+    /** v145: under the square, one line or two (FOCUSING: AUTO, then the distance). */
+    var label: String? = null
+        set(value) { if (value != field) { field = value; invalidate() } }
+    private val labelText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+        setShadowLayer(2f, 0f, 0f, android.graphics.Color.BLACK)
+    }
+
     var size = 0.18f
         set(value) {
             field = value.coerceIn(Mechanism.BOX_MIN, Mechanism.focusBoxMax(width, height)
@@ -175,6 +184,9 @@ class FocusSquareView @JvmOverloads constructor(
         /** Long enough to be a decision, short enough not to feel stuck. */
         const val HOLD_TO_DRAG_MS = 260L
         const val FAR_SLOP = 44f
+        /** v158: held this long without moving more than [MENU_SLOP] dp, the box asks for its menu. */
+        const val HOLD_FOR_MENU_MS = 900L
+        const val MENU_SLOP = 10f
     }
 
     /** The colour it is drawn in now; its rail key wears the same one (v107). */
@@ -213,6 +225,18 @@ class FocusSquareView @JvmOverloads constructor(
             drawLine(rect.left, rect.bottom, rect.left, rect.bottom - arm, paint)
             drawLine(rect.right, rect.bottom, rect.right - arm, rect.bottom, paint)
             drawLine(rect.right, rect.bottom, rect.right, rect.bottom - arm, paint)
+        }
+        // v145: written small under the square, as ISO / WB under the circle: FOCUSING: AUTO or SET, and the
+        // distance the lens is at (Marko, 26.10.2026: "so we always know the distance")
+        label?.let { l ->
+            labelText.color = paint.color
+            labelText.textSize = 11f * resources.displayMetrics.scaledDensity
+            val lines = l.split('\n')
+            val step = labelText.descent() - labelText.ascent()
+            val firstBelow = rect.bottom + 4f * density - labelText.ascent() + (if (tracking && lost) 18f * density else 0f)
+            val fits = firstBelow + step * (lines.size - 1) + labelText.descent() <= height
+            val first = if (fits) firstBelow else rect.top - 4f * density - labelText.descent() - step * (lines.size - 1)
+            lines.forEachIndexed { i, t -> canvas.drawText(t, cx, first + step * i, labelText) }
         }
         if (tracking) {
             // The search zone: a thin full square, faint, so the subject shows through.
@@ -266,6 +290,17 @@ class FocusSquareView @JvmOverloads constructor(
      * and it becomes a drag; let go before that and it was a tap, however much
      * the finger wandered.
      */
+    /** v158: a still hold on the box (no drag after it) asks for the square's menu (TRACK on or off). */
+    var onLongPressed: (() -> Unit)? = null
+    private var menuFired = false
+    private val holdForMenu = Runnable {
+        if (!grabbed || pinching) return@Runnable
+        menuFired = true
+        dragging = false
+        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        onLongPressed?.invoke()
+    }
+
     private val holdToDrag = Runnable {
         if (pinching) return@Runnable
         takePending()
@@ -289,6 +324,7 @@ class FocusSquareView @JvmOverloads constructor(
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 pinching = true
                 removeCallbacks(holdToDrag)
+                removeCallbacks(holdForMenu)
                 pendingX = Float.NaN
                 pendingY = Float.NaN
                 dragging = false
@@ -348,6 +384,8 @@ class FocusSquareView @JvmOverloads constructor(
                 downY = event.y
                 dragging = false
                 postDelayed(holdToDrag, HOLD_TO_DRAG_MS)
+                menuFired = false
+                if (insideBox && onLongPressed != null) postDelayed(holdForMenu, HOLD_FOR_MENU_MS)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 return true
             }
@@ -356,6 +394,7 @@ class FocusSquareView @JvmOverloads constructor(
                 // A second finger is a pinch, never a tap or a drag.
                 pinching = true
                 removeCallbacks(holdToDrag)
+                removeCallbacks(holdForMenu)
                 pendingX = Float.NaN
                 pendingY = Float.NaN
                 dragging = false
@@ -364,6 +403,10 @@ class FocusSquareView @JvmOverloads constructor(
 
             MotionEvent.ACTION_MOVE -> {
                 if (!grabbed || pinching) return grabbed
+                if (menuFired) return true
+                // v158: a finger that moves after the hold is dragging, not asking for the menu
+                if (Math.abs(event.x - downX) > MENU_SLOP * density || Math.abs(event.y - downY) > MENU_SLOP * density)
+                    removeCallbacks(holdForMenu)
                 // A long, deliberate sweep is a drag even without the wait.
                 if (!dragging &&
                     (Math.abs(event.x - downX) > FAR_SLOP * density ||
@@ -385,6 +428,8 @@ class FocusSquareView @JvmOverloads constructor(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 parent?.requestDisallowInterceptTouchEvent(false)
                 removeCallbacks(holdToDrag)
+                removeCallbacks(holdForMenu)
+                if (menuFired) { menuFired = false; grabbed = false; dragging = false; pinching = false; return true }
                 val wasGrabbed = grabbed
                 val wasDragging = dragging
                 val wasPinching = pinching

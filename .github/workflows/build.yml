@@ -1,7 +1,8 @@
 name: Build
 
+# 26.10.2026, Marko: "We are not using GitHub Actions to build the APK. It's built locally." The Mac builds and
+# releases both apps (scripts/release_mac.sh); this runs only when started by hand.
 on:
-  push:
   workflow_dispatch:
 
 permissions:
