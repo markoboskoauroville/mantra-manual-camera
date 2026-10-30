@@ -1353,3 +1353,8 @@ monospace white, no shadow, left-aligned, one space after the outputs; the rest 
 > "after that test, the focus pulling ruler long press. Can you add or remove keyframes? Can you run the focus pulling by keyframes? Does the setting for the focus pulling speed work the back focus pulling completely"
 
 **Status:** in progress.
+
+## 30.10.2026: the ruler, focus precision
+> "now I set up the ruler. It has centimeters. You can test the focus pulling and distances, because now you have a ruler. Test the centimeters and focus pulling precision, and just push it to the limit of the camera. What is the resolution of focus pulling"
+
+**Status:** in progress.

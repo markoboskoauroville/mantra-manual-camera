@@ -358,6 +358,9 @@ class MainActivity : AppCompatActivity() {
         }
         focusMeter.onKeysChanged = { keys ->
             settings.focusKeys = Mechanism.encodeKeys(keys)
+            // v185 (found testing 30.10.2026): the ▶ is dark with no key points and a dark key takes no press; the
+            // first ADD of the KEYFRAME dialog left it dark, so ▶ did nothing until something else redrew the rail
+            refreshKeys()
             Trace.control("focus puller", "key points", keys.joinToString { Mechanism.formatFocusDistance(it) })
         }
         focusSquare.size = settings.focusBoxSize
@@ -2361,10 +2364,10 @@ class MainActivity : AppCompatActivity() {
                     "add" -> {
                         val d = parts.getOrNull(1)?.let { adbDioptres(it) } ?: return "meter add takes a distance: meter add 40cm"
                         val keys = Mechanism.decodeKeys(settings.focusKeys) + d.coerceIn(0f, engine.minimumFocusDistance())
-                        settings.focusKeys = Mechanism.encodeKeys(keys); focusMeter.keys = keys
+                        settings.focusKeys = Mechanism.encodeKeys(keys); focusMeter.keys = keys; refreshKeys()
                         "Key point " + Mechanism.formatFocusDistance(d) + " (${keys.size})"
                     }
-                    "clear" -> { settings.focusKeys = ""; focusMeter.keys = emptyList(); "Key points cleared" }
+                    "clear" -> { settings.focusKeys = ""; focusMeter.keys = emptyList(); refreshKeys(); "Key points cleared" }
                     "keys" -> return "keys " + Mechanism.decodeKeys(settings.focusKeys).joinToString(" ") { Mechanism.formatFocusDistance(it) }
                     else -> return "meter takes on, off, add 40cm, clear, keys"
                 }
