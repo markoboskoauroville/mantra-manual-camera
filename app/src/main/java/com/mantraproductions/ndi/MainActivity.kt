@@ -873,6 +873,7 @@ class MainActivity : AppCompatActivity() {
         override fun onDisplayChanged(displayId: Int) {
             if (preview.isAvailable) applyPreviewTransform()
             updateStreamTurns()
+            retTurn()                       // v185: the screen took the other landscape; the words follow it
         }
     }
 
@@ -972,16 +973,26 @@ class MainActivity : AppCompatActivity() {
                 // to the nearest quarter, with a margin so a phone held at 45° does not flicker
                 val q = ((degrees + 45) / 90 % 4) * 90
                 if (kotlin.math.abs(((degrees - q + 540) % 360) - 180) > 30) return
-                // the landscape screen is the phone turned to 270 here; upright (0) the words turn a quarter LEFT
-                // (v166: v165 turned them right, upside down for Marko, 28.10.2026: "the opposite of what it's supposed to be")
-                val turn = (270 - q + 360) % 360
-                if (turn != keyTurn) {
-                    val wasUpright = keyTurn % 180 == 90
-                    keyTurn = turn; turnKeys()
-                    if (wasUpright != (keyTurn % 180 == 90)) { applyPreviewTransform(); updateFocusRegion() }   // v182: the selfie's half turn
-                }
+                heldAt = q
+                retTurn()
             }
         }
+    }
+
+    /**
+     * The words' turn from how the phone is held (heldAt) and which landscape the screen is in. v185 (Marko,
+     * 30.10.2026: "I turned it upside down, and it's not adapting to the view"): the screen now takes either landscape
+     * (sensorLandscape), so held upside down the whole screen and the picture turn the half turn and the words with
+     * them; only portrait stays forbidden (v163). The screen's own landscape is the phone turned to 270 with the
+     * display at 90, and to 90 with the display at 270; upright (0) the words turn a quarter LEFT (v166).
+     */
+    private var heldAt = 270
+    private fun retTurn() {
+        val turn = ((360 - displayDegrees()) % 360 - heldAt + 360) % 360
+        if (turn == keyTurn) return
+        val wasUpright = keyTurn % 180 == 90
+        keyTurn = turn; turnKeys()
+        if (wasUpright != (keyTurn % 180 == 90)) { applyPreviewTransform(); updateFocusRegion() }   // v182: the selfie's half turn
     }
 
     /**
@@ -4202,7 +4213,8 @@ class MainActivity : AppCompatActivity() {
         settings.shootMode = Mechanism.shootResolved(settings.shootMode, screenIsLandscape())
         // v164: the screen never turns, PORTRAIT included (Marko, 28.10.2026: "no screen should be rotated"); in v162
         // PORTRAIT turned it and the upright layout collapsed into the top corner. The keys turn instead (holding).
-        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        // v185: either landscape, so the phone held upside down turns the screen the half turn (sensorLandscape)
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
     }
 
     /**

@@ -1348,3 +1348,8 @@ monospace white, no shadow, left-aligned, one space after the outputs; the rest 
 > "also, please simulate and test: - Tapping on the screen - Focusing, adjusting exposure - Moving circle and square around the screen - Whether focusing and exposure work as they're supposed to - Testing tracking - Long pressing - Every function"
 
 **Status:** in progress (v185 on the Pixel 7).
+
+## 30.10.2026: the focus puller, tested
+> "after that test, the focus pulling ruler long press. Can you add or remove keyframes? Can you run the focus pulling by keyframes? Does the setting for the focus pulling speed work the back focus pulling completely"
+
+**Status:** in progress.
