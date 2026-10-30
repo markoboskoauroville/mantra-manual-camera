@@ -1376,4 +1376,7 @@ always a touch long. Checked 19–23 cm only (the far numbers were not readable 
 > "yes, set it up, and are there any more questions"
 
 A deploy.yml publishes website/ to Cloudflare Pages (mantramanualcamera) on every push that changes it, like the
-other site repositories; the two Cloudflare secrets set in the repository. **Status:** in progress.
+other site repositories; the two Cloudflare secrets set in the repository. **Status:** done 30.10.2026. `.github/workflows/site.yml`; Marko set
+the secrets (the account ID read from his dashboard through the Chrome extension, the token = line 7 of his key file;
+the first paste was the wrong line: code 7003 for the ID, 9106 for the token). Run 41034363374 green, "Deployment
+complete"; mantramanualcamera.pages.dev serves the v184 picture (01-camera.jpg?v184, 119 634 bytes).
