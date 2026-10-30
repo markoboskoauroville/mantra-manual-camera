@@ -1384,4 +1384,12 @@ complete"; mantramanualcamera.pages.dev serves the v184 picture (01-camera.jpg?v
 ## 30.10.2026: the swinging tennis ball
 > "for the camera, there is a tennis ball swinging in front of the lens. Please test the tracking algorithm"
 
-**Status:** in progress.
+**Status:** tested 30.10.2026 on the Pixel 7 (v185, TRK = libmv LOC on a 640x360 luma copy, every 2nd frame, search
+x2.5, confidence 0.60). It does not hold a swinging ball. Measured: (1) start correlation 0.80, a step solves in 26–68 ms
+(so 10–15 looks a second); (2) the box (27 % of the height) was far bigger than the ball (12 %): the pattern is mostly
+trees; (3) a tap on a moving ball takes the pattern a moment late: at 12 % the box followed the ball's motion but
+~160 px beside it; (4) at the bottom of the swing the ball crossed ~400 px of screen in under 1.5 s and left the search
+zone: 0.52 LOST; (5) once LOST it stays where it last saw the subject and searches 494x360 at 1.66 s a step, so it
+does not find the ball again even when it hangs still inside the zone; (6) the focus stayed on the trees (70–79 cm)
+while the ball was at ~26 cm. The screenshots come every ~1.4 s, too slow to follow the swing frame by frame: the
+trace (tracker lines) is the reliable record. Box size put back to 0.269. Fixes proposed, not made: wait for Marko.
