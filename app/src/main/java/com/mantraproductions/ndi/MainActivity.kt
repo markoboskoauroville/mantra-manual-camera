@@ -368,8 +368,8 @@ class MainActivity : AppCompatActivity() {
             focus.target = x to y
             focus.bounds = focusSquare.normalisedBounds()
             updateFocusRegion()
-            // A tap or a drag in TRK is a new subject: the box becomes the new pattern.
-            if (tracking) startTrack()
+            // A tap or a drag in TRK is a new subject: the box becomes the new pattern (v186: a tap's from its own frame).
+            if (tracking) startTrack(focusSquare.takeTapTime())
         }
         focusSquare.onResized = { size ->
             settings.focusBoxSize = size
@@ -1625,7 +1625,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** The box, as it is now, becomes the pattern; the GPU stage starts looking for it. */
-    private fun startTrack() {
+    private fun startTrack(atUptime: Long = 0L) {
         if (!pipeline.isRunning) return
         if (focus.mode != FocusDirector.Mode.AUTO) focus.setMode(FocusDirector.Mode.AUTO)
         val b = focusSquare.normalisedBounds()
@@ -1635,7 +1635,8 @@ class MainActivity : AppCompatActivity() {
         val search = settings.trackSearch / 10f
         if (!pipeline.startTracking(
                 cx, cy, kotlin.math.abs(s[2] - s[0]), kotlin.math.abs(s[3] - s[1]),
-                settings.trackEvery, search, settings.trackConfidence / 100f, settings.trackModel
+                settings.trackEvery, search, settings.trackConfidence / 100f, settings.trackModel,
+                settings.trackGpu, settings.trackCompare, atUptime
             )
         ) {
             say("Tracking needs the GPU stage — Settings, Picture path")

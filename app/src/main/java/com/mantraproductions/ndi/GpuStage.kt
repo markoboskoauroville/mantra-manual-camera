@@ -354,7 +354,8 @@ class GpuStage private constructor(
             }
         }
         framesDrawn++
-        if (trackActive && framesDrawn % trackEvery == 0L) {
+        // v186: the GPU tracker looks at every frame; libmv (alone, or beside it as the comparison) every trackEvery
+        if (trackActive && (gpuTracking || framesDrawn % trackEvery == 0L)) {
             runCatching { trackStep() }.onFailure { Trace.fault("tracker", it); trackActive = false }
         }
     }
@@ -410,8 +411,16 @@ class GpuStage private constructor(
     private var patternHalf = 8.0
     private var greyRgba: ByteBuffer? = null
 
+    /** v186: the GPU tracker (GpuTracker), and whether libmv runs beside it on the same frames as the comparison. */
+    private var gpuTracker: GpuTracker? = null
+    private var gpuTrackerRefused: String? = null
+    private var gpuTracking = false
+    private var libmvBeside = false
+
+    /** [atUptime]: when the finger came down on the subject (SystemClock.uptimeMillis), 0 for now. */
     fun startTracking(x: Float, y: Float, w: Float, h: Float, every: Int, search: Float, confidence: Float,
-                      model: Int = LibmvTracker.MODEL_LOC) = onGpu {
+                      model: Int = LibmvTracker.MODEL_LOC, gpu: Boolean = true, compare: Boolean = true,
+                      atUptime: Long = 0L) = onGpu {
         if (!ensureTracker()) return@onGpu
         trackModel = model
         patternHalf = (minOf(w * lumaW, h * lumaH) / 2f).toDouble().coerceIn(4.0, 64.0)
@@ -422,17 +431,79 @@ class GpuStage private constructor(
         // search stays cheap; a bigger box is matched on its middle.
         patternW = Math.round(w * lumaW).coerceIn(6, 32)
         patternH = Math.round(h * lumaH).coerceIn(6, 32)
-        pendingPattern = floatArrayOf(x, y)
+        libmv?.release(); libmv = null
+        gpuTracking = gpu && ensureGpuTracker()
+        libmvBeside = gpuTracking && compare && LibmvTracker.available
+        if (gpuTracking) {
+            gpuTracker!!.start(x, y, patternHalf.toInt(), trackSearch, trackConfidence, atUptime)
+            pendingPattern = null
+        } else {
+            pendingPattern = floatArrayOf(x, y)
+        }
+        trackSearches = 0
         trackActive = true
-        Trace.control("tracking", String.format(java.util.Locale.ROOT, "%.3f,%.3f pattern %dx%d, search x%.1f, every %d, confidence %.2f",
-            x, y, patternW, patternH, trackSearch, trackEvery, trackConfidence), "on")
+        Trace.control("tracking", String.format(java.util.Locale.ROOT, "%.3f,%.3f pattern %dx%d, search x%.1f, every %d, confidence %.2f, %s",
+            x, y, patternW, patternH, trackSearch, trackEvery, trackConfidence,
+            when {
+                libmvBeside -> "GPU, libmv beside it"
+                gpuTracking -> "GPU"
+                gpu -> "libmv (GPU tracker: ${gpuTrackerRefused ?: "off"})"
+                else -> "libmv"
+            }), "on")
+    }
+
+    private fun ensureGpuTracker(): Boolean {
+        if (gpuTracker != null) return true
+        if (gpuTrackerRefused != null) return false
+        val t = GpuTracker(lumaW, lumaH, ::link) { p -> drawQuadWith(p, bindCamera = false) }
+        val why = runCatching { t.setUp() }.getOrElse { "failed: ${it.message}" }
+        if (why != null) {
+            gpuTrackerRefused = why
+            runCatching { t.release() }
+            Trace.refused("gpu tracker", why)
+            return false
+        }
+        gpuTracker = t
+        return true
     }
 
     fun stopTracking() = onGpu {
         if (trackActive) Trace.control("tracking", "stop", "off")
         trackActive = false
         pendingPattern = null
+        gpuTracker?.stop()
+        gpuTracking = false
         libmv?.release(); libmv = null
+    }
+
+    /**
+     * v186: one GPU tracker step on the frame just drawn, every frame, its result in the trace on every step
+     * ("trk g": step, x, y in texels of the luma copy (GL rows), score, F found / L lost / R re-found by the whole-frame
+     * search, ms). libmv beside it ("trk m"), every trackEvery frames on the same frame, from the same pattern frame.
+     */
+    private fun gpuStep(t: GpuTracker) {
+        t.newFrame { drawQuadWith(lumaProgram) }
+        val r = t.step() ?: run { GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0); return }
+        val n = ++trackSearches
+        val lw = lumaW
+        val lh = lumaH
+        if (t.tookPattern) {
+            trackListener?.onTrack(r.x, r.y, 1f)
+            if (libmvBeside) {
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, t.refFramebuffer)
+                pendingPattern = floatArrayOf(r.x, r.y)
+                libmvStep(lw, lh, report = false)
+            }
+            return
+        }
+        Trace.state(String.format(java.util.Locale.ROOT, "trk g %d %.2f %.2f %.3f %s %.1f %.3f",
+            n, r.x * lw, (1f - r.y) * lh, r.score, if (!r.found) "L" else if (r.refind) "R" else "F", r.ms, r.wholeTexelScore))
+        trackListener?.onTrack(r.x, r.y, if (r.found) r.score else 0f)
+        if (libmvBeside && n % trackEvery == 0L) {
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, t.currentFbo)
+            libmvStep(lw, lh, report = false, step = n)
+        }
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
     }
 
     /** v160: a part of the luma copy read back as RGBA (grey in the first byte), clamped to the copy; its origin. */
@@ -447,8 +518,11 @@ class GpuStage private constructor(
         return intArrayOf(ax, ay, w, h)
     }
 
-    /** v160: one libmv step on the luma copy (bound and drawn by the caller); only the subject's area is read. */
-    private fun libmvStep(lw: Int, lh: Int) {
+    /**
+     * v160: one libmv step on the luma copy (bound and drawn by the caller); only the subject's area is read.
+     * v186: [report] false is libmv beside the GPU tracker: it tells nobody, and every step goes in the trace.
+     */
+    private fun libmvStep(lw: Int, lh: Int, report: Boolean = true, step: Long = 0L) {
         val t0 = android.os.SystemClock.elapsedRealtimeNanos()
         pendingPattern?.let { (x, y) ->
             centreX = x * lw
@@ -462,7 +536,7 @@ class GpuStage private constructor(
             pendingPattern = null
             Trace.state(String.format(java.util.Locale.ROOT, "tracker: libmv %s, pattern half %.1f px of %dx%d",
                 LibmvTracker.MODEL_NAMES[trackModel], patternHalf, lw, lh))
-            trackListener?.onTrack(x, y, 1f)
+            if (report) trackListener?.onTrack(x, y, 1f)
             return
         }
         val t = libmv ?: run { GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0); return }
@@ -472,6 +546,11 @@ class GpuStage private constructor(
         val readMs = (android.os.SystemClock.elapsedRealtimeNanos() - t0) / 1e6
         val r = t.trackRgba(greyRgba!!, c[2], c[3], c[0], c[1])
         if (r.usable) { centreX = r.cx.toFloat(); centreY = r.cy.toFloat() }
+        if (!report) {
+            Trace.state(String.format(java.util.Locale.ROOT, "trk m %d %.2f %.2f %.3f %s %.1f",
+                step, r.cx, r.cy, r.correlation, if (r.usable) "F" else "L", readMs + r.ms))
+            return
+        }
         if (++trackSearches % 150 == 1L) Trace.state(String.format(java.util.Locale.ROOT,
             "tracker: libmv correlation %.3f%s, read %dx%d in %.1f ms, solve %.1f ms", r.correlation, if (r.usable) "" else " LOST",
             c[2], c[3], readMs, r.ms))
@@ -513,6 +592,7 @@ class GpuStage private constructor(
 
     private fun trackStep() {
         EGL14.eglMakeCurrent(display, pbuffer, pbuffer, context)
+        gpuTracker?.takeIf { gpuTracking }?.let { gpuStep(it); return }
         // 1. The luma copy, drawn with the same quad as every output: the
         //    stream's own orientation, GL's row 0 at the bottom of the picture.
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, lumaFbo)
@@ -644,6 +724,7 @@ class GpuStage private constructor(
                 if (program != 0) GLES20.glDeleteProgram(program)
                 if (sdrProgram != 0) GLES20.glDeleteProgram(sdrProgram)
                 if (texture != 0) GLES20.glDeleteTextures(1, intArrayOf(texture), 0)
+                gpuTracker?.release(); gpuTracker = null
                 input?.release()
                 if (::inputSurface.isInitialized) inputSurface.release()
                 EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)

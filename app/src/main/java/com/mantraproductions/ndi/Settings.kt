@@ -340,6 +340,16 @@ class Settings(context: Context) {
         get() = prefs.getInt("trackModel", LibmvTracker.MODEL_LOC)
         set(value) = prefs.edit().putInt("trackModel", value.coerceIn(0, 5)).apply()
 
+    /** v186: TRK on the GPU tracker (GpuTracker); off: libmv on the CPU, as to v185. */
+    var trackGpu: Boolean
+        get() = prefs.getBoolean("trackGpu", true)
+        set(value) = prefs.edit().putBoolean("trackGpu", value).apply()
+
+    /** v186: libmv beside the GPU tracker on the same frames, both in the trace, until the GPU one has won. */
+    var trackCompare: Boolean
+        get() = prefs.getBoolean("trackCompare", true)
+        set(value) = prefs.edit().putBoolean("trackCompare", value).apply()
+
     var trackSearch: Int
         get() = prefs.getInt("trackSearch", 25)
         set(value) = prefs.edit().putInt("trackSearch", value.coerceIn(15, 40)).apply()

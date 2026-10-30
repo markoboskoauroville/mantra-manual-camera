@@ -1405,7 +1405,23 @@ libmv correlation 0.972 at the start, 0.883 after 13 s, a step 20–32 ms. The f
 ## 30.10.2026: all tracking on the GPU
 > "move all the tracking, processing, and calculation to the GPU"
 
-**Status:** saved; plan below, not started.
+**Status:** built in v186 (GpuTracker.kt), on the Pixel 7, not yet released; tested on the swinging ball 30.10.2026
+11:19–11:27 from the trace (`scripts/trk_compare.py`), libmv beside it on the same frames:
+
+| run | GPU steps / lost / ms | libmv steps / lost / ms | apart (same frame, median / max) |
+|---|---|---|---|
+| ball, AF→TRK, 70 s | 1681 / 0 / 12.6 | 841 / 0 / 36.3 | 0.63 / 4.6 texels |
+| ball, after the sub-pixel score, 30 s | 722 / 0 / 13.0 | 361 / 0 / 31.0 | 0.51 / 7.9 |
+| faint trees (contrast 0.020), whole-texel score | 363 / 174 / 12.7 | 182 / 6 / 23.1 | 0.31 / 0.64 |
+| faint trees, sub-pixel score | 604 / 0 / 13.0 | 302 / 0 / 21.4 | 0.31 / 0.84 |
+| a tap where the swinging ball hangs at rest (pattern mostly background, contrast 0.048) | 145 / 69 / 13.3 | 72 / 19 / 31.5 | 0.33 / 3.75 |
+
+Every frame (24 fps), all eight points in. The pattern of a tap comes from the frame on the screen at the touch
+(3 frames, ~80 ms back). Found on the way: the score must be taken at the sub-pixel place, as libmv's is (whole
+texels on a fine, faint texture scored 0.60 where libmv saw 0.80). On the ball the refinement is refused (more than
+1.5 texels from the NCC best) on 36 % of frames: the 96-texel box is mostly still background around a 40-texel moving
+ball; a box pinched to the ball is the remedy. Still to test, with Marko's hand: re-finding after the lens is covered,
+and a real tap on the swinging ball.
 
 The history that shapes it: the GPU NCC search (GpuStage, to v158) lost the swinging ball; libmv on the CPU (v160) held
 it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win, then beat it on speed:

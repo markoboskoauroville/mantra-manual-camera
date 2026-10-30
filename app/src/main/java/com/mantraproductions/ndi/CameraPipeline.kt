@@ -86,10 +86,11 @@ class CameraPipeline(private val context: Context) {
 
     /** @return false without the GPU stage, which is where the tracker lives. */
     fun startTracking(x: Float, y: Float, w: Float, h: Float, every: Int, search: Float, confidence: Float,
-                      model: Int = LibmvTracker.MODEL_LOC): Boolean {
+                      model: Int = LibmvTracker.MODEL_LOC, onGpu: Boolean = true, compare: Boolean = true,
+                      atUptime: Long = 0L): Boolean {
         val stage = gpu ?: return false
         stage.trackListener = trackListener
-        stage.startTracking(x, y, w, h, every, search, confidence, model)
+        stage.startTracking(x, y, w, h, every, search, confidence, model, onGpu, compare, atUptime)
         return true
     }
 

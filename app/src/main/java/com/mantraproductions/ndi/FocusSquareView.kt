@@ -312,6 +312,13 @@ class FocusSquareView @JvmOverloads constructor(
     var onTapped: (() -> Unit)? = null
 
     /**
+     * v186: when the finger of the tap that just moved the box came down (SystemClock.uptimeMillis), 0 for a move
+     * that was not a tap; read once by [takeTapTime]. TRK takes its pattern from the frame of that moment.
+     */
+    private var tappedAt = 0L
+    fun takeTapTime(): Long = tappedAt.also { tappedAt = 0L }
+
+    /**
      * Two fingers: the box's size.
      *
      * Multiplied by the pinch's own ratio each frame, so a pinch that doubles
@@ -442,7 +449,9 @@ class FocusSquareView @JvmOverloads constructor(
                 ) {
                     tapX = (event.x / width).coerceIn(0f, 1f); tapY = (event.y / height).coerceIn(0f, 1f)
                     if (tapMovesMe) {
+                        tappedAt = event.downTime
                         takePending()
+                        tappedAt = 0L
                         onTapped?.invoke()
                     } else {
                         onTapFor?.invoke((event.x / width).coerceIn(0f, 1f), (event.y / height).coerceIn(0f, 1f))
