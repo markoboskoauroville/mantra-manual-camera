@@ -1343,3 +1343,8 @@ monospace white, no shadow, left-aligned, one space after the outputs; the rest 
 > "now the camera is upside down. Please fix this issue. I turned it upside down, and it's not adapting to the view"
 
 **Status:** in progress.
+
+## 30.10.2026: simulate and test every function
+> "also, please simulate and test: - Tapping on the screen - Focusing, adjusting exposure - Moving circle and square around the screen - Whether focusing and exposure work as they're supposed to - Testing tracking - Long pressing - Every function"
+
+**Status:** in progress (v185 on the Pixel 7).
