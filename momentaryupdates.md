@@ -1380,3 +1380,8 @@ other site repositories; the two Cloudflare secrets set in the repository. **Sta
 the secrets (the account ID read from his dashboard through the Chrome extension, the token = line 7 of his key file;
 the first paste was the wrong line: code 7003 for the ID, 9106 for the token). Run 41034363374 green, "Deployment
 complete"; mantramanualcamera.pages.dev serves the v184 picture (01-camera.jpg?v184, 119 634 bytes).
+
+## 30.10.2026: the swinging tennis ball
+> "for the camera, there is a tennis ball swinging in front of the lens. Please test the tracking algorithm"
+
+**Status:** in progress.
