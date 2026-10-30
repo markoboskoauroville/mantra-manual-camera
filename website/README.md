@@ -14,3 +14,9 @@ releases/latest, so a new release needs no change here; new cards and screenshot
 29.10.2026 (v183, on the branch claude/mantra-manual-camera-rename-mxa5ln): card 16 (faders that meet the light: the
 yellow line, the mixer caps, the words upright) and screenshot 10-faders.jpg (the faders held upright on the Pixel 7).
 NOT YET PUBLISHED: publish together with the v183 release, so the page does not describe what the download lacks.
+
+## Publishing (30.10.2026)
+
+Every push that changes `website/` publishes it through GitHub: `.github/workflows/site.yml` runs
+`wrangler pages deploy website --project-name mantramanualcamera` with the repository secrets CLOUDFLARE_API_TOKEN and
+CLOUDFLARE_ACCOUNT_ID (set by Marko). Nothing is deployed from the Mac any more.
