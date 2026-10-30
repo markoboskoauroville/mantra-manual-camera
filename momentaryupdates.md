@@ -1393,3 +1393,8 @@ zone: 0.52 LOST; (5) once LOST it stays where it last saw the subject and search
 does not find the ball again even when it hangs still inside the zone; (6) the focus stayed on the trees (70–79 cm)
 while the ball was at ~26 cm. The screenshots come every ~1.4 s, too slow to follow the swing frame by frame: the
 trace (tracker lines) is the reliable record. Box size put back to 0.269. Fixes proposed, not made: wait for Marko.
+
+## 30.10.2026: tracking, again after a restart
+> "please restart the camera up and do the testing of the tracking again"
+
+**Status:** in progress.
