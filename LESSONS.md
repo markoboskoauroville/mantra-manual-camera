@@ -246,3 +246,20 @@ real client off: probe with the app's own status, not with a second connection.
   restarted adb server hears it again. mcam now falls back to dns-sd itself (browse, resolve, connect by address).
 - The first `adb connect` to a dozing phone often answers "No route to host"; the next one a second later works.
   mcam tries four times.
+
+## 30.10.2026 (v184, v185)
+
+- **A dark rail key takes no press, so its state must follow its cause the moment that changes.** The ruler's ▶ is DEAD
+  without key points; adding the first one through the KEYFRAME dialog saved it but did not call refreshKeys(), so ▶
+  stayed dark and ignored every press until something else redrew the rail. Every place that changes the key points
+  now redraws the rail (onKeysChanged, adb meter add / clear).
+- **Upside down is the other landscape, not a portrait.** Locked to SCREEN_ORIENTATION_LANDSCAPE, a phone turned over
+  showed the picture on its head while only the words turned. sensorLandscape lets the screen take either landscape;
+  the layout is the same, portrait stays forbidden (v163). The preview transform and the stream already follow the
+  display's rotation; the words' turn must count it too: turn = (360 − display − held) mod 360.
+- **Testing focus with a ruler.** A ruler running away from the lens gives every distance its own height in the
+  picture. For each lens setting take the sharpness of the mm ticks along the scale (the vertical gradient energy in a
+  strip); then for each height take the lens setting where it peaks. Comparing each place only with itself beats
+  taking each frame's sharpest place, which a printed logo wins every time.
+- **Real touches through adb need the screen's own coordinates of the moment** (they flip with the half turn), and a
+  mark only takes a tap while its key is green (one green at a time; E needs two presses from grey).
