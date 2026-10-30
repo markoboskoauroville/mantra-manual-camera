@@ -1420,8 +1420,16 @@ Every frame (24 fps), all eight points in. The pattern of a tap comes from the f
 (3 frames, ~80 ms back). Found on the way: the score must be taken at the sub-pixel place, as libmv's is (whole
 texels on a fine, faint texture scored 0.60 where libmv saw 0.80). On the ball the refinement is refused (more than
 1.5 texels from the NCC best) on 36 % of frames: the 96-texel box is mostly still background around a 40-texel moving
-ball; a box pinched to the ball is the remedy. Still to test, with Marko's hand: re-finding after the lens is covered,
-and a real tap on the swinging ball.
+ball; a box pinched to the ball is the remedy.
+
+Then (11:28): libmv beside the GPU tracker ran on the GPU stage's thread, and its LOST search (up to 1.7 s a step) held
+every frame: the GPU tracker stepped about twice a second, the preview and stream stalled with it. libmv beside now has
+its own thread and skips frames while busy. After that, 30 minutes on the swinging ball (11:29–11:59): GPU 43 636
+steps (24 a second), 15 lost, all in the darkened test; libmv 21 798 steps, 2 lost; same frames 0.44 texels apart
+(median), 8.6 at most. **The darkened lens** (Marko away: "put shutter speed to maximum and ISO to minimum", ISO 47,
+1/37732 s, 5 s): NCC is blind to brightness, so the dim ball was still followed, the score hovering on the 0.60 bar
+(lost and re-found frame by frame); with the light back, re-found the very next frame at 0.929. A real LOST (the
+subject gone from the picture) and a real tap on the swinging ball still want Marko's hand.
 
 The history that shapes it: the GPU NCC search (GpuStage, to v158) lost the swinging ball; libmv on the CPU (v160) held
 it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win, then beat it on speed:

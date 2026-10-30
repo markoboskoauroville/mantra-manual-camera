@@ -432,6 +432,7 @@ class GpuStage private constructor(
         patternW = Math.round(w * lumaW).coerceIn(6, 32)
         patternH = Math.round(h * lumaH).coerceIn(6, 32)
         libmv?.release(); libmv = null
+        besideStop()
         gpuTracking = gpu && ensureGpuTracker()
         libmvBeside = gpuTracking && compare && LibmvTracker.available
         if (gpuTracking) {
@@ -473,6 +474,7 @@ class GpuStage private constructor(
         pendingPattern = null
         gpuTracker?.stop()
         gpuTracking = false
+        besideStop()
         libmv?.release(); libmv = null
     }
 
@@ -489,21 +491,81 @@ class GpuStage private constructor(
         val lh = lumaH
         if (t.tookPattern) {
             trackListener?.onTrack(r.x, r.y, 1f)
-            if (libmvBeside) {
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, t.refFramebuffer)
-                pendingPattern = floatArrayOf(r.x, r.y)
-                libmvStep(lw, lh, report = false)
-            }
+            if (libmvBeside) besideStart(t.refFramebuffer, r.x * lw, (1f - r.y) * lh, lw, lh)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
             return
         }
         Trace.state(String.format(java.util.Locale.ROOT, "trk g %d %.2f %.2f %.3f %s %.1f %.3f",
             n, r.x * lw, (1f - r.y) * lh, r.score, if (!r.found) "L" else if (r.refind) "R" else "F", r.ms, r.wholeTexelScore))
         trackListener?.onTrack(r.x, r.y, if (r.found) r.score else 0f)
-        if (libmvBeside && n % trackEvery == 0L) {
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, t.currentFbo)
-            libmvStep(lw, lh, report = false, step = n)
-        }
+        if (libmvBeside && n % trackEvery == 0L) besideStep(t.currentFbo, n, lw, lh)
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+    }
+
+    /**
+     * v186: libmv beside the GPU tracker runs on its own thread. On the GPU stage's thread its LOST search (1.7 s a
+     * step) held every frame, the preview and the stream with it, and the GPU tracker stepped twice a second
+     * (30.10.2026, the lens covered). Here the GPU thread only reads the crop libmv asks for; while libmv is still
+     * busy with an earlier frame, the frame is skipped (the trace shows which frames it saw).
+     */
+    private val besideWorker = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "libmv-beside") }
+    private val besideBusy = java.util.concurrent.atomic.AtomicBoolean(false)
+    private var besideTracker: LibmvTracker? = null          // the worker's own
+    @Volatile private var besideBox: IntArray? = null         // the area it wants next, written by the worker
+    private var besideRun = 0                                  // a new pattern makes the old results stale
+
+    private fun besideCrop(fbo: Int, x0: Int, y0: Int, x1: Int, y1: Int, lw: Int, lh: Int): Pair<ByteBuffer, IntArray> {
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo)
+        val c = readCrop(x0, y0, x1, y1, lw, lh)
+        val src = greyRgba!!
+        val copy = ByteBuffer.allocateDirect(c[2] * c[3] * 4).order(ByteOrder.nativeOrder())
+        src.position(0); src.limit(c[2] * c[3] * 4); copy.put(src); copy.flip(); src.clear()
+        return copy to c
+    }
+
+    private fun besideStart(fbo: Int, cx: Float, cy: Float, lw: Int, lh: Int) {
+        val m = patternHalf.toInt() + 8
+        val (buf, c) = besideCrop(fbo, cx.toInt() - m, cy.toInt() - m, cx.toInt() + m + 1, cy.toInt() + m + 1, lw, lh)
+        val run = ++besideRun
+        besideBox = null
+        val half = patternHalf; val model = trackModel; val conf = trackConfidence.toDouble()
+        val searchHalf = (patternHalf * (trackSearch - 1f) + 16).toInt()
+        besideBusy.set(true)
+        besideWorker.execute {
+            runCatching {
+                besideTracker?.release()
+                besideTracker = LibmvTracker(buf, c[2], c[3], c[0], c[1], cx.toDouble(), cy.toDouble(), half, model, conf, searchHalf)
+                if (run == besideRun) besideBox = besideTracker!!.searchBox().copyOf()
+            }.onFailure { Trace.fault("libmv beside", it) }
+            besideBusy.set(false)
+        }
+    }
+
+    private fun besideStep(fbo: Int, step: Long, lw: Int, lh: Int) {
+        val b = besideBox ?: return
+        if (!besideBusy.compareAndSet(false, true)) return
+        val t0 = android.os.SystemClock.elapsedRealtimeNanos()
+        val (buf, c) = besideCrop(fbo, b[0], b[1], b[2], b[3], lw, lh)
+        val readMs = (android.os.SystemClock.elapsedRealtimeNanos() - t0) / 1e6
+        val run = besideRun
+        besideWorker.execute {
+            runCatching {
+                val t = besideTracker ?: return@runCatching
+                val r = t.trackRgba(buf, c[2], c[3], c[0], c[1])
+                if (run == besideRun) {
+                    besideBox = t.searchBox().copyOf()
+                    Trace.state(String.format(java.util.Locale.ROOT, "trk m %d %.2f %.2f %.3f %s %.1f",
+                        step, r.cx, r.cy, r.correlation, if (r.usable) "F" else "L", readMs + r.ms))
+                }
+            }.onFailure { Trace.fault("libmv beside", it) }
+            besideBusy.set(false)
+        }
+    }
+
+    private fun besideStop() {
+        besideRun++
+        besideBox = null
+        besideWorker.execute { besideTracker?.release(); besideTracker = null }
     }
 
     /** v160: a part of the luma copy read back as RGBA (grey in the first byte), clamped to the copy; its origin. */
@@ -725,6 +787,7 @@ class GpuStage private constructor(
                 if (sdrProgram != 0) GLES20.glDeleteProgram(sdrProgram)
                 if (texture != 0) GLES20.glDeleteTextures(1, intArrayOf(texture), 0)
                 gpuTracker?.release(); gpuTracker = null
+                besideStop(); besideWorker.shutdown()
                 input?.release()
                 if (::inputSurface.isInitialized) inputSurface.release()
                 EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
