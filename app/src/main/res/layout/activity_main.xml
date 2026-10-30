@@ -118,6 +118,10 @@
                 android:gravity="center_vertical"
                 android:background="#66000000">
 
+                <!-- v184 (Marko, 30.10.2026: "It needs to look exactly like output status, and be attached next to it ...
+                     part of the same band: output and format of the camera. Everything in one line, left-aligned, and
+                     the same font and everything"): the outputs and the format are one band, the same box, face and size;
+                     the format starts one space after the outputs and the rest of the row stays clear. -->
                 <TextView
                     android:id="@+id/telemetry"
                     android:layout_width="wrap_content"
@@ -126,7 +130,7 @@
                     android:paddingTop="2dp"
                     android:paddingBottom="2dp"
                     android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingEnd="0dp"
                     android:maxLines="1"
                     android:fontFamily="monospace"
                     android:textStyle="bold"
@@ -135,22 +139,27 @@
 
                 <TextView
                     android:id="@+id/status"
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:paddingTop="3dp"
-                    android:paddingBottom="3dp"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="4dp"
+                    android:layout_weight="0"
+                    android:gravity="start|center_vertical"
+                    android:background="#88000000"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:paddingStart="7dp"
+                    android:paddingEnd="8dp"
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:fontFamily="monospace"
-                    android:textSize="10sp"
-                    android:textColor="#E6E8EA"
-                    android:shadowColor="#000000"
-                    android:shadowRadius="4"
+                    android:textStyle="bold"
+                    android:textSize="11sp"
+                    android:textColor="#FFFFFF"
                     android:text="@string/starting" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
             </LinearLayout>
 
             <!--
