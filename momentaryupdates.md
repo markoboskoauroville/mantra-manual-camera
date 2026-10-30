@@ -1371,3 +1371,9 @@ smoothly near to far: 4.5 dpt by the clamp, 1.7 dpt at the window end, no jumps;
 Marko: lens to the ruler's 0 = 16 cm. Against the ruler (true = mark + 16) the app's calibrated distance
 (1.1 × lens dpt + 0.12) reads 19.7 / 20.4 / 22.1 / 22.9 / 23.1 cm at 19 / 20 / 21 / 22 / 23 cm: within +0.1 to +1.1 cm,
 always a touch long. Checked 19–23 cm only (the far numbers were not readable in the picture).
+
+## 30.10.2026: the site publishes through GitHub
+> "yes, set it up, and are there any more questions"
+
+A deploy.yml publishes website/ to Cloudflare Pages (mantramanualcamera) on every push that changes it, like the
+other site repositories; the two Cloudflare secrets set in the repository. **Status:** in progress.
