@@ -1332,3 +1332,8 @@ the key. — **Status:** v183 asked; not yet compiled on the Mac or seen on a ph
 v183. The top line reads "1920x1080 · 10b · 40 Mb/s" (`formatLine`): the rate the stream measures while one runs, else
 the recording's quality. The fps and the log grey readout left the line. A message ("Focus locked", an error) still
 shows, for 3 seconds, then the line goes back to the format. — **Status:** v183 asked; compiles; not yet seen on a phone.
+
+## 30.10.2026: the format line joins the output status
+> "you need to go and look at my application, Mantra Manual Camera. There's just a small fix at the top of the display. There is a status button showing how many bits and which resolution it needs. It needs to be a line just next to the output status, without any extra space. It needs to look exactly like output status, and be attached next to it. Actually, it can be part of the same band: output and format of the camera. Everything in one line, left-aligned, and the same font and everything"
+
+**Status:** in progress.
