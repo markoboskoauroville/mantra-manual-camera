@@ -1397,4 +1397,12 @@ trace (tracker lines) is the reliable record. Box size put back to 0.269. Fixes 
 ## 30.10.2026: tracking, again after a restart
 > "please restart the camera up and do the testing of the tracking again"
 
-**Status:** in progress.
+**Status:** after a restart (pid 20504; feathers on the ball now), TRK from the centred box: held the swinging ball
+for all 15 frames over 19 s (green throughout), sideways within ~0–70 px, one 326 px lag at the fastest point;
+libmv correlation 0.972 at the start, 0.883 after 13 s, a step 20–32 ms. The first test failed on a late pattern
+(mostly trees) and on never re-finding the subject once LOST; that second weakness remains.
+
+## 30.10.2026: all tracking on the GPU
+> "move all the tracking, processing, and calculation to the GPU"
+
+**Status:** saved; plan below, not started.
