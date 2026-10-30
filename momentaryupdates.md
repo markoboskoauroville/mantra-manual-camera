@@ -1337,4 +1337,4 @@ shows, for 3 seconds, then the line goes back to the format. — **Status:** v18
 > "you need to go and look at my application, Mantra Manual Camera. There's just a small fix at the top of the display. There is a status button showing how many bits and which resolution it needs. It needs to be a line just next to the output status, without any extra space. It needs to look exactly like output status, and be attached next to it. Actually, it can be part of the same band: output and format of the camera. Everything in one line, left-aligned, and the same font and everything"
 
 **Status:** v184 (30.10.2026): the format line is the outputs' twin in activity_main.xml: the same dark box, 11 sp bold
-monospace white, no shadow, left-aligned, one space after the outputs; the rest of the row clear.
+monospace white, no shadow, left-aligned, one space after the outputs; the rest of the row clear. Seen on the Pixel 7 emulator ("FILE.USB.NDI.YT 1280x720 · 8b · 50 Mb/s"); released v184 (Latest, both APKs).
