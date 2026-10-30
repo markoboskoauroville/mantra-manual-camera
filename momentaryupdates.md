@@ -1347,14 +1347,25 @@ monospace white, no shadow, left-aligned, one space after the outputs; the rest 
 ## 30.10.2026: simulate and test every function
 > "also, please simulate and test: - Tapping on the screen - Focusing, adjusting exposure - Moving circle and square around the screen - Whether focusing and exposure work as they're supposed to - Testing tracking - Long pressing - Every function"
 
-**Status:** in progress (v185 on the Pixel 7).
+**Status:** tested on the Pixel 7 30.10.2026 (adb input, real touches). PASS: a tap with F green moves the square and
+focuses (63 cm → 3.02 m on the trees); a drag carries it (→ 74 cm on the frame); E twice = green, the circle meters
+(dark wall ISO 47 → 673 at 1/943, sky back to 47), red with "ISO at its floor" when it cannot; long press on the square
+= TRACK ON. Found: the first tap after the TRACK panel is eaten by the panel (by design). Unsure: on dark featureless
+wood AF locked at 8.33 m (the lens, not the app?). Not provable without Marko's hand: TRACK following a moving subject.
 
 ## 30.10.2026: the focus puller, tested
 > "after that test, the focus pulling ruler long press. Can you add or remove keyframes? Can you run the focus pulling by keyframes? Does the setting for the focus pulling speed work the back focus pulling completely"
 
-**Status:** in progress.
+**Status:** tested on the Pixel 7 30.10.2026, real touches. PASS: drag the white lens circle (64.8 → 20.1 cm); 2 s
+hold → KEYFRAME dialog, ADD (20.1 cm, 96.4 cm), REMOVE amber only on a key point and removes it; a tap on a key point
+racks there eased (96.4 → 20.1 cm in 1.9 s); ▶ goes key to key; the rack time setting (4 s → ~3.5 s of travel) and
+mm/s (400 mm/s: 763 mm in ~2.1 s, over the time). FIXED in v185: after the first ADD the ▶ stayed dark and did
+nothing (refreshKeys was not called when key points changed); proven: remove all, ADD, ▶ racks at once.
 
 ## 30.10.2026: the ruler, focus precision
 > "now I set up the ruler. It has centimeters. You can test the focus pulling and distances, because now you have a ruler. Test the centimeters and focus pulling precision, and just push it to the limit of the camera. What is the resolution of focus pulling"
 
-**Status:** in progress.
+**Status:** measured 30.10.2026 (scripts in the session; sharpness of the mm ticks along the ruler per lens setting).
+The lens lands within ±0.01 dpt of what is asked (9.5 → 9.49, 1.25 → 1.26). Along the ruler the sharp band moves
+smoothly near to far: 4.5 dpt by the clamp, 1.7 dpt at the window end, no jumps; 0.2 dpt steps still move it visibly.
+At 4.4 dpt (the app's 22.7 cm) ruler 3–6 cm are sharp. True centimetres need the lens-to-0 distance from Marko.
