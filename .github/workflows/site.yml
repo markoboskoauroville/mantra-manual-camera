@@ -1,0 +1,33 @@
+# Every push that changes website/ publishes it to Cloudflare Pages (project mantramanualcamera,
+# https://mantramanualcamera.pages.dev), as the other site repositories do (Marko, 30.10.2026: "yes, set it up").
+# The work branch here is not main, so both are watched. The APK is not built here (it is built on the Mac).
+# Needs two repository secrets, set by Marko:
+#   CLOUDFLARE_API_TOKEN   a token with "Cloudflare Pages: Edit"
+#   CLOUDFLARE_ACCOUNT_ID  the account that owns the mantramanualcamera project
+name: Site
+
+on:
+  push:
+    branches: [main, claude/mantra-manual-camera-rename-mxa5ln]
+    paths: ["website/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy website --project-name mantramanualcamera --branch main --commit-hash ${{ github.sha }}
