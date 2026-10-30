@@ -1406,3 +1406,21 @@ libmv correlation 0.972 at the start, 0.883 after 13 s, a step 20–32 ms. The f
 > "move all the tracking, processing, and calculation to the GPU"
 
 **Status:** saved; plan below, not started.
+
+The history that shapes it: the GPU NCC search (GpuStage, to v158) lost the swinging ball; libmv on the CPU (v160) held
+it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win, then beat it on speed:
+
+1. **A pyramid on the GPU**: the luma copy at 1/1, 1/2, 1/4 (mipmaps of the luma texture, free). Search coarse to fine,
+   so a fast subject (the ball at the bottom of its swing, ~400 px of screen in <1.5 s) stays inside the coarse window.
+2. **Sub-pixel refinement on the GPU** (what libmv's solve does on the CPU): an inverse-compositional Lucas–Kanade
+   step as a fragment shader, a few iterations, translation only (LOC held, AFFINE diverged on a small subject).
+3. **The best place found on the GPU**: a reduction shader (max over the score texture in log passes), so only one
+   pixel is read back, instead of the whole score grid.
+4. **Prediction**: constant velocity from the last two places centres the next search where the subject is going.
+5. **Re-finding after LOST**: the whole frame at 1/4 on the GPU (milliseconds), instead of libmv's 494x360 search at
+   1.66 s a step; picked up again when the score clears the bar.
+6. **The pattern from the frame of the tap**, and an option to size the box to the subject.
+7. **Every step on the GPU, every frame** (not every 2nd), its position and score in the trace on every step, so a
+   test is measured from the trace, not photographed.
+8. **Proven before it replaces libmv**: the same swinging-ball test, the GPU tracker against libmv on the same
+   frames, lost frames and pixel error counted; libmv stays as the fallback until the GPU one wins.
