@@ -1338,3 +1338,8 @@ shows, for 3 seconds, then the line goes back to the format. — **Status:** v18
 
 **Status:** v184 (30.10.2026): the format line is the outputs' twin in activity_main.xml: the same dark box, 11 sp bold
 monospace white, no shadow, left-aligned, one space after the outputs; the rest of the row clear. Seen on the Pixel 7 emulator ("FILE.USB.NDI.YT 1280x720 · 8b · 50 Mb/s"); released v184 (Latest, both APKs).
+
+## 30.10.2026: upside down
+> "now the camera is upside down. Please fix this issue. I turned it upside down, and it's not adapting to the view"
+
+**Status:** in progress.
