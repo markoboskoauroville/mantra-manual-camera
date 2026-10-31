@@ -1486,4 +1486,8 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
 5. The promo page: the new features (the Sony remote inside, the Sony status, START SONY, free-run time code).
    **Status:** done: four cards (17–20) on https://mantramanualcamera.pages.dev and a paragraph in README.
 6. An Amazon.de affiliate link for every Sony Alpha camera; for the 6000 series no longer sold new, a permanent listing
-   (one that is refilled with used or renewed stock, not one that expires). **Status:** pending, after 1–4.
+   (one that is refilled with used or renewed stock, not one that expires). **Status:** done 31.10.2026: 34 listings on
+   https://mantrasonyremote.pages.dev/#alphas (that site is registered in PartnerNet; the camera's site is not, so it
+   links there and carries no Amazon links). Every ASIN found by a research pass, then checked by its title on
+   amazon.de in Firefox (≈17 MB, each page read only to its title). Not found: the α1 II and the first FX3 body (the
+   FX3A is listed); the renewed α6000 listing is dead.
