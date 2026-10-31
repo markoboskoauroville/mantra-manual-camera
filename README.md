@@ -28,6 +28,11 @@ curve chosen, the picture is the phone's own broadcast HLG: a soft highlight sho
 film, a wide colour gamut, and none of the multi-frame smartphone processing that flattens light. The ISP demosaics, the hardware encoder
 compresses. Every take is HEVC, which is half the size of H.264 at the same quality.
 
+**Your Sony cameras, from the same phone (v187).** Settings → SONY holds the whole Mantra Sony Remote: a time code
+generator, time code into a Sony over USB or read from its screen, REC on every Sony over Bluetooth, the clap, LTC out.
+The top line says whether the Sonys record and how many; hold REC two seconds and START SONY starts them all with the
+phone. Every take carries a free-run time code track from the same generator, so the clips line up in the edit.
+
 **NDI HX and full NDI.** The phone appears as a camera in vMix, OBS, Wirecast, NDI Studio Monitor,
 anything that speaks NDI. Over Wi-Fi, or over a USB cable with no network at all.
 
