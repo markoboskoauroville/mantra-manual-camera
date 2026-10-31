@@ -1460,12 +1460,21 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
 > our files have saved in timecode. Let's build that."
 
 1. The Sony Remote (SONY_REMOTE_CONTROLLER) built into the camera, its full function, as a tab in Settings.
-   **Status:** pending.
+   **Status:** done in v187 (released): sony/ (TcJamActivity, BleRemote, Ltc, ScreenReader, AspectFrame copied from
+   SONY_REMOTE_CONTROLLER v28), Settings → SONY (switch, OPEN SONY REMOTE), one shared Bluetooth remote (SonyLink).
+   Seen on the Pixel 7: the Sony screen upright (status displays now stacked under the flag, keys two rows of three),
+   the paired α7 V and α6600 listed. Settings tabs sized by their word (OUTPUTS was cut onto two lines).
 2. A Sony status in the top status text when enabled: recording or not, and how many cameras record.
-   **Status:** pending.
+   **Status:** done in v187: after the outputs, SONY grey (none ready), SONY STBY 0/n, ● SONY REC k/n. Seen grey on the
+   Pixel 7 (no Sony awake); the counts need a Sony.
 3. When enabled, REC held for two seconds pops up START SONY; START SONY starts Bluetooth recording on every Sony.
-   **Status:** pending.
-4. Real time of day written into every file as free-run timecode. **Status:** pending.
+   **Status:** done in v187: REC held 2 s (instead of its help) opens START SONY, or STOP SONY while anything records;
+   it presses REC only on Sonys not already in that state, and starts/stops this camera's take. Tested on the Pixel 7
+   without a Sony: started and stopped the take ("0 of 0 pressed"). A real Sony over Bluetooth: Marko's hand.
+4. Real time of day written into every file as free-run timecode. **Status:** done in v187 (Mp4Timecode.kt): a QuickTime
+   tmcd track added after the muxer closes, first frame's time of day on the TC generator (phone clock + TC JAM offset).
+   Mac test on ffmpeg MP4s (moov at end and at front); on the Pixel 7 two takes read back by ffprobe: 05:12:46:21
+   (135 frames) and 05:16:57:12 (593 frames), every frame decoding.
 
 ## 31.10.2026: the promo page, and affiliate links for every Sony Alpha
 > "After this is done, please write in the promo web page new features and also make much more affiliate links. We
@@ -1475,6 +1484,6 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
 > expires."
 
 5. The promo page: the new features (the Sony remote inside, the Sony status, START SONY, free-run time code).
-   **Status:** pending, after 1–4.
+   **Status:** done: four cards (17–20) on https://mantramanualcamera.pages.dev and a paragraph in README.
 6. An Amazon.de affiliate link for every Sony Alpha camera; for the 6000 series no longer sold new, a permanent listing
    (one that is refilled with used or renewed stock, not one that expires). **Status:** pending, after 1–4.
