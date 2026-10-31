@@ -29,6 +29,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var slots: LutSlots
 
     companion object {
+        private const val SONY_PERMISSION = 41
         /** The lens the camera screen was on, for ROT. */
         const val EXTRA_LENS = "lens"
         const val EXTRA_LENS_NAME = "lensName"
@@ -82,6 +83,39 @@ class SettingsActivity : AppCompatActivity() {
      * until the versions that build them (a key that cannot work stays where
      * it will be, dark — the camera's language).
      */
+    /** v187: SONY, the Mantra Sony Remote inside the camera; the switch asks for Bluetooth when it is turned on. */
+    private fun sonyPage() {
+        val sw = findViewById<android.widget.Switch>(R.id.sonyRemote)
+        sw.isChecked = com.mantraproductions.ndi.sony.SonyLink.enabled(this)
+        sw.setOnCheckedChangeListener { _, on ->
+            com.mantraproductions.ndi.sony.SonyLink.setEnabled(this, on)
+            Trace.control("sony remote", if (on) "on" else "off", "settings")
+            if (on && !com.mantraproductions.ndi.sony.SonyLink.permitted(this))
+                requestPermissions(com.mantraproductions.ndi.sony.SonyLink.PERMISSIONS, SONY_PERMISSION)
+            else if (on) com.mantraproductions.ndi.sony.SonyLink.start(this)
+            showSony()
+        }
+        findViewById<View>(R.id.openSony).setOnClickListener {
+            startActivity(android.content.Intent(this, com.mantraproductions.ndi.sony.TcJamActivity::class.java))
+        }
+        showSony()
+    }
+
+    private fun showSony() {
+        val l = com.mantraproductions.ndi.sony.SonyLink
+        findViewById<TextView>(R.id.sonyNow).text = when {
+            !l.enabled(this) -> "off"
+            !l.permitted(this) -> "Bluetooth permission needed"
+            l.ready == 0 -> "looking for Sony cameras…"
+            else -> "${l.ready} camera(s) ready · ${l.recording} recording"
+        }
+    }
+
+    override fun onRequestPermissionsResult(code: Int, permissions: Array<out String>, results: IntArray) {
+        super.onRequestPermissionsResult(code, permissions, results)
+        if (code == SONY_PERMISSION) { com.mantraproductions.ndi.sony.SonyLink.start(this); showSony() }
+    }
+
     private fun switchboard() {
         fun bind(switchId: Int, panelId: Int, armed: Boolean, onSet: ((Boolean) -> Unit)?) {
             val sw = findViewById<android.widget.Switch>(switchId)
@@ -206,6 +240,7 @@ class SettingsActivity : AppCompatActivity() {
         slots = LutSlots(this)
 
         switchboard()
+        sonyPage()
         findViewById<View>(R.id.closeSettings).setOnClickListener { finish() }
 
         // Where takes go.
@@ -265,7 +300,7 @@ class SettingsActivity : AppCompatActivity() {
         // scrolling down. Mostly it's going left or right"); a swipe goes to the next or the one before
         val tabs = listOf(R.id.tabCamera to R.id.pageCamera, R.id.tabFocus to R.id.pageFocus, R.id.tabTrack to R.id.pageTrack,
             R.id.tabOutputs to R.id.pageOutputs, R.id.tabSound to R.id.pageSound, R.id.tabDisplay to R.id.pageDisplay,
-            R.id.tabMore to R.id.pageMore)
+            R.id.tabSony to R.id.pageSony, R.id.tabMore to R.id.pageMore)
         val prefs = getSharedPreferences("settings_screen", MODE_PRIVATE)
         fun showTab(n: Int) {
             tabs.forEachIndexed { i, (t, pg) ->
@@ -278,6 +313,11 @@ class SettingsActivity : AppCompatActivity() {
         tabCount = tabs.size
         swipeTo = { n -> showTab(n) }
         tabs.forEachIndexed { i, (t, _) -> findViewById<TextView>(t).setOnClickListener { showTab(i) } }
+        // v187: eight tabs; each as wide as its word, so OUTPUTS stays on one line (never cut text)
+        tabs.forEach { (t, _) -> findViewById<TextView>(t).let { v ->
+            v.maxLines = 1
+            v.layoutParams = (v.layoutParams as android.widget.LinearLayout.LayoutParams).apply { weight = v.text.length.toFloat() }
+        } }
         showTab(prefs.getInt("tab2", 0).coerceIn(0, tabs.size - 1))
 
         // Zebra from 50% to 100%.
@@ -614,6 +654,7 @@ class SettingsActivity : AppCompatActivity() {
         super.onResume()
         showAddresses()
         showWire()
+        showSony()
         showAudioSources()
         showFolder()
     }

@@ -170,4 +170,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
+    // v187: SONY REMOTE (from SONY_REMOTE_CONTROLLER) reads a Sony's time code from its screen, on the phone, offline
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 }

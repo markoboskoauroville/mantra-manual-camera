@@ -7,6 +7,13 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
 
+    <!-- v187: SONY REMOTE inside the camera, the phone as the Sonys' Bluetooth remote commander (SONY_REMOTE_CONTROLLER) -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+
     <!-- NDI: the source is advertised and the frames go out over the local
          network. INTERNET covers the sockets; the multicast permissions are
          what let a receiver on the same Wi-Fi discover the phone at all. A
@@ -61,6 +68,20 @@
             android:exported="false"
             android:label="@string/settings"
             android:screenOrientation="fullUser" />
+
+        <!-- v187: SONY REMOTE, the Mantra Sony Remote's TC JAM, opened from Settings → SONY and by a Sony on USB -->
+        <activity
+            android:name=".sony.TcJamActivity"
+            android:label="Sony Remote"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
+            android:screenOrientation="fullSensor">
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/sony_usb" />
+        </activity>
 
         <service
             android:name=".StreamService"

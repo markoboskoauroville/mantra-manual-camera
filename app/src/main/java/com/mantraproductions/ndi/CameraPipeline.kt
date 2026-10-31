@@ -1,6 +1,7 @@
 package com.mantraproductions.ndi
 
 import android.content.Context
+import com.mantraproductions.ndi.sony.TcGenerator
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCharacteristics
 import android.media.Image
@@ -1047,6 +1048,8 @@ class CameraPipeline(private val context: Context) {
 
         val opened = take
         take = null
+        // v187: the take's free-run time code, written into the file before it is published
+        if (frames > 0 && opened != null && file != null) stampTimecode(opened, file.firstFrameWallMs)
         val where = if (frames > 0) opened?.where else null
         opened?.close(keep = frames > 0)
 
@@ -1057,6 +1060,36 @@ class CameraPipeline(private val context: Context) {
         )
         takeName = null
         return where
+    }
+
+    /** v187: the time code the last take was given, for the status line ("TC 14:05:09:15"), or why it was not. */
+    var lastTimecode: String? = null
+        private set
+
+    /**
+     * v187 (Marko, 31.10.2026: "in the files there is written real time code as a free run time code"): the first
+     * frame's time of day on the TC generator (the phone's clock plus the offset Sony TC JAM read from a camera's
+     * screen, the same clock the Sonys were jammed from), as a tmcd track ([Mp4Timecode]).
+     */
+    private fun stampTimecode(opened: Recordings.Take, firstWallMs: Long) {
+        val wall = (if (firstWallMs > 0) firstWallMs else System.currentTimeMillis()) + TcGenerator.offsetMs(context)
+        val local = wall + java.util.TimeZone.getDefault().getOffset(wall)
+        val fd = opened.fileDescriptor
+        val io = object : Mp4Timecode.Io {
+            override fun size() = android.system.Os.fstat(fd).st_size
+            override fun read(at: Long, n: Int): ByteArray {
+                val b = ByteArray(n); var got = 0
+                while (got < n) { val r = android.system.Os.pread(fd, b, got, n - got, at + got); if (r <= 0) error("short read"); got += r }
+                return b
+            }
+            override fun write(at: Long, bytes: ByteArray) {
+                var put = 0
+                while (put < bytes.size) put += android.system.Os.pwrite(fd, bytes, put, bytes.size - put, at + put)
+            }
+        }
+        Mp4Timecode.write(io, Mp4Timecode.frameOfDay(local, fps), fps)
+            .onSuccess { lastTimecode = it; Trace.control("timecode", it, "free run, written into the take") }
+            .onFailure { lastTimecode = null; Trace.fault("timecode", it) }
     }
 
     /** Frames in the file so far, and frames the muxer would not take. */

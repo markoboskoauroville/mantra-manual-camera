@@ -65,6 +65,14 @@ class Mp4Recorder(
     private var firstVideoUs = -1L
     private var lastSlot = -1L
 
+    /**
+     * v187: the wall clock of the first frame in the file, for its time code ([Mp4Timecode]). The frame's own time is
+     * on the monotonic clock (System.nanoTime, see CameraPipeline) and the encoder holds it back a few frames, so the
+     * moment is taken from its time, not from when it arrived here; a time on another clock falls back to the arrival.
+     */
+    @Volatile var firstFrameWallMs = 0L
+        private set
+
     /** Frames in the file, and frames the muxer would not take. */
     val frames: Long get() = written.get()
     val dropped: Long get() = refused.get()
@@ -109,6 +117,9 @@ class Mp4Recorder(
         if (!seenKeyframe) {
             if ((info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME) == 0) return
             seenKeyframe = true
+            val now = System.currentTimeMillis()
+            val behindUs = System.nanoTime() / 1000 - info.presentationTimeUs
+            firstFrameWallMs = if (behindUs in 0..5_000_000) now - behindUs / 1000 else now
         }
         // Constant frame rate: every frame on an exact 1/fps grid.
         if (firstVideoUs < 0) firstVideoUs = info.presentationTimeUs

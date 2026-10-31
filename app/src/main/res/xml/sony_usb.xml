@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Every Sony camera (vendor 0x054C = 1356) opens TC Jam when it is plugged in. -->
+<resources>
+    <usb-device vendor-id="1356" />
+</resources>

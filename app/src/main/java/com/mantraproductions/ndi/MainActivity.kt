@@ -1,6 +1,7 @@
 package com.mantraproductions.ndi
 
 import android.Manifest
+import com.mantraproductions.ndi.sony.SonyLink
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -78,6 +79,7 @@ private val POWER_GREEN = android.graphics.Color.parseColor("#33D17A")
 private val SNAP_ORANGE = android.graphics.Color.parseColor("#FF9500")
 /** v155: how long a finger stays on a key before its help opens. */
 private const val HELP_MS = 2000L
+private const val SONY_PERMISSION = 3
 /** v155: the power readout is written this often (the measuring goes on every second). */
 private const val POWER_SHOW_MS = 5000L
 
@@ -643,7 +645,7 @@ class MainActivity : AppCompatActivity() {
         // which is the playing button, should become this round button with the last picture of the last clip ...
         // Everything is circular. Please make the recording in the place of the lot, in the middle of the screen"):
         // LUT where REC was, PLAY as a round key with the last capture, REC in the middle where the LUT was.
-        recKey = RecordButtonView(this).also { it.setOnClickListener { toggleRecording() }; withHelp(it) { "REC" } }
+        recKey = RecordButtonView(this).also { it.setOnClickListener { toggleRecording() }; withHelp(it, hold = ::sonyHold) { "REC" } }
         // v173 (Marko, 29.10.2026: "Short press enables the LUT. Long press gives the file-opening dialog to load the
         // LUT. In the same dialog, we have history of all LUTs, so the user can switch in between")
         lutKey = newKey("LUT") { toggleLut() }.also {
@@ -763,9 +765,10 @@ class MainActivity : AppCompatActivity() {
      * long press (LUT: the settings) keeps it.
      */
     @android.annotation.SuppressLint("ClickableViewAccessibility")
-    private fun withHelp(v: View, name: () -> String) {
+    private fun withHelp(v: View, hold: (() -> Boolean)? = null, name: () -> String) {
         var shown = false
-        val open = Runnable { if (!v.isLongClickable) { shown = true; showHelp(name()) } }
+        // v187: a key may take the two-second hold for itself (REC: START SONY), then its help does not open
+        val open = Runnable { if (!v.isLongClickable) { shown = true; if (hold?.invoke() != true) showHelp(name()) } }
         v.setOnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { shown = false; v.postDelayed(open, HELP_MS) }
@@ -946,6 +949,7 @@ class MainActivity : AppCompatActivity() {
         requestCode: Int, permissions: Array<out String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == SONY_PERMISSION) { followSony(); return }   // v187
         if (requestCode == 2) {
             // The microphone alone. The camera is already running; only the
             // meter and the sound on a take were waiting for this.
@@ -1019,6 +1023,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        followSony()
         if (keptRunning) resumeKept()
         ui.removeCallbacks(logExposureTick)
         ui.post(logExposureTick)
@@ -4570,7 +4575,101 @@ class MainActivity : AppCompatActivity() {
             text.setSpan(android.text.style.ForegroundColorSpan(colour), wordStart, text.length,
                 android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
+        sonyStatus(text)
         telemetry.text = text
+    }
+
+    // --- v187: SONY, the Mantra Sony Remote inside the camera ---------------------------------------------------------
+    // Marko, 31.10.2026: "when user enables Sony Remote Control status for Sony, which is just, is it recording or not?
+    // and how many cameras are recording ... when user place record for two seconds. What will pop up on the screen is
+    // Start Sony and then Start Sony will start our Bluetooth recording on everything."
+
+    private val sonyHeard: (String, String, Boolean?) -> Unit = { _, _, _ -> ui.post { refreshTelemetry() } }
+
+    /** Settings → SONY on: the shared Bluetooth remote runs and the status line listens to it. */
+    private fun followSony() {
+        val on = SonyLink.enabled(this)
+        SonyLink.unlisten(sonyHeard)
+        if (on) {
+            if (!SonyLink.permitted(this)) requestPermissions(SonyLink.PERMISSIONS, SONY_PERMISSION)
+            else { SonyLink.start(this); SonyLink.listen(sonyHeard) }
+        }
+        refreshTelemetry()
+    }
+
+    /**
+     * After the outputs, in their language: SONY grey while no Sony is ready, SONY STBY 0/2 white with the cameras
+     * ready, ● SONY REC 2/2 red dot while they record (how many record, of how many are ready).
+     */
+    private fun sonyStatus(text: android.text.SpannableStringBuilder) {
+        if (!SonyLink.enabled(this)) return
+        val ready = SonyLink.ready; val rec = SonyLink.recording
+        if (text.isNotEmpty()) text.append(".")
+        val start = text.length
+        if (rec > 0) {
+            text.append("● ")
+            text.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.rgb(255, 59, 48)),
+                start, text.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val word = text.length
+        text.append(when { ready == 0 -> "SONY"; rec > 0 -> "SONY REC $rec/$ready"; else -> "SONY STBY 0/$ready" })
+        text.setSpan(android.text.style.ForegroundColorSpan(
+            if (ready == 0) android.graphics.Color.argb(120, 200, 204, 208) else android.graphics.Color.WHITE),
+            word, text.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+
+    /** REC held two seconds with SONY on: START SONY (or STOP SONY while anything records). @return true when taken. */
+    private fun sonyHold(): Boolean {
+        if (!SonyLink.enabled(this)) return false
+        val stopping = rolling || SonyLink.recording > 0
+        val word = if (stopping) "■  STOP SONY" else "●  START SONY"
+        val ready = SonyLink.ready
+        val key = TextView(this).apply {
+            text = android.text.SpannableString(word).apply {
+                setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.rgb(255, 59, 48)), 0, 1,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            textSize = 30f; gravity = android.view.Gravity.CENTER; setTextColor(android.graphics.Color.WHITE)
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
+            val pad = (28 * resources.displayMetrics.density).toInt(); setPadding(pad, pad, pad, pad)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.rgb(0x22, 0x22, 0x26)); cornerRadius = 28f
+                setStroke(6, android.graphics.Color.rgb(255, 59, 48))
+            }
+        }
+        val note = TextView(this).apply {
+            text = if (ready == 0) "No Sony ready on Bluetooth yet (Bluetooth Rmt Ctrl: On, paired)"
+                else "$ready Sony ready · ${SonyLink.recording} recording · and this camera"
+            textSize = 13f; gravity = android.view.Gravity.CENTER; setTextColor(android.graphics.Color.rgb(0xF2, 0xDD, 0xB4))
+            typeface = android.graphics.Typeface.MONOSPACE; setPadding(0, 24, 0, 0)
+        }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL; val p = (24 * resources.displayMetrics.density).toInt()
+            setPadding(p, p, p, p); addView(key); addView(note)
+        }
+        val dialog = android.app.AlertDialog.Builder(this).setView(box).create()
+        dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.argb(235, 11, 13, 16)))
+        key.setOnClickListener { dialog.dismiss(); startSony(!stopping) }
+        dialog.show()
+        ui.postDelayed({ if (dialog.isShowing) dialog.dismiss() }, 8000)
+        Trace.control("sony", "hold", if (stopping) "STOP SONY offered" else "START SONY offered")
+        return true
+    }
+
+    /** Every Sony over Bluetooth, and this camera's take, together. */
+    private fun startSony(on: Boolean) {
+        SonyLink.start(this)?.start()
+        val pressed = SonyLink.setRecording(on)
+        if (on && !rolling) startAll()
+        if (!on && rolling) stopAll()
+        val ready = SonyLink.ready
+        say(when {
+            ready == 0 -> "SONY: no camera ready on Bluetooth — ${if (on) "this camera only" else "this camera stopped"}"
+            on -> "START SONY: REC on $pressed of $ready Sony + this camera"
+            else -> "STOP SONY: $pressed of $ready Sony stopped + this camera"
+        })
+        Trace.control("sony", if (on) "START" else "STOP", "$pressed of $ready pressed")
+        refreshTelemetry()
     }
 
     private fun exportTrace() {
@@ -4588,6 +4687,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         if (adbRegistered) runCatching { unregisterReceiver(adbControl) }
+        SonyLink.unlisten(sonyHeard)
         // v157 (27.10.2026, THE BACKGROUND FREEZE): the ticks die with the activity. onPause re-posts them when NDI goes
         // on behind other apps, so an activity swiped away kept its rateTick, and its syncService (nothing streaming
         // here) stopped the next activity's stream service every second; behind other apps nothing started it again,

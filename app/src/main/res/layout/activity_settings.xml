@@ -238,6 +238,18 @@
                 android:textSize="11sp"
                 android:text="LOOK" />
             <TextView
+                android:id="@+id/tabSony"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:textSize="11sp"
+                android:text="SONY" />
+            <TextView
                 android:id="@+id/tabMore"
                 android:layout_width="0dp"
                 android:layout_weight="1"
@@ -706,6 +718,41 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:max="50" />
+            </LinearLayout>
+            <!-- v187: SONY, the Mantra Sony Remote inside the camera (Marko, 31.10.2026) -->
+            <LinearLayout
+                android:id="@+id/pageSony"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+        <Switch
+            android:id="@+id/sonyRemote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:textColor="@color/sand"
+            android:text="SONY REMOTE" />
+        <TextView android:tag="hint" style="@style/MantraHint"
+            android:text="On: the phone is the Bluetooth remote of every Sony nearby (each camera: MENU → Network → Bluetooth → Bluetooth Rmt Ctrl: On, then pair). The top line says SONY, whether they record and how many. Hold REC two seconds: START SONY starts every Sony and this camera together." />
+        <TextView
+            android:id="@+id/sonyNow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:fontFamily="monospace"
+            android:textSize="12sp"
+            android:textColor="@color/quiet" />
+        <Button
+            android:id="@+id/openSony"
+            style="@style/MantraKey"
+            android:layout_width="match_parent"
+            android:text="OPEN SONY REMOTE" />
+        <TextView android:tag="hint" style="@style/MantraHint"
+            android:text="The whole Mantra Sony Remote: the TC generator, time code into a Sony over USB, reading a Sony's time code from its screen, REC ALL, SYNC CAMERA REC BUTTONS, the clap, LTC out. Every take of this camera carries a free-run time code from the same generator, so its files line up with the Sonys'." />
             </LinearLayout>
             <LinearLayout
                 android:id="@+id/pageMore"
