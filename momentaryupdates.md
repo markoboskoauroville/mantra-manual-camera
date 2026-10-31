@@ -1448,3 +1448,21 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
    test is measured from the trace, not photographed.
 8. **Proven before it replaces libmv**: the same swinging-ball test, the GPU tracker against libmv on the same
    frames, lost frames and pixel error counted; libmv stays as the fallback until the GPU one wins.
+
+## 31.10.2026: the Sony remote inside the camera; free-run timecode in every file
+> "Let's work on the Mantra camera. So Pixel 7 is open up, you can test it. We need to build in something we already
+> built, just as a separate app. And that's the Sony Remote Control. At the top there are status text. Also there will
+> be, when user enables Sony Remote Control status for Sony, which is just, is it recording or not? and how many
+> cameras are recording. So get the code in the settings, put the tabs on your remote with the full feature the app,
+> same functioning app and when this is enabled when user place record for two seconds. What will pop up on the screen
+> is Start Sony and then Start Sony will start our Bluetooth recording on everything. Also we need to upgrade because
+> of this our application that in the files there is written real time code as a free run time code. So So every of
+> our files have saved in timecode. Let's build that."
+
+1. The Sony Remote (SONY_REMOTE_CONTROLLER) built into the camera, its full function, as a tab in Settings.
+   **Status:** pending.
+2. A Sony status in the top status text when enabled: recording or not, and how many cameras record.
+   **Status:** pending.
+3. When enabled, REC held for two seconds pops up START SONY; START SONY starts Bluetooth recording on every Sony.
+   **Status:** pending.
+4. Real time of day written into every file as free-run timecode. **Status:** pending.
