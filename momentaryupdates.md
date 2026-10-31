@@ -1466,3 +1466,15 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
 3. When enabled, REC held for two seconds pops up START SONY; START SONY starts Bluetooth recording on every Sony.
    **Status:** pending.
 4. Real time of day written into every file as free-run timecode. **Status:** pending.
+
+## 31.10.2026: the promo page, and affiliate links for every Sony Alpha
+> "After this is done, please write in the promo web page new features and also make much more affiliate links. We
+> need to have affiliate link for every Sony Alpha camera and if they are not available anymore from 6000 series, find
+> the ones in Amazon Germany that sell second hand cameras but the listing is updated. Maybe they have one or two or
+> three but under same listing when the new batch comes it's updated. It's like a permanent link, it's not a link which
+> expires."
+
+5. The promo page: the new features (the Sony remote inside, the Sony status, START SONY, free-run time code).
+   **Status:** pending, after 1–4.
+6. An Amazon.de affiliate link for every Sony Alpha camera; for the 6000 series no longer sold new, a permanent listing
+   (one that is refilled with used or renewed stock, not one that expires). **Status:** pending, after 1–4.
