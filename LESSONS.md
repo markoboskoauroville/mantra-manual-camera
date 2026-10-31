@@ -263,3 +263,21 @@ real client off: probe with the app's own status, not with a second connection.
   taking each frame's sharpest place, which a printed logo wins every time.
 - **Real touches through adb need the screen's own coordinates of the moment** (they flip with the half turn), and a
   mark only takes a tap while its key is green (one green at a time; E needs two presses from grey).
+
+## 31.10.2026 (v187: the Sony remote inside, time code in every take)
+
+- **MediaMuxer cannot write a time code; add it after the muxer closes, without moving a byte.** Append a 12-byte
+  `mdat` holding the sample (frame number since midnight) and a new `moov` (mvhd's next_track_ID, the picture's trak with
+  `tref/tmcd`, a `tmcd` trak shaped like ffmpeg's `-timecode`), then rename the old `moov` to `free`. Every chunk offset
+  stays valid whether the muxer put `moov` first or last. Proven by ffprobe on the Mac (Mp4TimecodeTest) and on two
+  Pixel takes; ffprobe 8 repeats a stream under STREAM_GROUP, so count distinct lines.
+- **The first frame's wall time comes from its own timestamp**, not from when it reached the muxer (the encoder holds
+  frames back): wall = now − (nanoTime − pts), with the arrival time as the fallback when the pts is on another clock.
+- **A screen copied from a landscape app must be looked at upright.** TC Jam's flag row held the camera displays side by
+  side; upright they were squeezed to zero width, their text stacked a letter per line and the row swelled over half
+  the screen, and six keys in one row broke words. Upright: displays under the flag, keys two rows of three.
+- **An eighth settings tab pushed OUTPUTS onto two lines.** Tabs now take a width by the length of their word.
+- **A pop-up that closes itself must be tested inside its time**: the first START SONY tap came after the 8 s pop-up had
+  closed (reading the screenshot took longer) and landed on the picture as a focus tap. Tap right after the screenshot.
+- **The Pixel is not in `adb devices` until something connects it**: `scripts/mcam state` finds it over mDNS and
+  connects; then use that serial (ANDROID_SERIAL), not a quoted "adb -s …" in one zsh variable (zsh does not split it).
