@@ -157,6 +157,19 @@
   @media (max-width: 860px) { .kit { grid-template-columns: 1fr; } }
   footer { padding: 50px 0 70px; color: var(--quiet); font-size: 14px; border-top: 1px solid rgba(255,255,255,.05); }
 
+  /* the page order (MANTRA_MANIFEST app-page-order.md): banner, introduction, lifestyle, technical, donation */
+  header.top { padding: 24px 0 30px; }
+  .banner { position: relative; border-radius: 22px; overflow: hidden; margin: 0 0 30px; background: #000; border: 1px solid var(--edge); box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  .banner > img { display: block; width: 100%; height: auto; aspect-ratio: 1600 / 893; object-fit: cover; }
+  .banner .over { position: absolute; left: 0; right: 0; bottom: 0; padding: 60px 26px 22px;
+                  background: linear-gradient(transparent, rgba(0,0,0,.84)); display: flex; gap: 18px; align-items: center; }
+  .banner .over img { width: 64px; height: 64px; flex: none; }
+  .banner h1 { font-size: clamp(34px, 5.5vw, 60px); }
+  .banner .by { color: var(--ink2); font-size: 15px; margin-top: 6px; }
+  .life { border-radius: 22px; overflow: hidden; margin: 36px 0 0; border: 1px solid var(--edge); }
+  .life img { display: block; width: 100%; height: auto; }
+  @media (max-width: 600px) { .banner .over { position: static; background: rgba(30,22,20,.95); padding: 16px; } }
+
   @media (max-width: 860px) {
     .hero, .grid2 { grid-template-columns: 1fr; }
     .grid3 { grid-template-columns: 1fr; }
@@ -177,18 +190,31 @@
 </head>
 <body>
 
-<header>
-  <div class="wrap hero">
-    <div>
-      <div class="eyebrow">An Android camera app by Mantra Productions</div>
-      <h1>Mantra<br><em>Manual Camera</em></h1>
-      <p class="lead" style="margin-top:22px">A broadcast camera in your pocket. Real manual control, real log, a clean feed and NDI out, from the phone you already own, and the whole camera steered from a second phone or a tablet.</p>
-      <p class="status"><span class="dot"></span>In development · tested every day on a Google Pixel 7</p>
-      <a class="cta" data-dl-app="mantra-manual-camera" href="https://github.com/markoboskoauroville/mantra-manual-camera/releases/latest" target="_blank" rel="noopener">Download the latest build →</a>
+<header class="top">
+  <div class="wrap">
+  <!-- 1. the banner: the app at work -->
+  <div class="banner">
+    <img src="img/hero.jpg" alt="A phone running Mantra Manual Camera on a small tripod at a kirtan concert, streaming to a tablet" width="1600" height="893">
+    <div class="over">
+      <img src="favicon.svg" alt="">
+      <div>
+        <h1>Mantra <em>Manual Camera</em></h1>
+        <div class="by">A broadcast camera in your pocket · Android · by Mantra Productions</div>
+      </div>
     </div>
-    <div class="photo"><img src="img/hero.jpg" alt="A phone running Mantra Manual Camera on a small tripod at a kirtan concert, streaming to a tablet" onerror="this.onerror=null;this.src='img/screens/01-camera.jpg'"><div class="wait">photograph in the making</div></div>
+  </div>
+
+  <!-- 2. the introduction -->
+  <p class="lead">A broadcast camera in your pocket. Real manual control, real log, a clean feed and NDI out, from the phone you already own, and the whole camera steered from a second phone or a tablet.</p>
+  <a class="cta" data-dl-app="mantra-manual-camera" href="https://github.com/markoboskoauroville/mantra-manual-camera/releases/latest" target="_blank" rel="noopener" style="margin-top:8px">Download the latest build →</a>
+  <p class="status quiet" style="margin-top:16px"><span class="dot"></span>The latest build · in development · tested every day on a Google Pixel 7</p>
+
+  <!-- 3. the lifestyle picture -->
+  <div class="life"><img src="img/remote.jpg" alt="Hands holding a phone with Camera Remote, the phone camera on a tripod behind" width="1600" height="893" loading="lazy"></div>
   </div>
 </header>
+
+<!-- 4. the technical part -->
 
 <section id="why">
   <div class="wrap">
@@ -221,7 +247,7 @@
     </div>
     <div class="grid2" style="margin-top:16px">
       <div class="card"><h3>Remote focus, lens and exposure</h3><p>A focus puller on the remote: a distance scale with keyframes, and a rack between them at the speed you set. The phone's lenses are its zoom: wide, main, tele, one key each. Quality per network, set live: frame rate, size and bit rate, Wi-Fi and 4G each remembering their own.</p></div>
-      <div class="card"><div class="photo" style="aspect-ratio:16/9;margin:-4px 0 14px"><img src="img/remote.jpg" alt="Hands holding a phone with Camera Remote, the phone camera on a tripod behind" loading="lazy" onerror="this.remove()"></div><h3>With Sony cameras too</h3><p>Next to the phones, Sony Alpha bodies join the same tablet through <a href="https://mantrasonyremote.pages.dev" target="_blank" rel="noopener">Mantra Sony Remote</a>: one key per camera and a multiview of what is live. The Sony bodies it works with, from the α6000 to the α1, are listed there with where to find each one, new or used.</p></div>
+      <div class="card"><h3>With Sony cameras too</h3><p>Next to the phones, Sony Alpha bodies join the same tablet through <a href="https://mantrasonyremote.pages.dev" target="_blank" rel="noopener">Mantra Sony Remote</a>: one key per camera and a multiview of what is live. The Sony bodies it works with, from the α6000 to the α1, are listed there with where to find each one, new or used.</p></div>
     </div>
   </div>
 </section>
@@ -258,6 +284,7 @@
   </div>
 </section>
 
+<!-- 5. the donation bowl -->
 <!-- THE MANTRA PAYMENT GATEWAY, the donation bowl (MANTRA_MANIFEST modules/donation-bowl.md, payment-links.md).
      Step 1, on the page: only the title and the Tibetan bowl (a photoreal Nano Banana Pro render).
      Step 2, after a tap: the bowl rings (a singing bowl synthesised in the browser, nothing downloaded), fades away, and

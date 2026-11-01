@@ -1491,3 +1491,11 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
    links there and carries no Amazon links). Every ASIN found by a research pass, then checked by its title on
    amazon.de in Firefox (≈17 MB, each page read only to its title). Not found: the α1 II and the first FX3 body (the
    FX3A is listed); the renewed α6000 listing is dead.
+
+## 1.11.2026: the page order (banner, introduction, lifestyle, technical, donation)
+
+> "the page is perfect. Let's do it all pages" (Marko, 1.11.2026, about mantramiditools.pages.dev)
+
+1. Every public app page in the order of MANTRA_MANIFEST modules/app-page-order.md: the banner (the app at work, name and one line on it), a short introduction with the download button and the version line, the lifestyle picture, the technical part, the donation bowl.
+
+**Status:** done 1.11.2026 (website/index.html): banner = img/hero.jpg (the phone on a tripod at a kirtan, the tablet beside) with the icon and the name on it, the introduction with Download the latest build, the lifestyle picture img/remote.jpg (hands holding Camera Remote, moved up from the Sony card), the technical part, the bowl.
