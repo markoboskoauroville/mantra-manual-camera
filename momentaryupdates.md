@@ -1499,3 +1499,8 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
 1. Every public app page in the order of MANTRA_MANIFEST modules/app-page-order.md: the banner (the app at work, name and one line on it), a short introduction with the download button and the version line, the lifestyle picture, the technical part, the donation bowl.
 
 **Status:** done 1.11.2026 (website/index.html): banner = img/hero.jpg (the phone on a tripod at a kirtan, the tablet beside) with the icon and the name on it, the introduction with Download the latest build, the lifestyle picture img/remote.jpg (hands holding Camera Remote, moved up from the Sony card), the technical part, the bowl.
+
+## 1.11.2026: no Mantra at the beginning of the name
+> "please, you do renaming, and then let me write on the screen in big letters. You can close the session now" (1.11.2026)
+
+**Status:** done: the page, the deploy scripts and the bio card say "<Name> (Mantra)".
