@@ -685,7 +685,7 @@ class MainActivity : AppCompatActivity() {
             .also { it.glyph = RailButton.Glyph.ZEBRA; it.tint = SNAP_ORANGE; railRight.addView(it) }
         // v145: no gear (Marko, 26.10.2026: "remove this settings icon, and clicking on the free space will open the
         // settings. That's why you need to color this free space thing in yellow"). The readout is the way in.
-        storageKey = newKey("—") { openSettings() }.also { it.tint = STORAGE_YELLOW; railRight.addView(it) }
+        storageKey = newKey("—") { openSettings() }.also { it.tint = STORAGE_YELLOW; it.gearBehind = true; railRight.addView(it) }
         // v155 (Marko, 26.10.2026: "two points of reference that tell me how long I can keep working"): the drive's
         // time left, and under it the battery's, on the ring of the POWER MONITOR; a tap opens all of its numbers
         powerMonitor = PowerMonitor(this)
