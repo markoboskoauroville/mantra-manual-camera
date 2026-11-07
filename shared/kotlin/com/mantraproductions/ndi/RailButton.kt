@@ -44,6 +44,10 @@ class RailButton @JvmOverloads constructor(
     var glyph: Glyph = Glyph.NONE
         set(value) { field = value; describe(); invalidate() }
 
+    /** A faint gear drawn behind the key's words: this key opens settings (the storage readout). */
+    var gearBehind: Boolean = false
+        set(value) { if (field != value) { field = value; invalidate() } }
+
     /** v155: ON stays green even on a key with a tint (FC, PEA, ZEB: orange off, green on). */
     var onGreen: Boolean = true
 
@@ -197,6 +201,13 @@ class RailButton @JvmOverloads constructor(
             return
         }
 
+        // A faint gear behind the words, so a key that is also the way into settings says so
+        // (Marko, 7.11.2026: "a gear icon as a background of this free space text").
+        if (gearBehind) {
+            ghostGear.color = Color.argb(70, Color.red(tint), Color.green(tint), Color.blue(tint))
+            drawGear(canvas, dw / 2f, dh / 2f, minOf(dw, dh) * 0.5f, ghostGear)
+        }
+
         // SHRINK TO FIT. Eleven keys across a phone held upright left
         // "SHOOT", "FALSE" and "ZEBRA" clipped at both ends (v85 on the
         // emulator). A word is drawn at its full size when it fits, and
@@ -255,6 +266,29 @@ class RailButton @JvmOverloads constructor(
      *  frame of the assists (zebra, peaking, false colour) twice as thick while green. */
     private fun frameWidth() = density(if (state == State.ON) 3.6f else 1.8f)
 
+    /** The gear: a heavy ring, six teeth touching it, and a hole. [r] is the glyph radius (the ring is 0.66 of it). */
+    private fun drawGear(canvas: Canvas, cx: Float, cy: Float, r: Float, paint: Paint) {
+        val ring = r * 0.66f
+        paint.strokeWidth = density(2.2f)
+        canvas.drawCircle(cx, cy, ring, paint)
+        paint.strokeWidth = density(2.6f)
+        for (i in 0 until 6) {
+            val a = Math.toRadians(i * 60.0)
+            canvas.drawLine(
+                cx + (ring * 0.92f) * cos(a).toFloat(), cy + (ring * 0.92f) * sin(a).toFloat(),
+                cx + (ring * 1.42f) * cos(a).toFloat(), cy + (ring * 1.42f) * sin(a).toFloat(), paint
+            )
+        }
+        paint.strokeWidth = density(1.4f)
+        // The hole, which is what makes it a gear rather than a wheel.
+        canvas.drawCircle(cx, cy, ring * 0.30f, paint)
+    }
+
+    private val ghostGear = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+    }
+
     private fun drawGlyph(canvas: Canvas, tint: Int) {
         val cx = dw / 2f
         val cy = dh / 2f
@@ -274,21 +308,8 @@ class RailButton @JvmOverloads constructor(
                 // gear — and a sun in the corner of a camera reads as
                 // brightness. The ring has to dominate and the teeth have to
                 // touch it.
-                val ring = r * 0.66f
-                mark.strokeWidth = density(2.2f)
-                canvas.drawCircle(cx, cy, ring, mark)
-                mark.strokeWidth = density(2.6f)
-                for (i in 0 until 6) {
-                    val a = Math.toRadians(i * 60.0)
-                    val sx = cx + (ring * 0.92f) * cos(a).toFloat()
-                    val sy = cy + (ring * 0.92f) * sin(a).toFloat()
-                    val ex = cx + (ring * 1.42f) * cos(a).toFloat()
-                    val ey = cy + (ring * 1.42f) * sin(a).toFloat()
-                    canvas.drawLine(sx, sy, ex, ey, mark)
-                }
+                drawGear(canvas, cx, cy, r, mark)
                 mark.strokeWidth = density(1.4f)
-                // The hole, which is what makes it a gear rather than a wheel.
-                canvas.drawCircle(cx, cy, ring * 0.30f, mark)
             }
             Glyph.DOWN -> {
                 markPath.moveTo(cx - r, cy - r * 0.45f)
