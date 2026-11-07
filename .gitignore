@@ -29,3 +29,6 @@ signing/
 groq*
 *api*.txt
 gsk_*
+
+# The ceres library's own source files have "token" in their names (thread tokens, not secrets); v188 build fix
+!app/src/main/cpp/third_party/ceres/internal/ceres/*token*
