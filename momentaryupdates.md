@@ -1512,3 +1512,7 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
 1. One centred link "My studio setup" right above the donation bowl, opening https://studiosetupmantra.pages.dev in a new tab, with the line "The gear these apps are made with · affiliate links on Amazon.de".
 
 **Status:** published 1.11.2026: studiosetupmantra.pages.dev registered in PartnerNet and live with the tag; Marko: "Please publish it."
+
+## 7.11.2026, 23:05 (hub session)
+"So this file was created with my camera, mantra manual camera. Please fix the camera so it doesn't create these kind of files anymore."
+(The file: Movies/SANTOSHI/mantra-20261107-182417.mp4, 43 GB, 4K HEVC 24 fps + mono AAC: audio starts at 0 s, video at 4911.107 s, so the file claims 2 h 19 min and shows no picture for 82 min. Fixed on the Mac by a remux.)
