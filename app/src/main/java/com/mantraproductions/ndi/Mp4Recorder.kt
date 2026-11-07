@@ -3,6 +3,7 @@ package com.mantraproductions.ndi
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.os.SystemClock
 import java.io.FileDescriptor
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicLong
@@ -73,6 +74,14 @@ class Mp4Recorder(
     @Volatile var firstFrameWallMs = 0L
         private set
 
+    /**
+     * v188: both tracks of the file start at zero, on one clock. [videoShiftUs] moves a picture stamped on the boot
+     * clock onto the sound's monotonic clock ([Mechanism.videoClockShiftUs]); [baseUs] is the first picture's time on
+     * that clock, taken off every sample, picture and sound, so nothing in the file sits 82 minutes from anything.
+     */
+    private var videoShiftUs = 0L
+    private var baseUs = -1L
+
     /** Frames in the file, and frames the muxer would not take. */
     val frames: Long get() = written.get()
     val dropped: Long get() = refused.get()
@@ -118,16 +127,23 @@ class Mp4Recorder(
             if ((info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME) == 0) return
             seenKeyframe = true
             val now = System.currentTimeMillis()
-            val behindUs = System.nanoTime() / 1000 - info.presentationTimeUs
+            val monoUs = System.nanoTime() / 1000
+            videoShiftUs = Mechanism.videoClockShiftUs(info.presentationTimeUs, monoUs, SystemClock.elapsedRealtimeNanos() / 1000)
+            if (videoShiftUs != 0L) Trace.state("take: picture on the boot clock, moved ${videoShiftUs / 1000} ms onto the sound's clock")
+            val behindUs = monoUs - (info.presentationTimeUs - videoShiftUs)
             firstFrameWallMs = if (behindUs in 0..5_000_000) now - behindUs / 1000 else now
         }
+        val ptsUs = info.presentationTimeUs - videoShiftUs
         // Constant frame rate: every frame on an exact 1/fps grid.
-        if (firstVideoUs < 0) firstVideoUs = info.presentationTimeUs
-        val slot = Mechanism.cfrSlot(info.presentationTimeUs, firstVideoUs, fps, lastSlot)
+        if (firstVideoUs < 0) { firstVideoUs = ptsUs; baseUs = ptsUs }
+        val slot = Mechanism.cfrSlot(ptsUs, firstVideoUs, fps, lastSlot)
         lastSlot = slot
-        info.presentationTimeUs = Mechanism.cfrSlotUs(slot, firstVideoUs, fps)
+        // A copy: the same info goes on to the stream, which keeps the camera's own times.
+        val out = MediaCodec.BufferInfo().apply {
+            set(info.offset, info.size, Mechanism.cfrSlotUs(slot, firstVideoUs, fps) - baseUs, info.flags)
+        }
         try {
-            muxer?.writeSampleData(videoTrack, buffer, info)
+            muxer?.writeSampleData(videoTrack, buffer, out)
             written.incrementAndGet()
         } catch (t: Throwable) {
             // A refused sample is a frame that is not in the file. It was
@@ -143,7 +159,12 @@ class Mp4Recorder(
         // players treat it as a negative offset for the whole track.
         if (!started || audioTrack < 0 || !seenKeyframe) return
         if ((info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) return
-        runCatching { muxer?.writeSampleData(audioTrack, buffer, info) }
+        if (baseUs < 0) return
+        // On the picture's zero (v188). Sound from before the first picture is left out, as before.
+        val t = info.presentationTimeUs - baseUs
+        if (t < 0) return
+        val out = MediaCodec.BufferInfo().apply { set(info.offset, info.size, t, info.flags) }
+        runCatching { muxer?.writeSampleData(audioTrack, buffer, out) }
     }
 
     @Synchronized
@@ -158,6 +179,8 @@ class Mp4Recorder(
         seenKeyframe = false
         firstVideoUs = -1L
         lastSlot = -1L
+        videoShiftUs = 0L
+        baseUs = -1L
         videoTrack = -1
         audioTrack = -1
     }

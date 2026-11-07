@@ -1176,6 +1176,23 @@ class MechanismTest {
         assertEquals(listOf(0L, 40_000L, 80_000L, 120_000L, 160_000L), out)
     }
 
+    // --- one clock for picture and sound (v188) --------------------------------
+
+    @Test fun aFrameOnTheBootClockIsMovedOntoTheMonotonicClock() {
+        // His Santoshi take: the phone had slept 4911.107 s, the frame was 80 ms old.
+        val mono = 2_000_000_000L; val boot = mono + 4_911_107_000L
+        assertEquals(4_911_107_000L, Mechanism.videoClockShiftUs(boot - 80_000, mono, boot))
+    }
+
+    @Test fun aFrameOnTheMonotonicClockStaysWhereItIs() {
+        val mono = 2_000_000_000L; val boot = mono + 4_911_107_000L
+        assertEquals(0L, Mechanism.videoClockShiftUs(mono - 80_000, mono, boot))
+    }
+
+    @Test fun clocksThatAgreeMoveNothing() {
+        assertEquals(0L, Mechanism.videoClockShiftUs(5_000_000, 5_080_000, 5_080_300))
+    }
+
     @Test fun aDroppedFrameLeavesItsSlotEmptyAndKeepsLaterFramesOnTime() {
         assertEquals(3L, Mechanism.cfrSlot(120_010, 0, 25, 1))
     }

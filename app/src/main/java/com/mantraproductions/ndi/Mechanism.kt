@@ -2152,6 +2152,23 @@ object Mechanism {
         return if (slot <= lastSlot) lastSlot + 1 else slot
     }
 
+    /**
+     * v188, Marko 7.11.2026: *"Please fix the camera so it doesn't create these kind of files anymore."* His 4K HEVC
+     * take of the Santoshi concert came out with the sound at 0 s and the picture at 4911 s: the picture was stamped
+     * on the BOOT clock (SystemClock.elapsedRealtime, counts the phone's sleep), the sound on the MONOTONIC clock
+     * (System.nanoTime, does not), and the phone had slept 82 minutes since it was switched on. The muxer kept the
+     * difference as an empty stretch before the picture (v83 saw the same, 7664 s).
+     *
+     * How far to move a frame's time to put it on the monotonic clock: read both clocks now and see which one the
+     * frame is near. A frame on the boot clock is moved back by the clocks' difference; a frame already on the
+     * monotonic clock (or on neither) is left alone.
+     */
+    fun videoClockShiftUs(ptsUs: Long, nowMonoUs: Long, nowBootUs: Long): Long {
+        val diff = nowBootUs - nowMonoUs
+        if (diff < 1_000_000L) return 0L   // the phone has not slept: the clocks agree within a second
+        return if (Math.abs(ptsUs - nowBootUs) < Math.abs(ptsUs - nowMonoUs)) diff else 0L
+    }
+
     /** The time of grid slot [slot]: exact, never accumulating rounding. */
     fun cfrSlotUs(slot: Long, firstUs: Long, fps: Int): Long =
         if (fps <= 0) firstUs else firstUs + Math.round(slot * 1_000_000.0 / fps)
