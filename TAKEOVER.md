@@ -1,0 +1,2 @@
+
+**7.11.2026, 23:10 — v188 released (Latest):** picture and sound of a take on one clock, both starting at 0 (the Santoshi take had its picture 4911 s after its sound: boot clock against the monotonic clock). Built on GitHub after two fixes: three ceres sources were kept out of git by the *token* rule; the local folder worked on branch claude/mantra-manual-camera-rename-mxa5ln while main stood at v182 (main fast-forwarded, 52 commits). Not yet tested with a recording. Stereo: off by default (Settings audioStereo); Marko asked why his take is mono (answer given, not changed).
