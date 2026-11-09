@@ -39,7 +39,7 @@ class RailButton @JvmOverloads constructor(
      * out on a shoot — a missing glyph is a hollow box, and a hollow box in the
      * corner of a camera is indistinguishable from a bug.
      */
-    enum class Glyph { NONE, GEAR, UP, DOWN, CAMERA, SQUARE, CIRCLE, TRIANGLE, PLAY, ROTATE, ZEBRA, PEAKING, FALSECOLOUR, RULER }
+    enum class Glyph { NONE, GEAR, UP, DOWN, CAMERA, SQUARE, CIRCLE, TRIANGLE, PLAY, ROTATE, ZEBRA, PEAKING, FALSECOLOUR, RULER, LOCK }
 
     var glyph: Glyph = Glyph.NONE
         set(value) { field = value; describe(); invalidate() }
@@ -106,6 +106,7 @@ class RailButton @JvmOverloads constructor(
             glyph == Glyph.ROTATE -> if (across) "landscape" else "portrait"
             glyph == Glyph.ZEBRA -> "zebra"
             glyph == Glyph.PEAKING -> "peaking"
+            glyph == Glyph.LOCK -> "lock"
             glyph == Glyph.FALSECOLOUR -> "false colour"
             glyph == Glyph.SQUARE -> "focus square"
             glyph == Glyph.CIRCLE -> "exposure circle"
@@ -458,6 +459,7 @@ class RailButton @JvmOverloads constructor(
                 mark.strokeWidth = frameWidth()
                 canvas.drawRect(cx - h, cy - h, cx + h, cy + h, mark)
             }
+            Glyph.LOCK -> Padlock.draw(canvas, cx, cy, r * 1.9f, false, tint, Color.BLACK)
             Glyph.NONE -> Unit
         }
 

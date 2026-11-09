@@ -3,6 +3,10 @@ name: Build
 # 26.10.2026, Marko: "We are not using GitHub Actions to build the APK. It's built locally." The Mac builds and
 # releases both apps (scripts/release_mac.sh); this runs only when started by hand.
 on:
+  # 5.11.2026 (Marko): compiled only by GitHub, on every push to main
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'website/**', 'field-tests/**']
   workflow_dispatch:
 
 permissions:

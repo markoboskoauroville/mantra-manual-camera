@@ -19,6 +19,7 @@ import android.view.MotionEvent
 import android.view.Surface
 import android.view.TextureView
 import android.view.View
+import android.view.WindowManager
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -401,6 +402,7 @@ class MainActivity : AppCompatActivity() {
         refreshMarks()
 
         onBackPressedDispatcher.addCallback(this, leaveFullScreen)
+        onBackPressedDispatcher.addCallback(this, lockBack)
         // The clean feed's only control: two taps anywhere on the glass. One
         // tap is what a phone gets by accident while it is being carried.
         val leaving = android.view.GestureDetector(
@@ -681,6 +683,7 @@ class MainActivity : AppCompatActivity() {
         peakKey = newKey("PEA") { togglePeaking() }.also { it.glyph = RailButton.Glyph.PEAKING; it.tint = SNAP_ORANGE; railRight.addView(it) }
         falseKey = newKey("FC") { falseColour = !falseColour; applyLook(); refreshKeys() }
             .also { it.glyph = RailButton.Glyph.FALSECOLOUR; it.tint = SNAP_ORANGE; railRight.addView(it) }
+        lockKey = newKey("") { lockScreenOn() }.also { it.glyph = RailButton.Glyph.LOCK; it.tint = SNAP_ORANGE; railRight.addView(it) }
         zebraKey = newKey("ZEB") { zebra = !zebra; applyLook(); refreshKeys() }
             .also { it.glyph = RailButton.Glyph.ZEBRA; it.tint = SNAP_ORANGE; railRight.addView(it) }
         // v145: no gear (Marko, 26.10.2026: "remove this settings icon, and clicking on the free space will open the
@@ -1225,6 +1228,52 @@ class MainActivity : AppCompatActivity() {
         Surface.ROTATION_180 -> 180
         Surface.ROTATION_270 -> 270
         else -> 0
+    }
+
+    // ---- v190: THE LOCK (Marko, 9.11.2026), a long take on a tripod ----
+    private var locked = false
+    private var lockScreen: LockScreen? = null
+    private var brightnessBefore = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+    private lateinit var lockKey: RailButton
+
+    private val lockBack = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() { /* swallowed while locked */ }
+    }
+
+    private fun lockScreenOn() {
+        if (locked) return
+        locked = true
+        val root = findViewById<android.widget.FrameLayout>(R.id.root)
+        val ls = lockScreen ?: LockScreen(this, { if (rolling) android.os.SystemClock.elapsedRealtime() - recordingSince else null }, { lockScreenOff() })
+            .also { lockScreen = it; root.addView(it, android.widget.FrameLayout.LayoutParams(-1, -1)); it.elevation = 100f }
+        ls.show()
+        brightnessBefore = window.attributes.screenBrightness
+        window.attributes = window.attributes.also { it.screenBrightness = 0.01f }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        lockBack.isEnabled = true
+        // best effort: with Screen pinning on in the phone's settings, home and recents are held too
+        runCatching { startLockTask() }
+        Trace.control("lock", "on", if (rolling) "recording" else "standby")
+    }
+
+    private fun lockScreenOff() {
+        if (!locked) return
+        locked = false
+        lockScreen?.hide()
+        window.attributes = window.attributes.also { it.screenBrightness = brightnessBefore }
+        lockBack.isEnabled = false
+        runCatching { stopLockTask() }
+        Trace.control("lock", "off", "")
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (locked) return true      // volume, camera and the rest do nothing; the take goes on
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (locked) return true
+        return super.onKeyUp(keyCode, event)
     }
 
     private fun toggleRecording() {
@@ -2811,6 +2860,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (locked) return super.dispatchTouchEvent(ev)
         if (tapTarget() == 1 && !zonesOn && !fullScreen) markPinch.onTouchEvent(ev)
         return super.dispatchTouchEvent(ev)
     }

@@ -22,6 +22,7 @@ object Help {
         name == "REC" -> "● REC" to "Starts and stops a take. The timecode at the bottom runs while it records; the key turns red."
         name == "POR" -> "POR · PORTRAIT" to "The shooting is upright now. A tap turns it to LAN (landscape): the whole interface turns and every label stays upright."
         name == "LAN" -> "LAN · LANDSCAPE" to "The shooting is across now. A tap turns it to POR (portrait)."
+        name == "lock" -> "LOCK" to "Locks the screen for a long take on a tripod: the screen goes to its lowest brightness, every key is dead, and only a slow red pulse around the edge and the running time show that the take is alive. To unlock: tap once (the padlock opens), then tap again within two seconds."
         name == "PEA" -> "PEA · PEAKING" to "Focus peaking: the sharp edges lit in the colour chosen in settings. Monitor only."
         name == "FC" -> "FC · FALSE COLOUR" to "Exposure in false colour: middle grey green, skin pink, clipping red, crushed blacks purple. Monitor only."
         name == "ZEB" -> "ZEB · ZEBRA" to "Stripes over everything brighter than the zebra level set in settings (95 % by default). Monitor only."
