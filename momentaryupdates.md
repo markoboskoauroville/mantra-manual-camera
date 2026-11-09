@@ -1517,3 +1517,12 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
 "So this file was created with my camera, mantra manual camera. Please fix the camera so it doesn't create these kind of files anymore."
 (The file: Movies/SANTOSHI/mantra-20261107-182417.mp4, 43 GB, 4K HEVC 24 fps + mono AAC: audio starts at 0 s, video at 4911.107 s, so the file claims 2 h 19 min and shows no picture for 82 min. Fixed on the Mac by a remux.)
 "Please check why my camera doesn't record in stereo. Is it possible that Pixel 7 cannot record stereo audio?"
+
+## 9.11.2026: a LOCK for long tripod recordings (Santoshi concerts)
+> "a new feature for my Mantra camera manual, for Santoshi concerts' long-format recordings. When the camera is only on the tripod, it needs to have a lock. There will be a lock icon. When the user presses the lock, the screen goes to the minimum brightness. When it's locked you cannot access any buttons. Only we have a red outline like in Sony cameras when they're recording, so we confirm that it's recording, and this light is pulsing — a slow meditative pulse — so we confirm that our phone is not frozen. And on the phone, full screen, the time of recording is running, and the brightness of the screen is at bare minimum. To unlock it, the user clicks once and then a second time, and then it unlocks. While it's locked, it shows the lock in the middle of the screen. On the second click it shows the unlock icon and then unlocks. We need to show the 2 states of the lock: lock closed and lock open, in icon format." (Marko, 9.11.2026)
+
+1. LOCK key (closed padlock) on the right rail. Locked: window brightness at the minimum, screen kept on, every key dead, back and volume swallowed, the take untouched.
+2. Locked screen: black, a red outline that breathes slowly (about 5 s), the take time HH:MM:SS large and dim in the middle, a closed padlock.
+3. First tap: padlock opens for 2 s; second tap in that time unlocks (brightness back); otherwise it closes again.
+
+**Status:** v190 in progress, built by GitHub only.
