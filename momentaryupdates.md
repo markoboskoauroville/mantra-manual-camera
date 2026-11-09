@@ -1526,3 +1526,5 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
 3. First tap: padlock opens for 2 s; second tap in that time unlocks (brightness back); otherwise it closes again.
 
 **Status:** v190 in progress, built by GitHub only.
+
+**Status (9.11.2026, 02:30):** v191 released (Latest; v190 had screen pinning, whose dialog and keyguard got in the way, so it was taken out). LOCK key on the right rail; tested on the Pixel_7 emulator (closed and open padlock, two taps unlock, take still REC after) and, with v190, on the real Pixel 7 (locked state, pulse, running time). Open-lock state and unlock on the real phone still wait: the Pixel is behind its own PIN screen. Limit: the home gesture still leaves the app and closes the take cleanly (screen pinning in Android settings holds it). Screenshots: docs/lock-v191/.
