@@ -1251,8 +1251,6 @@ class MainActivity : AppCompatActivity() {
         window.attributes = window.attributes.also { it.screenBrightness = 0.01f }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         lockBack.isEnabled = true
-        // best effort: with Screen pinning on in the phone's settings, home and recents are held too
-        runCatching { startLockTask() }
         Trace.control("lock", "on", if (rolling) "recording" else "standby")
     }
 
@@ -1262,7 +1260,6 @@ class MainActivity : AppCompatActivity() {
         lockScreen?.hide()
         window.attributes = window.attributes.also { it.screenBrightness = brightnessBefore }
         lockBack.isEnabled = false
-        runCatching { stopLockTask() }
         Trace.control("lock", "off", "")
     }
 
