@@ -308,9 +308,15 @@ real client off: probe with the app's own status, not with a second connection.
 - **Lip-sync, how it is aligned today.** Both taps aim at the same buffer target, and both stand in place of the
   microphone inside the readers that already feed the take and the stream. So the file and the stream get the same delay:
   the Mac's sound is late against the picture by the link's delay, the buffer (150 ms on the Wi-Fi, 400 ms over
-  Tailscale, plus what it grew after dropouts) plus about half the round trip (5–50 ms). NOT DONE YET: delaying the
-  picture by that amount (or shifting the take's audio timestamps earlier by it). Until then a take with MAC LINK has
-  its sound about 0.2 s late on the Wi-Fi; slide it in the edit, the number is on the status line ("MAC LINK 165 ms").
+  Tailscale, plus what it grew after dropouts) plus about half the round trip (5–50 ms).
+  v214 (with Mac v6): the take's sound is stamped earlier by exactly that delay. AacEncoder moves its first timestamp
+  back by MacLink.delayUs(): the Mac's input buffer and packet (~9 ms, sent in the hello), half the round trip the Mac
+  measured (sent in the hello), and the tap's smoothed buffer, less the length of the first buffer, which the stamp
+  already counts. The offset is taken once at the start of a take; a link that starts in the middle of a take is not
+  shifted. Computed on 15.11.2026: about 9 + 4 + 160 = 173 ms on the Wi-Fi, about 9 + 57 + 560 = 626 ms over Tailscale.
+  The stream: the wrapper moves the capture time it hands WebRTC (getTimestamp) back by the same delay; whether the
+  receiver's A/V sync uses it is NOT proven yet. A clap test (a click sent from the Mac plus a flash the Sony sees, in one
+  take) is the proof still to do.
 - **stream-webrtc-android 1.3.10 has no buffer hook.** `setAudioRecordDataCallback` is accepted and never called (its
   WebRtcAudioRecord loop has no call). v209 wraps the recorder's own AudioRecord field (MacAudioRecord): the wrapper
   reads the real microphone (WebRTC keeps its pace) and overwrites the buffer while the Mac sends, so the stream
