@@ -1600,3 +1600,8 @@ Note: "headline" means hairline (dictation).
 > "Sony is disappearing from the user interface, but Sony Camera is said to have streaming output. That means it's streaming, actually. Please make this possible: Bluetooth plus USB. What is possible to control? Let's build it into our super app" (Marko, 14.11.2026, about 23:10)
 
 **Status:** building approved; spec from the research worker goes to the builder.
+
+## 14.11.2026: SONY always the first lens, pressing it forces recognition
+> "actually, keep Sony always as a lens. It will not disappear. That's the first lens, and I can scroll. If Sony is not recognized when I press this lens, it forces recognition again and gives me a report" (Marko, 14.11.2026, about 23:20)
+
+**Status:** in progress (with the auto-switch above): SONY stays first in the lens drawer, grey while no Sony is open; a press rescans USB, asks the permission, reopens the camera and says what it found in plain words.
