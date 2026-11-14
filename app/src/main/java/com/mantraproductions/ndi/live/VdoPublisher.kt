@@ -91,6 +91,8 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
         val remoteQueue = ArrayList<IceCandidate>()
         var missedPongs = 0
         var connected = false
+        var everConnected = false
+        var lostAt = 0L
         val born = System.currentTimeMillis()
     }
     private val peers = HashMap<String, Peer>()
@@ -402,7 +404,10 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
                     p.dc?.send(DataChannel.Buffer(ByteBuffer.wrap(JSONObject().put("ping", now.toString()).toString().toByteArray()), false))
                 }
                 if (p.missedPongs > 10) { Trace.refused("live", "viewer ${p.uuid.take(6)}: no heartbeat"); closePeer(p, false); peers.remove(p.uuid) }
-            } else if (now - p.born > 30_000) {
+            } else if (p.everConnected && p.lostAt > 0 && now - p.lostAt > 15_000) {
+                // v205: a viewer that blinked to DISCONNECTED gets 15 s to come back (was dropped at once as "never connected")
+                Trace.refused("live", "viewer ${p.uuid.take(6)} lost for 15 s"); closePeer(p, false); peers.remove(p.uuid)
+            } else if (!p.everConnected && now - p.born > 30_000) {
                 Trace.refused("live", "viewer ${p.uuid.take(6)} never connected"); closePeer(p, false); peers.remove(p.uuid)
             }
         }
@@ -431,11 +436,11 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
         override fun onConnectionChange(s: PeerConnection.PeerConnectionState) = worker.execute {
             Trace.step("live: viewer ${p.uuid.take(6)} $s")
             when (s) {
-                PeerConnection.PeerConnectionState.CONNECTED -> { p.connected = true; p.missedPongs = 0 }
+                PeerConnection.PeerConnectionState.CONNECTED -> { p.connected = true; p.everConnected = true; p.lostAt = 0L; p.missedPongs = 0 }
                 PeerConnection.PeerConnectionState.FAILED, PeerConnection.PeerConnectionState.CLOSED -> {
                     if (peers[p.uuid] === p) { closePeer(p, false); peers.remove(p.uuid) }
                 }
-                PeerConnection.PeerConnectionState.DISCONNECTED -> p.connected = false
+                PeerConnection.PeerConnectionState.DISCONNECTED -> { p.connected = false; p.lostAt = System.currentTimeMillis() }
                 else -> {}
             }
             refresh()

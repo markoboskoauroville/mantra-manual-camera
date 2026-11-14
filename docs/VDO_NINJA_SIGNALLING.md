@@ -142,3 +142,17 @@ Use this as a unit test in the app: encrypt with the fixed IV, compare hex; decr
 3. **Exact `play` vs `offerSDP` naming from the hosted server** is taken from raspberry_ninja (accepts both) and the browser code (custom server converts play to offerSDP); handle both.
 4. **ToS** of the hosted service not read (section 7).
 5. **SDP details** (H.264 profile, bitrate caps) are untested against the viewer; first test with a static pattern before the camera.
+
+## 9. What the first implementation found (v200–v205, 14–15.11.2026)
+
+- **Confirmed against the hosted server and the real viewer page:** seed with `<id><hash6>`, no handshake, no `from`;
+  the viewer's request reaches the publisher with its `UUID`; an offer encrypted as in section 3 (salt `vdo.ninja`,
+  `description` hex + `vector`) is accepted; the viewer's encrypted answer decrypts to `{"type":"answer","sdp":...}`;
+  ICE reaches CONNECTED with candidates sent one per message as `candidates` arrays. Nothing in sections 1 to 3 was
+  wrong.
+- **The site's /api/live answer:** `id` is the stream id; `push` is the browser publisher's whole URL
+  (`https://vdo.ninja/?push=<id>&password=<pw>&...`), not the id. The app takes `id`, else the `push=` parameter.
+- **Opus stereo** needs `stereo=1;sprop-stereo=1` in the answer as well as the offer (a sender encodes two channels only
+  when the remote description allows it); the app adds it to both. Not yet heard at a viewer.
+- Still open: whether the viewer prefers H.264 or VP8 from our offer (H.264 is listed first), the data channel's
+  `info` message, the 3-viewer case.

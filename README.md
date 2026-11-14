@@ -33,6 +33,16 @@ generator, time code into a Sony over USB or read from its screen, REC on every 
 The top line says whether the Sonys record and how many; hold REC two seconds and START SONY starts them all with the
 phone. Every take carries a free-run time code track from the same generator, so the clips line up in the edit.
 
+**GO LIVE to your own website, with no computer (v200).** The camera publishes itself into VDO.Ninja, the way
+the browser page ?push= does, so a website that embeds the VDO.Ninja viewer plays it: the lens in use (the
+phone's or a Sony on USB), its sound in stereo when the source is stereo, H.264 from the phone's hardware encoder
+(VP8 where there is none), about 4 Mbit/s at 1080p30, every viewer its own connection. Settings open on
+STREAMING (v204): VDO NINJA goes live on the paired site and keeps streaming with the app minimised; LIVE under REC
+does the same from the rail (hold two seconds to stop). The top line says LIVE CONNECTING, then LIVE and how many
+watch. Pairing: the site's admin page shows a QR the camera reads from its own picture, or a mantracam:// link
+(scanned, pasted, or opened on the same phone). The site's key is sealed by a key in the phone's Keystore and
+never written to the trace. For a machine with no camera there is a TEST lens: a moving pattern with a clock.
+
 **NDI HX and full NDI.** The phone appears as a camera in vMix, OBS, Wirecast, NDI Studio Monitor,
 anything that speaks NDI. Over Wi-Fi, or over a USB cable with no network at all.
 

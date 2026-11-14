@@ -3,6 +3,24 @@
 Newest first. Each lesson is one fault that shipped or nearly did, what it looked like from outside,
 and the rule that prevents it.
 
+## 15.11.2026 (v200–v205, GO LIVE, overnight cloud session)
+
+- **Two sessions on main in one night take the same number.** The cloud pushed v197 while the Mac had released v197 to
+  v199 an hour earlier; the rebase conflict was in gradle.properties only. Rule: `git pull --rebase` right before the
+  version bump, and if the push is refused, take the next free number (never a published one) and say so in the commit.
+  And never `git commit --amend` in the middle of a rebase: it rewrote the other session's commit (caught, reset).
+- **A software emulator cannot run this camera.** Without KVM the main thread misses Android's 10 s broadcast deadline
+  and the app is killed ("can't deliver broadcast"); swiftshader draws nothing, so even screenshots are black. What it
+  can prove: the network half (websocket, encryption, ICE). Start it with launch extras (--es lens test640 --es live
+  "test <id> <pw> 360"), never with broadcasts.
+- **The emulator's -http-proxy wraps every TCP connection in a CONNECT to an IP address,** which the agent proxy
+  refuses (403). Leave it off; set Android's own proxy (settings put global http_proxy 10.0.2.2:<port>) and lay the
+  proxy CA over /system/etc/security/cacerts on a tmpfs.
+- **DISCONNECTED is not the end of a viewer.** WebRTC passes through it on a short network blink; v200 dropped such a
+  viewer at once. Give it 15 s; only FAILED/CLOSED or ten missed pongs end it.
+- **WebRTC's microphone and the take's can run together** (two active recording sessions, both stereo, measured on the
+  emulator), so GO LIVE needs no change to the take's sound path.
+
 ## 1. The sound's clock is the encoder's clock, not the sensor's (v83 → v84, 26.9.2026)
 
 **What he saw:** sound and picture out of sync. **In the file:** the sound started 7664 s after the
