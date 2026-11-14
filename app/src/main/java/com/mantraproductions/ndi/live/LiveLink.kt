@@ -106,8 +106,8 @@ object LiveLink {
             c.doOutput = true
             c.setRequestProperty("Content-Type", "application/json")
             c.setRequestProperty("Authorization", "Bearer $token")
-            val body = JSONObject().put("action", action).also { if (via != null) it.put("via", via) }
-            c.outputStream.use { it.write(body.toString().toByteArray()) }
+            val req = JSONObject().put("action", action).also { if (via != null) it.put("via", via) }
+            c.outputStream.use { it.write(req.toString().toByteArray()) }
             val code = c.responseCode
             val body = (if (code >= 400) c.errorStream else c.inputStream)?.use { s ->
                 s.readBytes().decodeToString().take(16_000)       // bounded read
