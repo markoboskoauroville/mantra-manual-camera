@@ -6,6 +6,8 @@
          microphone found dead after the shoot is a shoot that happens again. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
+    <!-- v193: a USB video camera (the Sony in USB Streaming) as one more lens; the phone is the USB host -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <!-- v187: SONY REMOTE inside the camera, the phone as the Sonys' Bluetooth remote commander (SONY_REMOTE_CONTROLLER) -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />

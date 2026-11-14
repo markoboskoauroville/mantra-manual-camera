@@ -13,6 +13,7 @@ import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Size
 import android.view.Surface
+import com.mantraproductions.ndi.uvc.UvcCamera
 
 /**
  * Camera to the network, using nothing this phone did not already have.
@@ -60,7 +61,21 @@ class CameraPipeline(private val context: Context) {
 
     var isRunning = false
         private set
-    val isTenBit: Boolean get() = engine.isTenBit
+    val isTenBit: Boolean get() = usb == null && engine.isTenBit
+
+    /**
+     * v193, THE SONY AS A LENS: the USB camera drawing into the GPU stage's input, or null when the phone's own lens
+     * is in use. Everything after the stage (preview, LUT, peaking, the take, NDI HX, the link) is the same path.
+     */
+    @Volatile var usb: UvcCamera? = null
+        private set
+    val isUsb: Boolean get() = usb != null
+    /** Why the USB camera did not start, for the screen. */
+    var usbProblem: String? = null
+        private set
+    /** A USB camera stands like the phone's back camera (a landscape picture, upright in landscape). */
+    val sensorOrientation: Int get() = if (usb != null) 90 else engine.sensorOrientation
+    val isFrontFacing: Boolean get() = usb == null && engine.isFrontFacing
 
     /** v157: the stream encoder's depth; 8-bit beside a 10-bit take when the GPU stage draws the stream SDR. */
     @Volatile var streamTenBit = false
@@ -341,33 +356,42 @@ class CameraPipeline(private val context: Context) {
         curve: LogCurves.Curve,
         wantTenBit: Boolean = true,
         bitRate: Int = BIT_RATE,
-        useGpuStage: Boolean = true
+        useGpuStage: Boolean = true,
+        /** v193: a USB camera (the Sony) instead of the phone's lens; it needs the GPU stage and is 8-bit. */
+        usbCamera: UvcCamera? = null
     ): Boolean {
         if (isRunning) stop()
         this.sourceName = sourceName
         videoBitRate = bitRate
+        usbProblem = null
 
-        val characteristics = try {
+        val characteristics = if (usbCamera != null) null else try {
             characteristicsOf(cameraId, physicalId)
         } catch (t: Throwable) {
             listener?.onError("Could not read lens $cameraId")
             return false
         }
 
-        size = chooseSize(characteristics)
+        size = if (usbCamera != null) Size(usbCamera.width, usbCamera.height) else chooseSize(characteristics!!)
 
         // Asked before the camera opens: an encoder refused after the session
         // is live is a black screen the operator has to diagnose.
-        val tenBit = wantTenBit && HdrVideoEncoder.supportsTenBit()
-        if (wantTenBit && !tenBit) {
+        // v193: a USB camera gives an 8-bit RGB picture, so its stage and take are 8-bit SDR
+        val tenBit = usbCamera == null && wantTenBit && HdrVideoEncoder.supportsTenBit()
+        if (usbCamera == null && wantTenBit && !tenBit) {
             listener?.onError("No 10-bit HEVC encoder here, falling back to 8-bit")
         }
 
         // THE GPU STAGE, tried first unless settings say direct. Built before
         // the camera opens, so the session is given either its one surface or
         // the old ones, never a mixture.
-        val stage = if (useGpuStage) GpuStage.create(size.width, size.height, tenBit) else null
+        val stage = if (useGpuStage || usbCamera != null) GpuStage.create(size.width, size.height, tenBit) else null
         gpu = stage
+        if (usbCamera != null && stage == null) {
+            usbProblem = "the GPU stage could not start, and the USB camera draws only into it"
+            Trace.refused("usb camera", usbProblem!!)
+            return false
+        }
         // v157: the stream's encoder is 8-bit when the stage draws the stream SDR (a 10-bit HX stream froze in Zoom);
         // on the direct path it is also the take's, so it keeps the take's depth.
         streamTenBit = tenBit && stage?.streamEightBit != true
@@ -424,6 +448,13 @@ class CameraPipeline(private val context: Context) {
             }
             take.onEncodedSample = { buffer, info -> recorder?.writeVideo(buffer, info) }
             val takeSurface = take.start()
+            if (takeSurface == null && usbCamera != null) {
+                usbProblem = "no second encoder at ${size.width}x${size.height}"
+                Trace.refused("usb camera", usbProblem!!)
+                codec.stop(); encoder = null; encoderSurface = null
+                stage.release(); gpu = null
+                return false
+            }
             if (takeSurface == null) {
                 Trace.refused("gpu stage", "no second encoder at this size — the direct path is used")
                 stage.release()
@@ -464,6 +495,27 @@ class CameraPipeline(private val context: Context) {
             Trace.state("picture path: direct — one encoder at ${bitRate / 1_000_000} Mbit/s for the take and the stream")
         }
 
+        if (usbCamera != null) {
+            // v193: the Sony's frames go where the camera's would: the stage's input. No session, no RAW, no full NDI.
+            startedAtUs = SystemClock.elapsedRealtimeNanos() / 1000
+            rateAt = SystemClock.elapsedRealtime()
+            val why = usbCamera.start(stage!!.inputSurface)
+            if (why != null) {
+                usbProblem = why
+                Trace.refused("usb camera", why)
+                usbCamera.stop()
+                encoder?.stop(); encoder = null; encoderSurface = null
+                recordEncoder?.stop(); recordEncoder = null
+                stage.release(); gpu = null
+                return false
+            }
+            usb = usbCamera
+            isRunning = true
+            Trace.step("pipeline started ${size.width}x${size.height} @$fps from the USB camera ${usbCamera.name}")
+            listener?.onReady(false, if (codec.isHevc) "HEVC" else "H.264", size)
+            return true
+        }
+
         // Full NDI's reader. YUV_420_888, because a camera cannot write into
         // an RGBA reader at all and a session carrying one is refused outright
         // — which is what took the preview and the encoder down on the real
@@ -476,7 +528,7 @@ class CameraPipeline(private val context: Context) {
         reader.setOnImageAvailableListener({ r -> onFullFrame(r) }, Handler(t.looper))
         fullReader = reader
 
-        val rawSurface = snap.open(characteristics)
+        val rawSurface = snap.open(characteristics!!)
 
         startedAtUs = SystemClock.elapsedRealtimeNanos() / 1000
         rateAt = SystemClock.elapsedRealtime()
@@ -709,6 +761,9 @@ class CameraPipeline(private val context: Context) {
             setMode(Mode.OFF)
         }
         engine.close()
+        // v193: the USB camera stops drawing before the surface it draws into goes
+        usb?.stop()
+        usb = null
         encoder?.stop()
         encoder = null
         encoderSurface = null
@@ -737,6 +792,11 @@ class CameraPipeline(private val context: Context) {
      */
     fun setMode(next: Mode): Boolean {
         if (next == mode) return true
+        // v193: full NDI reads the camera session's own frames; a USB camera has no session (HX goes through the stage)
+        if (next == Mode.FULL && usb != null) {
+            Trace.refused("stream", "full NDI from the USB camera: HX only")
+            return false
+        }
         val encoderSurface = this.encoderSurface
         val fullSurface = fullReader?.surface
 

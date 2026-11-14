@@ -1533,3 +1533,11 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
 > "Now, next updated that I want with this manual camera to stream our video ninja to my band live stream. You need to see Santoshi webpage, santoshibandpages.dev, we have there video ninja and when I log in there, and so on. Now the Sony camera Alpha 7 is connected and it streaming to this phone Pixel 7 and I want to be able to look at what is streaming right inside my manual camera and then I will be able also to stream either I don't know how to do this. that actually I'm streaming from my camera to my website over Video Ninja. So, please find technical solution for this and update app." (Marko, 14.11.2026)
 
 **Status:** requested, research in progress.
+
+**Status (14.11.2026, v193, phase 1: the Sony as a lens):** a SONY key in the lens drawer while a USB video camera is
+plugged in. The app reads the camera itself over UsbManager (UVC probe/commit, the bulk endpoint 0x83 the ILCE-7M5
+streams on, MJPEG decoded by Android, YUY2/NV12 converted) and draws each frame into the GPU stage's input, so preview,
+LUT, peaking, REC, NDI HX and Mantra Link take it as a phone lens. The take's sound is the Sony's USB audio while SONY is
+the lens. ISO, shutter, WB, focus, LOG and CTRL answer "Set on the Sony"; full NDI is HX only from the Sony. Unplugged:
+back to the last phone lens with a message. Phase 2 (VDO.Ninja) is separate.
+

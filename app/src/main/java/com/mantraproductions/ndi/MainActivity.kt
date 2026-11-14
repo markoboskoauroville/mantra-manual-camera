@@ -33,6 +33,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.mantraproductions.ndi.uvc.UvcCamera
+import com.mantraproductions.ndi.uvc.UvcHub
 
 /**
  * The camera, and the two rails of keys in the black beside it.
@@ -207,6 +209,12 @@ class MainActivity : AppCompatActivity() {
     private var microphoneAsked = false
 
     private val lensKeys = mutableListOf<RailButton>()
+    // v193, THE SONY AS A LENS: a USB video camera (the Sony ILCE-7M5 in USB Streaming) as one more key in the drawer
+    private val usbHub by lazy { UvcHub(this) }
+    private var usbDevice: android.hardware.usb.UsbDevice? = null
+    private var usbCam: UvcCamera? = null
+    private var sonyActive = false
+    private lateinit var sonyKey: RailButton
     private lateinit var recKey: RecordButtonView
     private lateinit var playKey: RailButton
     private lateinit var lastKey: RecordButtonView
@@ -309,7 +317,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         focus = FocusDirector(
-            controls = { if (pipeline.isRunning) pipeline.engine else null },
+            controls = { if (pipeline.isRunning && !pipeline.isUsb) pipeline.engine else null },
             onState = { s -> ui.post {
                 focusSquare.state = s
                 when (s) {
@@ -321,6 +329,10 @@ class MainActivity : AppCompatActivity() {
         )
 
         buildRails()
+        // v193: a USB camera already plugged in, and the ones that come and go (sonyKey is built just above)
+        usbDevice = usbHub.find()
+        usbDevice?.let { nameUsbKey(it) }
+        usbHub.listen { d, attached -> onUsbCamera(d, attached) }
         startLink()
         applyShootMode()
         layoutForOrientation(resources.configuration.orientation)
@@ -473,8 +485,10 @@ class MainActivity : AppCompatActivity() {
                     showMeter()                     // v149: a lens that focuses has the meter, a fixed one none
                     reopenTries = -1                // v116: up again, the recovery is over
                     // v104: the light, switched in settings, is put on whenever the camera opens
-                    pipeline.engine.setTorchLevel(settings.torchLevel)
-                    if (settings.torch) pipeline.engine.setTorch(true)
+                    if (!pipeline.isUsb) {
+                        pipeline.engine.setTorchLevel(settings.torchLevel)
+                        if (settings.torch) pipeline.engine.setTorch(true)
+                    }
                     restoreMode = CameraPipeline.Mode.OFF
                     // v136: the stream stands the way the phone is held
                     updateStreamTurns()
@@ -482,12 +496,14 @@ class MainActivity : AppCompatActivity() {
                     followNdiSwitch()
                     // A new session starts from the template, which is all
                     // automatic: his A / M switches are put back on it.
-                    if (!isoAuto || !shutterAuto) applyExposure()
-                    focus.resume()
+                    if (!pipeline.isUsb && (!isoAuto || !shutterAuto)) applyExposure()
+                    if (!pipeline.isUsb) focus.resume()
                     // A new session is a new GPU stage: the mark is set again where it is.
                     if (tracking) ui.postDelayed({ if (tracking) startTrack() }, 400)
-                    loadWbCurve()
-                    if (!wbMeasuredOnce) probeWhiteBalance()
+                    if (!pipeline.isUsb) {
+                        loadWbCurve()
+                        if (!wbMeasuredOnce) probeWhiteBalance()
+                    }
                     refreshZones()
                     refreshKeys()
                 }
@@ -600,6 +616,13 @@ class MainActivity : AppCompatActivity() {
             key.divider = true
             lensKeys.add(key)
         }
+        // v193: SONY (or USB), only while a USB video camera is plugged in; its picture goes through the same GPU stage
+        sonyKey = newKey("SONY") { openDrawer(false); chooseSony() }
+        sonyKey.sub = "USB"
+        sonyKey.third = " "
+        sonyKey.fourth = null
+        sonyKey.scale = 1.7f
+        sonyKey.divider = true
         // v103: the marks' keys, drawn as their marks. Grey = not on the picture, white = on it,
         // orange = the one a pinch resizes (only one). A tap steps grey → white → orange → grey.
         // v143: the square and the circle; the triangle went into the circle's WB mode.
@@ -678,6 +701,7 @@ class MainActivity : AppCompatActivity() {
         // larger and spread over it, and gives the other keys back when it closes (Marko, 29.10.2026)
         railRight.addView(lensChooser)
         lensKeys.forEach { railRight.addView(it) }
+        railRight.addView(sonyKey)
         railRight.addView(recKey)
         assistKey = newKey("ASSIST") { openAssist(!assistOpen) }.also { railRight.addView(it) }
         peakKey = newKey("PEA") { togglePeaking() }.also { it.glyph = RailButton.Glyph.PEAKING; it.tint = SNAP_ORANGE; railRight.addView(it) }
@@ -904,6 +928,7 @@ class MainActivity : AppCompatActivity() {
             )
             return
         }
+        if (sonyActive) { openSony(); return }   // v193
         if (lenses.isEmpty()) { say("This phone reports no usable camera"); return }
 
         val texture = preview.surfaceTexture ?: return
@@ -1012,7 +1037,7 @@ class MainActivity : AppCompatActivity() {
      * side-to-side mirror again. Front lens and the phone upright only; the take is not mirrored and keeps its turn.
      */
     private fun selfieTurn(): Int =
-        if (::pipeline.isInitialized && pipeline.isRunning && pipeline.engine.isFrontFacing && keyTurn % 180 == 90) 180 else 0
+        if (::pipeline.isInitialized && pipeline.isRunning && pipeline.isFrontFacing && keyTurn % 180 == 90) 180 else 0
 
     private fun turnKeys() {
         fun walk(v: View) {
@@ -1178,11 +1203,12 @@ class MainActivity : AppCompatActivity() {
             return
         }
         // v135: the microphone settings name (AUTO, the phone's, or a USB-C / wired device), mono or stereo.
-        val m = AudioMeter(this, settings.audioSource, settings.audioStereo,
+        val choice = audioChoice()
+        val m = AudioMeter(this, choice, settings.audioStereo,
             onLevel = { rms -> ui.post { vu.setLevel(rms) } },
             onRoute = { label, asChosen ->
                 audioLabel = label
-                if (!asChosen) say("${Routing.choiceLabel(settings.audioSource)} is not plugged in — sound from $label")
+                if (!asChosen) say("${Routing.choiceLabel(choice)} is not plugged in — sound from $label")
                 else say("Sound: $label")
                 refreshTelemetry()
             })
@@ -1414,8 +1440,8 @@ class MainActivity : AppCompatActivity() {
         val where = pipeline.startRecording(
             this, meter, settings.recordFolder,
             Mechanism.recordingRotation(
-                pipeline.engine.sensorOrientation, displayDegrees(),
-                pipeline.engine.isFrontFacing, manualQuarterTurns
+                pipeline.sensorOrientation, displayDegrees(),
+                pipeline.isFrontFacing, manualQuarterTurns
             )
         )
             ?: run { refreshKeys(); return false }
@@ -1470,8 +1496,8 @@ class MainActivity : AppCompatActivity() {
         if (vw <= 0 || vh <= 0) return
 
         val displayDegrees = displayDegrees()
-        val sensor = if (pipeline.isRunning) pipeline.engine.sensorOrientation else 90
-        val front = pipeline.isRunning && pipeline.engine.isFrontFacing
+        val sensor = if (pipeline.isRunning) pipeline.sensorOrientation else 90
+        val front = pipeline.isRunning && pipeline.isFrontFacing
 
         // What the camera already did, before we were handed the frame.
         //
@@ -1622,7 +1648,10 @@ class MainActivity : AppCompatActivity() {
      */
     private fun chooseLens(index: Int) {
         if (index >= lenses.size) return
-        if (index == activeLens && pipeline.isRunning) return
+        if (index == activeLens && pipeline.isRunning && !sonyActive) return
+        val fromSony = sonyActive
+        sonyActive = false
+        if (fromSony) ui.post { meterFollowsLens() }   // v193: the phone's own sound back
         activeLens = index
         settings.lens = index + 1           // v148: the camera opens on it next time
         restoreMode = pipeline.mode
@@ -1669,9 +1698,8 @@ class MainActivity : AppCompatActivity() {
 
     /** The stream's degrees from the screen, the same sum [updateFocusRegion] uses. */
     private fun viewDegrees(): Int {
-        val engine = pipeline.engine
         return (Mechanism.sensorToViewDegrees(
-            engine.sensorOrientation, displayDegrees(), engine.isFrontFacing, manualQuarterTurns
+            pipeline.sensorOrientation, displayDegrees(), pipeline.isFrontFacing, manualQuarterTurns
         ) + selfieTurn()) % 360
     }
 
@@ -2314,6 +2342,13 @@ class MainActivity : AppCompatActivity() {
         }
         // v141 (Marko: "Lens two is the best"): a lens by its number in the drawer, L1, L2 …, the stream kept
         if (cmd == "lens") {
+            // v193: mcam lens sony (or usb): the USB camera
+            if (v == "sony" || v == "usb") {
+                if (usbDevice == null && usbHub.find() == null) return "no USB camera plugged in"
+                chooseSony()
+                return "USB camera " + (usbDevice?.let { usbHub.nameOf(it) } ?: "") +
+                    if (usbDevice?.let { usbHub.hasPermission(it) } == false) ", waiting for the USB permission dialog" else ""
+            }
             val n = v.removePrefix("l").toIntOrNull() ?: return "lens takes a number, 1 to ${lenses.size}"
             if (n !in 1..lenses.size) return "there are ${lenses.size} lenses"
             chooseLens(n - 1)
@@ -2633,7 +2668,12 @@ class MainActivity : AppCompatActivity() {
         val m = linkedMapOf<String, Any?>(
             "version" to BuildConfig.VERSION_NAME,
             "running" to running,
-            "lens" to (activeLens + 1),
+            "lens" to (if (sonyActive) "sony" else activeLens + 1),
+            // v193: the USB camera, what it is doing, and how fast its frames come
+            "usb_camera" to (usbDevice?.let { d -> usbHub.nameOf(d) + (if (usbHub.hasPermission(d)) "" else " (no permission)") } ?: "none"),
+            "usb_stream" to usbCam?.let { c -> c.mode?.label + "@" + String.format(java.util.Locale.ROOT, "%.2f", c.fps) +
+                " in=${c.framesIn} drawn=${c.framesDrawn} decode=" + String.format(java.util.Locale.ROOT, "%.1f", c.decodeMs) + "ms" +
+                (c.problem?.let { " problem=$it" } ?: "") },
             "lenses" to lenses.mapIndexed { i, l -> "L${i + 1}:" + l.label.replace(' ', '_') + (l.equivalentMm.takeIf { it > 0 }?.let { "_${it}mm" } ?: "") }.joinToString(","),
             "torch" to (if (e.hasFlash()) settings.torch else "none"),
             "torch_level" to (if (e.hasFlash()) "${settings.torchLevel}% of ${e.torchStrengthMax()} levels" else "-"),
@@ -3492,6 +3532,7 @@ class MainActivity : AppCompatActivity() {
      * and could mean "start changing ISO" is a tap that means neither.
      */
     private fun toggleZones() {
+        if (!zonesOn && sonyActive) { notSupported("ISO, shutter, white balance and focus"); return }   // v193
         zonesOn = !zonesOn
         zones.visibility = if (zonesOn) View.VISIBLE else View.GONE
         iris.visibility = if (zonesOn) View.VISIBLE else View.GONE
@@ -4095,10 +4136,22 @@ class MainActivity : AppCompatActivity() {
 
     /** What this lens is called in the preferences: its id, and its sub-lens. */
     /** v177: what the lens in use can do (PhoneSupport), or null before the lenses are known. */
-    private fun can(): PhoneSupport.Lens? = if (lenses.isEmpty()) null else PhoneSupport.lens(this, lensKey())
+    private fun can(): PhoneSupport.Lens? = when {
+        // v193: the Sony sets its own exposure, colour and focus; none of the phone's lens keys reach it
+        sonyActive -> PhoneSupport.Lens(false, false, false, false, false, false, false)
+        lenses.isEmpty() -> null
+        else -> PhoneSupport.lens(this, lensKey())
+    }
 
     /** v177: the one sentence for a feature this phone or lens does not have, on the screen and in the trace. */
     private fun notSupported(what: String) {
+        if (sonyActive) {
+            // v193: a refusal that says where the setting lives
+            val on = if (usbDevice?.let { usbHub.isSony(it) } != false) "the Sony" else "the camera"
+            say("Set on $on: $what")
+            Trace.refused("not supported", "$what on the USB camera ${usbCam?.name ?: ""}")
+            return
+        }
         say("${PhoneSupport.SENTENCE}: $what")
         Trace.refused("not supported", "$what on ${PhoneSupport.phoneName}, ${lenses.getOrNull(activeLens)?.label ?: "?"}")
     }
@@ -4392,16 +4445,17 @@ class MainActivity : AppCompatActivity() {
     // --- what the keys say ----------------------------------------------------
 
     private fun refreshKeys() {
-        lenses.getOrNull(activeLens)?.equivalentMm?.takeIf { it > 0 }?.let { lensChooser.sub = "${it}mm" }
+        if (sonyActive) lensChooser.sub = sonyKey.label
+        else lenses.getOrNull(activeLens)?.equivalentMm?.takeIf { it > 0 }?.let { lensChooser.sub = "${it}mm" }
         lensChooser.state = if (lensesOpen) RailButton.State.ARMED else RailButton.State.ON
         // v130/v173: an open drawer is the whole right rail; every other key steps aside and comes back when it closes
         val assists = listOf<View>(peakKey, falseKey, zebraKey)
         for (i in 0 until railRight.childCount) {
             val k = railRight.getChildAt(i)
             k.visibility = when {
-                lensesOpen -> if (k in lensKeys) View.VISIBLE else View.GONE      // v180: no opener; the lens in use closes it
+                lensesOpen -> if (k in lensKeys || (k === sonyKey && usbDevice != null)) View.VISIBLE else View.GONE      // v180: no opener; the lens in use closes it
                 assistOpen -> if (k === assistKey || k in assists) View.VISIBLE else View.GONE
-                else -> if (k in lensKeys || k in assists) View.GONE else View.VISIBLE
+                else -> if (k in lensKeys || k in assists || k === sonyKey) View.GONE else View.VISIBLE
             }
         }
         for (k in listOf(peakKey, falseKey, zebraKey)) k.scale = if (assistOpen) 1.35f else 1f
@@ -4431,8 +4485,11 @@ class MainActivity : AppCompatActivity() {
             val lens = lenses.getOrNull(i)
             key.state = if (lens == null) RailButton.State.DEAD else RailButton.State.SHOWN
             key.tint = lens?.let { if (it.canFocus) RailButton.GREEN else RailButton.AMBER }
-            key.marked = lens != null && i == activeLens && pipeline.isRunning
+            key.marked = lens != null && i == activeLens && pipeline.isRunning && !sonyActive
         }
+        sonyKey.state = RailButton.State.SHOWN
+        sonyKey.tint = RailButton.GREEN
+        sonyKey.marked = sonyActive && pipeline.isRunning
 
         focusKey.label = when {
             tracking -> "TRK"
@@ -4745,9 +4802,119 @@ class MainActivity : AppCompatActivity() {
         ui.removeCallbacks(circleTrackTick)
         keptRunning = false
         pipeline.stop()
+        usbHub.stopListening()      // v193
+        usbCam?.close()
+        usbCam = null
         meter?.stop()
         meter = null
         StreamService.stop(this)
+    }
+
+    // ---------------------------------------------------------------- v193: THE SONY AS A LENS
+
+    /** The key says what is plugged in: SONY for a Sony, USB for any other camera; its model under it. */
+    private fun nameUsbKey(d: android.hardware.usb.UsbDevice) {
+        sonyKey.label = if (usbHub.isSony(d)) "SONY" else "USB"
+        sonyKey.sub = usbHub.nameOf(d).removePrefix("ILCE-").ifEmpty { "USB" }
+        sonyKey.third = "USB"
+        sonyKey.invalidate()
+    }
+
+    private fun onUsbCamera(d: android.hardware.usb.UsbDevice, attached: Boolean) {
+        if (attached) {
+            usbDevice = d
+            nameUsbKey(d)
+            say("${usbHub.nameOf(d)} on USB: ${sonyKey.label} is in the lens drawer")
+        } else if (usbDevice == null || usbDevice?.deviceName == d.deviceName) {
+            usbDevice = null
+            if (sonyActive) fallBackFromSony("${usbHub.nameOf(d)} unplugged: back to L${activeLens + 1}", closeDevice = true)
+            else { usbCam?.close(); usbCam = null }
+        }
+        refreshKeys()
+    }
+
+    /** The SONY key: asks for the USB permission the first time (Android's dialog, the operator's tap), then opens it. */
+    private fun chooseSony() {
+        val d = usbDevice ?: usbHub.find()?.also { usbDevice = it; nameUsbKey(it) } ?: run {
+            say("No USB camera plugged in"); return
+        }
+        if (!usbHub.hasPermission(d)) {
+            say("Allow ${usbHub.nameOf(d)} in the USB dialog")
+            usbHub.requestPermission(d) { granted ->
+                ui.post { if (granted) chooseSony() else say("USB permission refused: ${usbHub.nameOf(d)} stays off") }
+            }
+            return
+        }
+        if (sonyActive && pipeline.isRunning) return
+        restoreMode = pipeline.mode.takeIf { it != CameraPipeline.Mode.FULL } ?: CameraPipeline.Mode.OFF
+        Trace.control("lens", "SONY", usbHub.nameOf(d) + ", keeping " + restoreMode)
+        pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
+        sonyActive = true
+        openCamera()
+        meterFollowsLens()
+    }
+
+    /** openCamera's way for the USB camera: its mode, the same pipeline with the camera drawing into the GPU stage. */
+    private fun openSony() {
+        val texture = preview.surfaceTexture ?: return
+        val d = usbDevice ?: return fallBackFromSony("The USB camera is not plugged in")
+        val cam = usbCam?.takeIf { it.device.deviceName == d.deviceName }
+            ?: run { usbCam?.close(); usbHub.open(d).also { usbCam = it } }
+            ?: return fallBackFromSony("The ${usbHub.nameOf(d)} could not be opened")
+        // phase 1: 1080p at most (MJPEG is decoded on the phone)
+        if (!cam.prepare(minOf(settings.captureWidth, 1920), settings.fps))
+            return fallBackFromSony("${cam.name}: ${cam.problem ?: "no picture format this app can draw"}")
+        cam.onStall = { msg -> ui.post { say(msg) } }
+        pipeline.maxWidth = settings.captureWidth
+        pipeline.fps = Math.round(cam.fps).toInt().coerceIn(1, 120)
+        manualQuarterTurns = 0
+        bufferSize = Size(cam.width, cam.height)
+        holdBufferSize()
+        applyPreviewTransform()
+        pipeline.streamBitRate = settings.streamMbps * 1_000_000
+        val ok = pipeline.start(
+            cameraId = "usb",
+            physicalId = null,
+            previewSurface = Surface(texture),
+            sourceName = Mechanism.sanitizeSourceName(settings.sourceName),
+            curve = LogCurves.Curve.entries[curveIndex],
+            wantTenBit = false,
+            bitRate = settings.recordMbps * 1_000_000,
+            useGpuStage = true,
+            usbCamera = cam
+        )
+        if (!ok) return fallBackFromSony("${cam.name}: ${pipeline.usbProblem ?: "the picture did not start"}")
+        applyLook()
+        refreshKeys()
+    }
+
+    /** Back to the phone's lens it was on, with a short message on the picture. */
+    private fun fallBackFromSony(message: String, closeDevice: Boolean = false) {
+        sonyActive = false
+        restoreMode = pipeline.mode.takeIf { pipeline.isRunning } ?: CameraPipeline.Mode.OFF
+        if (pipeline.isRunning) pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
+        if (closeDevice) { usbCam?.close(); usbCam = null }
+        Trace.refused("usb camera", message)
+        say(message)
+        ui.postDelayed({ say(message) }, 1500)       // after the lens's own "1920x1080 …" line
+        if (preview.isAvailable) openCamera()
+        meterFollowsLens()
+        refreshKeys()
+    }
+
+    /** The sound of the take follows the lens: the Sony's own USB audio while it is the lens, else the settings. */
+    private fun audioChoice(): String {
+        if (!sonyActive) return settings.audioSource
+        val name = usbDevice?.productName?.trim().orEmpty()
+        val usbInputs = AudioMeter.inputs(this).filter { it.family == Routing.Family.USB }
+        val pick = usbInputs.firstOrNull { name.isNotEmpty() && it.product.contains(name) } ?: usbInputs.firstOrNull()
+        return pick?.key ?: settings.audioSource
+    }
+
+    private fun meterFollowsLens() {
+        meter?.stop()
+        meter = null
+        startMeter()
     }
 
     /**
