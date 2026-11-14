@@ -1642,3 +1642,8 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 > "Bluetooth is, as you said, disabled during streaming completely" (Marko, 14.11.2026; α7 V Help Guide p. 415: while USB Streaming runs, network functions including Bluetooth are unavailable)
 
 **Status:** v207: REC SONY BT, TC JAM and the BT state leave SONY MODE (USB Streaming has no Bluetooth and no PTP); they show only on a phone lens with a Bluetooth Sony ready, or a Sony in Remote Shoot on USB, and stay in Settings → SONY. The SONY report adds how to record on the Sony's card (MENU → Network → Streaming → Rec During Streaming: Enable, then the camera's own REC).
+
+## 14.11.2026: a tiny browser in the camera for the Santoshi admin
+> "please build in the tiny web browser the tiniest you can find on GitHub in my camera. Then I go to the Santoshi page, which is already in admin, and I log in, and then I do pairing" (Marko, 14.11.2026, about 23:45)
+
+**Status:** v208: Settings → STREAMING, SANTOSHI ADMIN opens https://santoshi-band.pages.dev/admin in a Chrome Custom Tab over the camera (androidx.browser, about 100 KB; it shares Chrome's Google sign-in, which Google refuses inside any WebView browser: disallowed_useragent). The admin's OPEN IN MANUAL CAMERA link (mantracam://pair) comes back into the app: paired, "Paired with santoshi-band.pages.dev", back on STREAMING. The Sony stays open as the lens while the tab or settings are in front.
