@@ -125,8 +125,9 @@ The public live was stopped at 00:39:48. Nothing is on the site overnight.
 1. The first seconds of a stream start at 640x360 and climb to 1080p (WebRTC's own bit rate ramp). The first recorded piece is small.
 2. A second `am start` of the app opened a second camera screen, and the two published over each other (00:23–00:28). That is fixed by
    starting the app normally (one screen). Only adb did this, not Marko's hand.
-3. Drive uploads go through rclone's shared Google client, whose per-minute quota throttled them; 64 MB chunks fixed it (48 Mbit/s).
-   The pieces also stay on the VM for 3 days.
+3. Drive uploads go through rclone's PUBLIC Google client, whose global per-minute quota was used up at 00:47 (403), so the upload to
+   Drive lags (18 of the night's pieces were on Drive at 00:45). The pieces wait on the VM for 7 days and the uploader keeps trying.
+   The cure (optional, 5 minutes): an own Google OAuth client for rclone, then one consent on the VM.
 
 **Marko in the morning, with the Sony.**
 1. Sony on USB, Manual Camera open (v212 or newer), the Sony picture on screen.
