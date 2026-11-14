@@ -207,6 +207,11 @@ class RailButton @JvmOverloads constructor(
         if (gearBehind) {
             ghostGear.color = Color.argb(70, Color.red(tint), Color.green(tint), Color.blue(tint))
             drawGear(canvas, dw / 2f, dh / 2f, minOf(dw, dh) * 0.5f, ghostGear)
+            // v197 (Marko, 14.11.2026: "put one white square around it so people understand they need to press it"):
+            // one thin white outline, the same weight as the other outlined keys, so the readout reads as a button.
+            val sq = Paint(mark).apply { color = WHITE; strokeWidth = density(1.4f) }
+            val ins = density(2f)
+            canvas.drawRoundRect(ins, ins, dw - ins, dh - ins, density(3f), density(3f), sq)
         }
 
         // SHRINK TO FIT. Eleven keys across a phone held upright left
@@ -267,7 +272,7 @@ class RailButton @JvmOverloads constructor(
 
     private fun fit(paint: Paint, text: String, full: Float) {
         paint.textSize = full
-        val room = dw - density(3f)
+        val room = dw - density(if (gearBehind) 12f else 3f)
         val needed = paint.measureText(text)
         if (needed > room && needed > 0f) paint.textSize = (full * room / needed).coerceAtLeast(density(6f))
     }
