@@ -83,6 +83,9 @@ private val SNAP_ORANGE = android.graphics.Color.parseColor("#FF9500")
 /** v155: how long a finger stays on a key before its help opens. */
 private const val HELP_MS = 2000L
 private const val SONY_PERMISSION = 3
+/** v201: how long a USB camera must stay before it is chosen, and how long Android's own dialog is waited for. */
+private const val SETTLE_MS = 700L
+private const val PERMISSION_WAIT_MS = 4000L
 /** v195: the lens drawer's words (were 1.7, too big for four rows), and the height of each lens key in it. */
 private const val DRAWER_SCALE = 1.3f
 private const val LENS_KEY_DP = 76f
@@ -220,6 +223,18 @@ class MainActivity : AppCompatActivity() {
     private var usbCam: UvcCamera? = null
     private var sonyActive = false
     private lateinit var sonyKey: RailButton
+    /** v201: the Sony itself is the lens (sonyActive is also true for the TEST pattern). */
+    private val onSony: Boolean get() = sonyActive && testSource == null
+    /** v201: the Sony dropped off USB while it was the lens of a running take: the take goes on, the picture held. */
+    private var sonyHeldTake = false
+    /** v201: a Sony plugged in during a take on a phone lens: it becomes the lens when the take stops. */
+    private var sonyPending = false
+    /** v201: how often a stalled Sony picture was re-committed without unplugging, per open. */
+    private var sonyRestarts = 0
+    /** v201: the device that just arrived, chosen once it stays (the Sony flips USB Streaming / PTP while it settles). */
+    private var usbSettling: android.hardware.usb.UsbDevice? = null
+    /** v201: Android's "Open with Manual Camera" (UsbAttachActivity) hands the device over here; held strongly. */
+    private val usbAttachHook: (android.hardware.usb.UsbDevice) -> Unit = { d -> ui.post { onUsbCamera(d, true) } }
     // v197, GO LIVE (VDO.Ninja to the band site) and the TEST lens (a moving pattern with a clock, for machines with no camera)
     private lateinit var liveKey: RailButton
     private lateinit var testKey: RailButton
@@ -356,6 +371,16 @@ class MainActivity : AppCompatActivity() {
         usbDevice = usbHub.find()
         usbDevice?.let { nameUsbKey(it) }
         usbHub.listen { d, attached -> onUsbCamera(d, attached) }
+        com.mantraproductions.ndi.uvc.UsbAttach.hook = java.lang.ref.WeakReference(usbAttachHook)
+        // v201 (Marko, 14.11.2026: "When I plug it in, automatically select the first lens before L1"): a Sony already
+        // on USB at the start is the lens from the first frame; without the permission yet, it is asked for.
+        usbDevice?.let { d ->
+            Trace.state("usb camera: at start ${usbHub.describe(d)}")
+            if (usbHub.isSony(d)) {
+                if (usbHub.hasPermission(d)) { sonyActive = true; Trace.control("lens", "SONY", "plugged in at the start: chosen by itself") }
+                else ui.postDelayed({ autoSony(d) }, 600)
+            }
+        }
         startLink()
         applyShootMode()
         layoutForOrientation(resources.configuration.orientation)
@@ -639,8 +664,9 @@ class MainActivity : AppCompatActivity() {
             key.divider = true
             lensKeys.add(key)
         }
-        // v193: SONY (or USB), only while a USB video camera is plugged in; its picture goes through the same GPU stage
-        sonyKey = newKey("SONY") { openDrawer(false); chooseSony() }
+        // v193: SONY (or USB), its picture goes through the same GPU stage. v201: always the first lens, before L1
+        // (Marko, 14.11.2026: "keep Sony always as a lens"); grey while no Sony is open; a press forces recognition.
+        sonyKey = newKey("SONY") { openDrawer(false); recogniseSony() }
         sonyKey.sub = "USB"
         sonyKey.third = " "
         sonyKey.fourth = null
@@ -730,8 +756,8 @@ class MainActivity : AppCompatActivity() {
         // v173: LENS above REC and DISPLAY ASSIST under it; each opens as a drawer that takes the whole rail, its keys
         // larger and spread over it, and gives the other keys back when it closes (Marko, 29.10.2026)
         railRight.addView(lensChooser)
+        railRight.addView(sonyKey)      // v201: the first lens, before L1
         lensKeys.forEach { railRight.addView(it) }
-        railRight.addView(sonyKey)
         railRight.addView(testKey)
         railRight.addView(recKey)
         // v197: LIVE under REC: a tap goes live on the paired band site, held two seconds it stops
@@ -1103,6 +1129,16 @@ class MainActivity : AppCompatActivity() {
         zones.turn = keyTurn      // v183: the faders' words turn too; the faders do not
     }
 
+    override fun onStart() {
+        super.onStart()
+        com.mantraproductions.ndi.uvc.UsbAttach.inFront = true     // v201
+    }
+
+    override fun onStop() {
+        super.onStop()
+        com.mantraproductions.ndi.uvc.UsbAttach.inFront = false
+    }
+
     override fun onResume() {
         super.onResume()
         if (SettingsActivity.lockRequested) { SettingsActivity.lockRequested = false; lockScreenOn() }
@@ -1396,6 +1432,7 @@ class MainActivity : AppCompatActivity() {
         showTimecode(false)
         refreshTelemetry()
         refreshKeys()
+        afterTakeSony()     // v201
     }
 
     /**
@@ -4552,7 +4589,7 @@ class MainActivity : AppCompatActivity() {
         for (i in 0 until railRight.childCount) {
             val k = railRight.getChildAt(i)
             k.visibility = when {
-                lensesOpen -> if (k in lensKeys || (k === sonyKey && usbDevice != null) || (k === testKey && showTest)) View.VISIBLE else View.GONE      // v180: no opener; the lens in use closes it
+                lensesOpen -> if (k in lensKeys || k === sonyKey || (k === testKey && showTest)) View.VISIBLE else View.GONE      // v180: no opener; the lens in use closes it
                 assistOpen -> if (k === assistKey || k in assists) View.VISIBLE else View.GONE
                 else -> if (k in lensKeys || k in assists || k === sonyKey || k === testKey) View.GONE else View.VISIBLE
             }
@@ -4586,9 +4623,11 @@ class MainActivity : AppCompatActivity() {
             key.tint = lens?.let { if (it.canFocus) RailButton.GREEN else RailButton.AMBER }
             key.marked = lens != null && i == activeLens && pipeline.isRunning && !sonyActive
         }
-        sonyKey.state = RailButton.State.SHOWN
+        // v201: grey while no Sony is open, green while it is plugged in or live
+        val sonyLive = onSony && pipeline.isRunning
+        sonyKey.state = if (sonyLive || usbDevice != null) RailButton.State.SHOWN else RailButton.State.OFF
         sonyKey.tint = RailButton.GREEN
-        sonyKey.marked = sonyActive && testSource == null && pipeline.isRunning
+        sonyKey.marked = sonyLive
         testKey.state = RailButton.State.SHOWN
         testKey.tint = RailButton.GREEN
         testKey.marked = testSource != null && pipeline.isRunning
@@ -4914,6 +4953,10 @@ class MainActivity : AppCompatActivity() {
         keptRunning = false
         pipeline.stop()
         usbHub.stopListening()      // v193
+        com.mantraproductions.ndi.uvc.UsbAttach.hook = null
+        com.mantraproductions.ndi.uvc.UsbAttach.inFront = false
+        ui.removeCallbacks(usbSettle)
+        ui.removeCallbacks(askUsbPermission)
         usbCam?.close()
         usbCam = null
         meter?.stop()
@@ -4931,17 +4974,192 @@ class MainActivity : AppCompatActivity() {
         sonyKey.invalidate()
     }
 
+    /**
+     * v201, THE SONY BY ITSELF (Marko, 14.11.2026: "Recognize the Sony connection and just switch to it automatically").
+     * A camera arrives: named on the key, and once it stays (the Sony flips between USB Streaming 0x0F51 and PTP
+     * 0x096F while it settles; only the video one reaches here) it becomes the lens. It goes: back to L1, unless it was
+     * the lens of a running take, which goes on with the picture held until the Sony comes back into it.
+     */
     private fun onUsbCamera(d: android.hardware.usb.UsbDevice, attached: Boolean) {
         if (attached) {
+            if (usbDevice?.deviceName == d.deviceName && usbSettling == null && onSony && usbCam != null) return
+            Trace.state("usb camera: attached ${usbHub.describe(d)}")
             usbDevice = d
             nameUsbKey(d)
-            say("${usbHub.nameOf(d)} on USB: ${sonyKey.label} is in the lens drawer")
+            usbSettling = d
+            ui.removeCallbacks(usbSettle)
+            ui.postDelayed(usbSettle, SETTLE_MS)
         } else if (usbDevice == null || usbDevice?.deviceName == d.deviceName) {
+            Trace.state("usb camera: detached ${usbHub.describe(d)}")
             usbDevice = null
-            if (sonyActive) fallBackFromSony("${usbHub.nameOf(d)} unplugged: back to L${activeLens + 1}", closeDevice = true)
-            else { usbCam?.close(); usbCam = null }
+            usbSettling = null
+            ui.removeCallbacks(usbSettle)
+            when {
+                onSony && rolling && pipeline.isRunning && pipeline.isUsb -> {
+                    // the take goes on: the reader stops, the take keeps its sound and the last frame
+                    usbCam?.close(); usbCam = null
+                    sonyHeldTake = true
+                    say("${usbHub.nameOf(d)} unplugged: the take goes on. Plug it back in, or L1 when you stop")
+                    Trace.refused("usb camera", "unplugged during the take: the take goes on, picture held")
+                }
+                onSony -> {
+                    activeLens = 0
+                    fallBackFromSony("${usbHub.nameOf(d)} unplugged: back to L1", closeDevice = true)
+                }
+                else -> { usbCam?.close(); usbCam = null }
+            }
         }
         refreshKeys()
+    }
+
+    /** The device that arrived is still there after [SETTLE_MS]: then it is chosen. */
+    private val usbSettle = Runnable {
+        val d = usbSettling ?: return@Runnable
+        usbSettling = null
+        if (!usbHub.stillAttached(d)) { Trace.state("usb camera: ${usbHub.describe(d)} went again while settling"); return@Runnable }
+        autoSony(d)
+    }
+
+    /** v201: the Sony becomes the lens by itself; a take on a phone lens is never cut for it. */
+    private fun autoSony(d: android.hardware.usb.UsbDevice) {
+        if (!usbHub.isSony(d)) return       // another USB camera waits for its key
+        if (!usbHub.hasPermission(d)) {
+            // Android's own "Open with Manual Camera" (the manifest's filter) usually answers first; ask only if not
+            Trace.state("usb camera: waiting for the USB permission on ${usbHub.nameOf(d)}")
+            ui.removeCallbacks(askUsbPermission)
+            ui.postDelayed(askUsbPermission, PERMISSION_WAIT_MS)
+            return
+        }
+        ui.removeCallbacks(askUsbPermission)
+        when {
+            sonyHeldTake && rolling && pipeline.isRunning -> resumeSonyInTake(d)
+            rolling && !onSony -> {
+                sonyPending = true
+                say("${usbHub.nameOf(d)} on USB: it becomes the lens when this take stops")
+            }
+            onSony && pipeline.isRunning && usbCam?.device?.deviceName == d.deviceName -> Unit
+            else -> {
+                Trace.control("lens", "SONY", "plugged in: chosen by itself")
+                sonyActive = false
+                chooseSony()
+            }
+        }
+    }
+
+    private val askUsbPermission = Runnable {
+        val d = usbDevice ?: return@Runnable
+        if (usbHub.hasPermission(d)) { autoSony(d); return@Runnable }
+        usbHub.requestPermission(d) { granted ->
+            ui.post {
+                if (granted) autoSony(d)
+                else say("Permission refused: ${usbHub.nameOf(d)} stays off. Press SONY to ask again")
+            }
+        }
+    }
+
+    /** v201: the Sony came back during the take it dropped out of: it draws into the same take. */
+    private fun resumeSonyInTake(d: android.hardware.usb.UsbDevice) {
+        val cam = usbHub.open(d)
+        val why = when {
+            cam == null -> "it could not be opened"
+            !cam.prepare(minOf(settings.captureWidth, 1920), settings.fps) -> cam.problem ?: "no picture format"
+            else -> { cam.onStall = { msg -> ui.post { sonyStalled(cam, msg) } }; pipeline.swapUsb(cam) }
+        }
+        if (why == null) {
+            usbCam = cam
+            sonyHeldTake = false
+            sonyRestarts = 0
+            say("${usbHub.nameOf(d)} back in the take")
+            Trace.control("lens", "SONY", "back in the running take")
+        } else {
+            // another mode than the take's: the take ends cleanly, the Sony starts fresh (switching is fine mid-take)
+            cam?.close()
+            Trace.refused("usb camera", "back during the take, but $why: the take stops and the Sony opens")
+            sonyHeldTake = false
+            stopAll()
+            sonyActive = false
+            chooseSony()
+        }
+        refreshKeys()
+    }
+
+    /** v201: the take stopped: a held Sony that never came back gives way to L1, a waiting one becomes the lens. */
+    private fun afterTakeSony() {
+        if (sonyHeldTake) {
+            sonyHeldTake = false
+            activeLens = 0
+            fallBackFromSony("The Sony is still unplugged: L1", closeDevice = true)
+        } else if (sonyPending) {
+            sonyPending = false
+            usbDevice?.let { autoSony(it) }
+        }
+    }
+
+    /**
+     * v201: no picture for 3 s while the Sony is still on USB: the stream is committed again, three times at most,
+     * without anyone unplugging it (a camera that stopped sending after the app was restarted or reinstalled).
+     */
+    private fun sonyStalled(cam: UvcCamera, msg: String) {
+        if (usbCam !== cam || !onSony) return
+        if (!usbHub.stillAttached(cam.device)) { say(msg); return }
+        if (sonyRestarts >= 3) { say("$msg Press SONY to check it"); return }
+        sonyRestarts++
+        val why = pipeline.swapUsb(cam)
+        Trace.state("usb camera: no picture, stream committed again ($sonyRestarts of 3): ${why ?: "running"}")
+        if (why != null) say("${cam.name}: $why")
+    }
+
+    /**
+     * v201, THE SONY KEY (Marko, 14.11.2026: "If Sony is not recognized when I press this lens, it forces recognition
+     * again and gives me a report"): USB looked at again, the permission asked for, the camera opened, said in words.
+     */
+    private fun recogniseSony() {
+        if (onSony && pipeline.isRunning && usbCam != null && usbDevice?.let { usbHub.stillAttached(it) } == true) {
+            sonyReport(); return
+        }
+        val all = usbHub.allDevices()
+        Trace.state("usb camera: SONY pressed, USB has " + all.joinToString { usbHub.describe(it) }.ifEmpty { "nothing" })
+        val video = usbHub.find()
+        val sony = all.firstOrNull { usbHub.isSony(it) }
+        when {
+            video != null -> {
+                usbDevice = video
+                nameUsbKey(video)
+                if (!usbHub.hasPermission(video)) {
+                    say("${usbHub.nameOf(video)} found (USB Streaming): allow it in the USB dialog")
+                    usbHub.requestPermission(video) { granted ->
+                        ui.post { if (granted) recogniseSony() else say("Permission refused: press SONY to ask again") }
+                    }
+                } else {
+                    usbCam?.takeIf { it.device.deviceName != video.deviceName || !usbHub.stillAttached(it.device) }
+                        ?.let { it.close(); usbCam = null }
+                    sonyRestarts = 0
+                    when {
+                        sonyHeldTake && rolling -> resumeSonyInTake(video)
+                        rolling && !onSony -> { sonyPending = true; say("${usbHub.nameOf(video)} found: it becomes the lens when this take stops") }
+                        else -> { sonyActive = false; chooseSony(); ui.postDelayed({ sonyReport() }, 2500) }
+                    }
+                }
+            }
+            sony != null -> say("Sony on USB but in " +
+                (if (sony.productId == 0x096F) "PTP mode (0x096F)" else "mode 0x" + Integer.toHexString(sony.productId)) +
+                ": on the camera set USB Streaming")
+            else -> say("No Sony on USB: check the cable, then USB Streaming on the camera")
+        }
+        refreshKeys()
+    }
+
+    /** What the Sony is doing now, in one line. */
+    private fun sonyReport() {
+        if (!onSony) return     // fallBackFromSony already said why
+        val cam = usbCam
+        if (cam == null || !pipeline.isRunning) {
+            say("Sony found but not open: ${pipeline.usbProblem ?: cam?.problem ?: "no picture"}"); return
+        }
+        val fps = String.format(java.util.Locale.ROOT, "%.0f", cam.fps)
+        val sound = meter?.let { if (it.channels >= 2) "stereo audio" else "mono audio" } ?: "no audio"
+        val picture = if (cam.framesIn > 0) "" else ", no picture yet"
+        say("Sony found: USB Streaming (UVC), opened, ${cam.width}x${cam.height} ${fps}p, $sound$picture")
     }
 
     /** The SONY key: asks for the USB permission the first time (Android's dialog, the operator's tap), then opens it. */
@@ -4957,7 +5175,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
         if (sonyActive && testSource == null && pipeline.isRunning) return
+        sonyRestarts = 0
         testSource = null      // v197
+        restoreMode = pipeline.mode.takeIf
         restoreMode = pipeline.mode.takeIf { it != CameraPipeline.Mode.FULL } ?: CameraPipeline.Mode.OFF
         Trace.control("lens", "SONY", usbHub.nameOf(d) + ", keeping " + restoreMode)
         pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
@@ -4977,7 +5197,7 @@ class MainActivity : AppCompatActivity() {
         // phase 1: 1080p at most (MJPEG is decoded on the phone)
         if (!cam.prepare(minOf(settings.captureWidth, 1920), settings.fps))
             return fallBackFromSony("${cam.name}: ${cam.problem ?: "no picture format this app can draw"}")
-        cam.onStall = { msg -> ui.post { say(msg) } }
+        cam.onStall = { msg -> ui.post { sonyStalled(cam, msg) } }     // v201: committed again before it is said
         pipeline.maxWidth = settings.captureWidth
         pipeline.fps = Math.round(cam.fps).toInt().coerceIn(1, 120)
         manualQuarterTurns = 0

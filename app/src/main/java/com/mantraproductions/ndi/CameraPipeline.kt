@@ -767,6 +767,24 @@ class CameraPipeline(private val context: Context) {
      *   freeze rather than a source that disappeared and came back, which every
      *   mixer treats as a lost input.
      */
+    /**
+     * v201: another USB source into the running picture without stopping anything (the Sony back in the take it fell
+     * out of, or the same camera committed again after a stall). Same size only. Null when it runs, else why not.
+     */
+    fun swapUsb(source: FrameSource): String? {
+        val stage = gpu ?: return "the picture is not running"
+        if (usb == null) return "the picture is not from USB"
+        if (source.width != size.width || source.height != size.height)
+            return "${source.width}x${source.height} is not the take's ${size.width}x${size.height}"
+        usb?.stop()
+        stage.frameTimeNs = { source.postedFrameNs }
+        val why = source.start(stage.inputSurface)
+        if (why != null) { Trace.refused("usb camera", "swap: $why"); return why }
+        usb = source
+        Trace.state("usb camera: ${source.name} drawing into the running picture again")
+        return null
+    }
+
     fun stop(keepSource: Boolean = false) {
         if (isRecording) stopRecording()
         encodedVideoFormat = null

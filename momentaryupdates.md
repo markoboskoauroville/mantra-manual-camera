@@ -1600,7 +1600,7 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 ## 14.11.2026: the Sony on USB becomes the lens by itself
 > "Sony is connected and streaming, but it's not appearing in my lens list. Make the Sony work when I'm recording. When I plug it in, automatically select the first lens before L1 and select it. I don't need to manually select the camera itself. Recognize the Sony connection and just switch to it automatically" (Marko, 14.11.2026, about 23:00)
 
-**Status:** in progress: a USB attach filter for Sony video (vendor 0x054C, class 14) so Android's "always open with Manual Camera" keeps the permission; on attach the SONY lens (before L1) is chosen by itself; unplugged it falls back to L1, mid-take the take goes on and the Sony comes back into it.
+**Status:** v201: a USB attach filter for Sony video (vendor 0x054C, class 14) so Android's "Always open with Manual Camera" keeps the permission; on attach (settled 0.7 s, the Sony flips UVC/PTP) the SONY lens (now before L1) is chosen by itself; unplugged it falls back to L1; mid-take the take goes on and the Sony comes back into the same take; a stalled picture is committed again up to three times without unplugging.
 
 > "Sony is disappearing from the user interface, but Sony Camera is said to have streaming output. That means it's streaming, actually. Please make this possible: Bluetooth plus USB. What is possible to control? Let's build it into our super app" (Marko, 14.11.2026, about 23:10)
 
@@ -1609,4 +1609,4 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 ## 14.11.2026: SONY always the first lens, pressing it forces recognition
 > "actually, keep Sony always as a lens. It will not disappear. That's the first lens, and I can scroll. If Sony is not recognized when I press this lens, it forces recognition again and gives me a report" (Marko, 14.11.2026, about 23:20)
 
-**Status:** in progress (with the auto-switch above): SONY stays first in the lens drawer, grey while no Sony is open; a press rescans USB, asks the permission, reopens the camera and says what it found in plain words.
+**Status:** v201: SONY stays first in the lens drawer, grey while no Sony is open; a press rescans USB, asks the permission, reopens the camera and says what it found in plain words.

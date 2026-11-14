@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v201: a Sony camera (vendor 0x054C = 1356) in USB Streaming: it has a video class interface (14), which PTP mode
+     (0x096F, still image class 6) has not. Android's dialog then offers Manual Camera, "Always" keeps the permission. -->
+<resources>
+    <usb-device vendor-id="1356" class="14" />
+</resources>

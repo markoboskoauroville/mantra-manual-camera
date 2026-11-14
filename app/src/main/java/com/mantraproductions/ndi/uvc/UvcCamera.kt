@@ -53,6 +53,19 @@ class UvcHub(private val context: Context) {
 
     fun isSony(d: UsbDevice): Boolean = d.vendorId == 0x054C
 
+    /** v201: every device on USB now, for the SONY key's report. */
+    fun allDevices(): List<UsbDevice> = runCatching { usb.deviceList.values.toList() }.getOrDefault(emptyList())
+
+    /** v201: the same device (by its bus address) is still on USB. */
+    fun stillAttached(d: UsbDevice): Boolean = allDevices().any { it.deviceName == d.deviceName }
+
+    /** v201: vendor:product, name and every interface's class, for the trace (the Sony's modes differ in these). */
+    fun describe(d: UsbDevice): String = String.format(java.util.Locale.ROOT, "%04X:%04X", d.vendorId, d.productId) +
+        " ${nameOf(d)} at ${d.deviceName}, interfaces " + (0 until d.interfaceCount).joinToString(" ") { i ->
+            val f = d.getInterface(i)
+            "${f.id}/${f.alternateSetting}:${f.interfaceClass}.${f.interfaceSubclass}.${f.interfaceProtocol}"
+        } + if (hasPermission(d)) ", permitted" else ", no permission"
+
     private var permissionReceiver: BroadcastReceiver? = null
 
     /** Android's own dialog, which only the operator answers. [done] hears his answer. */
@@ -86,7 +99,12 @@ class UvcHub(private val context: Context) {
                 val d = (if (Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
                     else i.getParcelableExtra(UsbManager.EXTRA_DEVICE)) ?: return
                 val video = (0 until d.interfaceCount).any { d.getInterface(it).interfaceClass == UsbConstants.USB_CLASS_VIDEO }
-                if (!video) return
+                if (!video) {
+                    // v201: the Sony in another USB mode (PTP 0x096F) is no lens, but its coming and going is traced
+                    if (isSony(d)) Trace.state("usb camera: Sony ${if (i.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) "attached" else "detached"}, " +
+                        "not a video device: ${describe(d)}")
+                    return
+                }
                 onChange(d, i.action == UsbManager.ACTION_USB_DEVICE_ATTACHED)
             }
         }
@@ -279,6 +297,8 @@ class UvcCamera internal constructor(
             val n = runCatching { conn.bulkTransfer(ep, buf, buf.size, 500) }.getOrDefault(-1)
             if (n < 0) {
                 failures++
+                // v201: a camera gone from the bus answers at once; no spinning on it
+                if (failures > 3) runCatching { Thread.sleep(20) }
                 val quiet = SystemClock.elapsedRealtime() - lastFrameAt
                 if (quiet > 3000 && !stallSaid) {
                     stallSaid = true

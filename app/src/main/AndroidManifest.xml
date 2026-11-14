@@ -82,6 +82,23 @@
             <!-- v195: no USB_DEVICE_ATTACHED filter any more: the SONY lens is the only thing that claims the Sony on USB -->
         </activity>
 
+        <!-- v201: a Sony in USB Streaming plugged in opens the camera with the Sony as its lens; "Always" keeps the USB permission -->
+        <activity
+            android:name=".uvc.UsbAttachActivity"
+            android:label="@string/app_name"
+            android:exported="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/sony_uvc" />
+        </activity>
+
         <service
             android:name=".StreamService"
             android:exported="false"
