@@ -1576,3 +1576,8 @@ Note: "headline" means hairline (dictation).
 > "yes, Square is there. It's nice, but it needs to be gray first of all. It's too white. And second of all, this icon, this graphics behind representing settings, must be gone" (Marko, 14.11.2026, about 22:45)
 
 **Status:** v198 (in progress): the square is the keys' own inactive grey, the gear behind the free-space key is removed; the key still opens settings.
+
+## 14.11.2026: the lock icon goes out
+> "also, remove the lock icon. I don't need lock icon anymore. A lock is going out I don't know, even what it does. If it does something useful, put it in Settings and under this, describe what it is doing" (Marko, 14.11.2026, about 22:50)
+
+**Status:** v199 (in progress): the lock key leaves the right rail; its function (the black lock screen of v190) is a LOCK SCREEN switch in Settings with a plain description under it.
