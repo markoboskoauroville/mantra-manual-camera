@@ -1610,3 +1610,8 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 > "actually, keep Sony always as a lens. It will not disappear. That's the first lens, and I can scroll. If Sony is not recognized when I press this lens, it forces recognition again and gives me a report" (Marko, 14.11.2026, about 23:20)
 
 **Status:** v201: SONY stays first in the lens drawer, grey while no Sony is open; a press rescans USB, asks the permission, reopens the camera and says what it found in plain words.
+
+## 14.11.2026: SONY on the status line lit when the Sony is connected
+> "also, there is a bug at the beginning, at the top: File, USB, NDI, YouTube, and Sony. Sony is always grayed out. It should be lit up when Sony is connected" (Marko, 14.11.2026, about 23:40)
+
+**Status:** v201: SONY on the top line followed only the Bluetooth remote (shown only with Settings → SONY on, grey with no camera ready on Bluetooth); now it is shown and lit white whenever a Sony is on USB or the SONY lens is live, as well as when Bluetooth has a camera ready.

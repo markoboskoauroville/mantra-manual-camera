@@ -4849,7 +4849,10 @@ class MainActivity : AppCompatActivity() {
      * ready, ● SONY REC 2/2 red dot while they record (how many record, of how many are ready).
      */
     private fun sonyStatus(text: android.text.SpannableStringBuilder) {
-        if (!SonyLink.enabled(this)) return
+        // v201 (Marko, 14.11.2026: "Sony is always grayed out. It should be lit up when Sony is connected"): lit by a
+        // Sony on USB (plugged in or the live lens) as well as by the Bluetooth remote; shown for either
+        val usbOn = usbDevice?.let { usbHub.isSony(it) } == true || (onSony && pipeline.isUsb)
+        if (!SonyLink.enabled(this) && !usbOn) return
         val ready = SonyLink.ready; val rec = SonyLink.recording
         if (text.isNotEmpty()) text.append(".")
         val start = text.length
@@ -4861,7 +4864,7 @@ class MainActivity : AppCompatActivity() {
         val word = text.length
         text.append(when { ready == 0 -> "SONY"; rec > 0 -> "SONY REC $rec/$ready"; else -> "SONY STBY 0/$ready" })
         text.setSpan(android.text.style.ForegroundColorSpan(
-            if (ready == 0) android.graphics.Color.argb(120, 200, 204, 208) else android.graphics.Color.WHITE),
+            if (ready == 0 && !usbOn) android.graphics.Color.argb(120, 200, 204, 208) else android.graphics.Color.WHITE),
             word, text.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
 
@@ -5010,6 +5013,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         refreshKeys()
+        refreshTelemetry()      // v201: SONY on the status line follows the plug
     }
 
     /** The device that arrived is still there after [SETTLE_MS]: then it is chosen. */
@@ -5177,7 +5181,6 @@ class MainActivity : AppCompatActivity() {
         if (sonyActive && testSource == null && pipeline.isRunning) return
         sonyRestarts = 0
         testSource = null      // v197
-        restoreMode = pipeline.mode.takeIf
         restoreMode = pipeline.mode.takeIf { it != CameraPipeline.Mode.FULL } ?: CameraPipeline.Mode.OFF
         Trace.control("lens", "SONY", usbHub.nameOf(d) + ", keeping " + restoreMode)
         pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
