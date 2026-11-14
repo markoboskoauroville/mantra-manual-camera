@@ -1596,3 +1596,7 @@ Note: "headline" means hairline (dictation).
 > "Sony is connected and streaming, but it's not appearing in my lens list. Make the Sony work when I'm recording. When I plug it in, automatically select the first lens before L1 and select it. I don't need to manually select the camera itself. Recognize the Sony connection and just switch to it automatically" (Marko, 14.11.2026, about 23:00)
 
 **Status:** in progress: a USB attach filter for Sony video (vendor 0x054C, class 14) so Android's "always open with Manual Camera" keeps the permission; on attach the SONY lens (before L1) is chosen by itself; unplugged it falls back to L1, mid-take the take goes on and the Sony comes back into it.
+
+> "Sony is disappearing from the user interface, but Sony Camera is said to have streaming output. That means it's streaming, actually. Please make this possible: Bluetooth plus USB. What is possible to control? Let's build it into our super app" (Marko, 14.11.2026, about 23:10)
+
+**Status:** building approved; spec from the research worker goes to the builder.
