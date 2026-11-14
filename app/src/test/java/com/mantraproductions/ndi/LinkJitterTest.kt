@@ -124,6 +124,6 @@ class LinkJitterTest {
         for (k in 0 until 20) j.write(k * 240L, k.toLong(), b, 0, 240, 2, k * 5_000_000L)
         val out = ShortArray(480)
         assertTrue(tap.read(out, 480, 1))
-        assertEquals(500.toShort(), out[100])
+        assertEquals(500.toShort(), out[400])      // after the 5 ms fade-in
     }
 }
