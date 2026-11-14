@@ -67,7 +67,7 @@ class CameraPipeline(private val context: Context) {
      * v193, THE SONY AS A LENS: the USB camera drawing into the GPU stage's input, or null when the phone's own lens
      * is in use. Everything after the stage (preview, LUT, peaking, the take, NDI HX, the link) is the same path.
      */
-    @Volatile var usb: UvcCamera? = null
+    @Volatile var usb: FrameSource? = null
         private set
     val isUsb: Boolean get() = usb != null
     /** Why the USB camera did not start, for the screen. */
@@ -358,7 +358,7 @@ class CameraPipeline(private val context: Context) {
         bitRate: Int = BIT_RATE,
         useGpuStage: Boolean = true,
         /** v193: a USB camera (the Sony) instead of the phone's lens; it needs the GPU stage and is 8-bit. */
-        usbCamera: UvcCamera? = null
+        usbCamera: FrameSource? = null
     ): Boolean {
         if (isRunning) stop()
         this.sourceName = sourceName
@@ -485,6 +485,7 @@ class CameraPipeline(private val context: Context) {
                 stage.setOutput(GpuStage.Output.PREVIEW, previewSurface, enabled = true)
                 stage.setOutput(GpuStage.Output.RECORD, takeSurface, enabled = false)
                 stage.setOutput(GpuStage.Output.STREAM, surface, enabled = linkWanted)   // v161: a Mac watching keeps it on
+                liveSurface?.let { stage.setOutput(GpuStage.Output.LIVE, it, enabled = true) }   // v197: GO LIVE
                 // v136: the orientation asked for before the camera opened (the activity sets it on every start)
                 if (streamTurns != 0) { val t = streamTurns; streamTurns = 0; applyStreamTurns(t) }
                 Trace.state(
@@ -640,6 +641,22 @@ class CameraPipeline(private val context: Context) {
     @Volatile var streamTurns = 0
         private set
 
+    /**
+     * v197, GO LIVE: the VDO.Ninja publisher's surface, a fifth output of the GPU stage, upright like the stream and
+     * 8-bit SDR in a 10-bit stage. Kept here so every lens change (a new stage) attaches it again.
+     */
+    @Volatile private var liveSurface: Surface? = null
+    /** Told the stream's quarter turns, so the publisher can stand its picture the same way. */
+    var liveTurned: ((Int) -> Unit)? = null
+
+    fun setLiveSurface(s: Surface?) {
+        liveSurface = s
+        gpu?.let { st ->
+            st.setOutput(GpuStage.Output.LIVE, s, enabled = true)
+            if (s != null) st.setTurns(GpuStage.Output.LIVE, streamTurns)
+        }
+    }
+
     fun setStreamTurns(turns: Int) {
         val t = ((turns % 4) + 4) % 4
         if (!isRunning) { streamTurns = t; return }
@@ -657,6 +674,8 @@ class CameraPipeline(private val context: Context) {
         streamTurns = t
         if ((t % 2 == 1) != wasOdd || encoderSize != turnedSize(t)) rebuildStreamEncoder("orientation ${t * 90}°")
         stage.setTurns(GpuStage.Output.STREAM, t)
+        stage.setTurns(GpuStage.Output.LIVE, t)
+        liveTurned?.invoke(t)
         Trace.control("stream orientation", "${t * 90}°", "${turnedSize(t).width}x${turnedSize(t).height}")
     }
 

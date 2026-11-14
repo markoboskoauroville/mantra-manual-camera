@@ -250,6 +250,18 @@
                 android:textSize="11sp"
                 android:text="SONY" />
             <TextView
+                android:id="@+id/tabLive"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:textSize="11sp"
+                android:text="LIVE" />
+            <TextView
                 android:id="@+id/tabMore"
                 android:layout_width="0dp"
                 android:layout_weight="1"
@@ -763,6 +775,52 @@
             android:text="OPEN SONY REMOTE" />
         <TextView android:tag="hint" style="@style/MantraHint"
             android:text="The whole Mantra Sony Remote: the TC generator, time code into a Sony over USB, reading a Sony's time code from its screen, REC ALL, SYNC CAMERA REC BUTTONS, the clap, LTC out. Every take of this camera carries a free-run time code from the same generator, so its files line up with the Sonys'." />
+            </LinearLayout>
+            <!-- v197: GO LIVE, the band site pairing -->
+            <LinearLayout
+                android:id="@+id/pageLive"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+        <TextView
+            android:id="@+id/liveNow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:textColor="@color/sand" />
+        <Button
+            android:id="@+id/livePairScan"
+            style="@style/MantraKey"
+            android:layout_width="match_parent"
+            android:text="PAIR: SCAN THE QR" />
+        <TextView android:tag="hint" style="@style/MantraHint"
+            android:text="On the band site, admin page, LIVE tab: PAIR CAMERA shows a QR. Press PAIR here, then hold the camera on the QR until it says Paired." />
+        <EditText
+            android:id="@+id/livePairLink"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textSize="12sp"
+            android:textColor="@color/sand"
+            android:inputType="textUri"
+            android:importantForAutofill="no"
+            android:hint="or paste the mantracam:// link" />
+        <Button
+            android:id="@+id/livePairPaste"
+            style="@style/MantraKey"
+            android:layout_width="match_parent"
+            android:text="PAIR WITH THIS LINK" />
+        <Button
+            android:id="@+id/liveUnpair"
+            style="@style/MantraKey"
+            android:layout_width="match_parent"
+            android:text="UNPAIR" />
+        <TextView android:tag="hint" style="@style/MantraHint"
+            android:text="LIVE on the right rail: a tap goes live on the paired site, through VDO.Ninja, with the lens in use and its sound. Hold LIVE two seconds to stop. The top line says LIVE and how many watch." />
             </LinearLayout>
             <LinearLayout
                 android:id="@+id/pageMore"

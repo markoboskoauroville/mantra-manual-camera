@@ -172,4 +172,9 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     // v187: SONY REMOTE (from SONY_REMOTE_CONTROLLER) reads a Sony's time code from its screen, on the phone, offline
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    // v197, GO LIVE: WebRTC for Android (GetStream's maintained build of Google's libwebrtc, Apache 2.0), the
+    // websocket to the VDO.Ninja handshake server, and the QR reader for pairing (bundled model, no Play services)
+    implementation("io.getstream:stream-webrtc-android:1.3.10")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 }

@@ -131,13 +131,13 @@ class UvcCamera internal constructor(
     val device: UsbDevice,
     private val conn: UsbDeviceConnection,
     val descriptors: UvcProtocol.Descriptors,
-    val name: String
-) {
+    override val name: String
+) : com.mantraproductions.ndi.FrameSource {
     /** The mode chosen by [prepare], and its frame interval. */
     var mode: UvcProtocol.Mode? = null; private set
     var interval: Int = 0; private set
-    val width: Int get() = mode?.width ?: 1920
-    val height: Int get() = mode?.height ?: 1080
+    override val width: Int get() = mode?.width ?: 1920
+    override val height: Int get() = mode?.height ?: 1080
     val fps: Double get() = mode?.fpsOf(interval) ?: 0.0
 
     @Volatile var framesIn = 0L; private set
@@ -145,7 +145,7 @@ class UvcCamera internal constructor(
     @Volatile var lastFrameAt = 0L; private set
     @Volatile var decodeMs = 0.0; private set
     /** v195: System.nanoTime when the frame now being posted arrived whole from the camera (the GPU stage's clock). */
-    @Volatile var postedFrameNs = 0L; private set
+    @Volatile override var postedFrameNs = 0L; private set
     /** v195: the spacing of arrivals, for the trace: mean and the worst gap in ms over the last report. */
     @Volatile var arrivalJitter = ""; private set
     /** What failed last, for the trace and adb state. */
@@ -177,7 +177,7 @@ class UvcCamera internal constructor(
             ?: (0 until device.interfaceCount).map { device.getInterface(it) }.firstOrNull { it.id == n }
 
     /** Probe, commit, and the picture into [surface] until [stop]. Null when it runs, else why not. */
-    fun start(surface: Surface): String? {
+    override fun start(surface: Surface): String? {
         val m = mode ?: return "no mode chosen"
         if (running.get()) return null
         val vs = interfaceNumbered(descriptors.streamingInterface) ?: return "no streaming interface"
@@ -392,7 +392,7 @@ class UvcCamera internal constructor(
     }
 
     /** The picture stops; the device stays open for the next start. */
-    fun stop() {
+    override fun stop() {
         if (!running.getAndSet(false)) return
         reader?.join(1500)
         drawer?.join(1500)

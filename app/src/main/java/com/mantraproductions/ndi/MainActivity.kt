@@ -220,6 +220,16 @@ class MainActivity : AppCompatActivity() {
     private var usbCam: UvcCamera? = null
     private var sonyActive = false
     private lateinit var sonyKey: RailButton
+    // v197, GO LIVE (VDO.Ninja to the band site) and the TEST lens (a moving pattern with a clock, for machines with no camera)
+    private lateinit var liveKey: RailButton
+    private lateinit var testKey: RailButton
+    private var testSource: TestPattern? = null
+    private var showTest = false
+    private var live: com.mantraproductions.ndi.live.VdoPublisher? = null
+    private var liveState = com.mantraproductions.ndi.live.VdoPublisher.State(com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF, 0, "")
+    /** True when the site was told go (so STOP tells it stop); false for an adb test stream. */
+    private var liveFromSite = false
+    private val liveWorker = java.util.concurrent.Executors.newSingleThreadExecutor()
     private lateinit var recKey: RecordButtonView
     private lateinit var playKey: RailButton
     private lateinit var lastKey: RecordButtonView
@@ -636,6 +646,13 @@ class MainActivity : AppCompatActivity() {
         sonyKey.fourth = null
         sonyKey.scale = DRAWER_SCALE
         sonyKey.divider = true
+        // v197: TEST, a moving pattern with a clock, only when no camera opens (or asked for over adb: lens test)
+        testKey = newKey("TEST") { openDrawer(false); chooseTest() }
+        testKey.sub = "PATTERN"
+        testKey.third = " "
+        testKey.fourth = null
+        testKey.scale = DRAWER_SCALE
+        testKey.divider = true
         // v103: the marks' keys, drawn as their marks. Grey = not on the picture, white = on it,
         // orange = the one a pinch resizes (only one). A tap steps grey → white → orange → grey.
         // v143: the square and the circle; the triangle went into the circle's WB mode.
@@ -715,7 +732,16 @@ class MainActivity : AppCompatActivity() {
         railRight.addView(lensChooser)
         lensKeys.forEach { railRight.addView(it) }
         railRight.addView(sonyKey)
+        railRight.addView(testKey)
         railRight.addView(recKey)
+        // v197: LIVE under REC: a tap goes live on the paired band site, held two seconds it stops
+        liveKey = RailButton(this).also { k ->
+            k.label = "LIVE"
+            k.sub = "OFF"
+            k.setOnClickListener { liveTap() }
+            withHelp(k, hold = ::liveHold) { "LIVE" }
+            railRight.addView(k)
+        }
         assistKey = newKey("ASSIST") { openAssist(!assistOpen) }.also { railRight.addView(it) }
         peakKey = newKey("PEA") { togglePeaking() }.also { it.glyph = RailButton.Glyph.PEAKING; it.tint = SNAP_ORANGE; railRight.addView(it) }
         falseKey = newKey("FC") { falseColour = !falseColour; applyLook(); refreshKeys() }
@@ -873,7 +899,7 @@ class MainActivity : AppCompatActivity() {
             val drawerKeyHeight = (LENS_KEY_DP * density).toInt()
             for (i in 0 until rail.childCount) {
                 val child = rail.getChildAt(i)
-                val fixed = landscape && rail === railRight && lensesOpen && (child in lensKeys || child === sonyKey)
+                val fixed = landscape && rail === railRight && lensesOpen && (child in lensKeys || child === sonyKey || child === testKey)
                 child.layoutParams = LinearLayout.LayoutParams(
                     if (landscape) ViewGroup.LayoutParams.MATCH_PARENT else 0,
                     if (fixed) drawerKeyHeight else if (landscape) 0 else ViewGroup.LayoutParams.MATCH_PARENT
@@ -951,7 +977,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
         if (sonyActive) { openSony(); return }   // v193
-        if (lenses.isEmpty()) { say("This phone reports no usable camera"); return }
+        if (lenses.isEmpty()) {
+            // v197: a machine with no camera (the cloud Pixel 7) still gets a picture to test with
+            showTest = true
+            refreshKeys()
+            say("This phone reports no usable camera: TEST is in the lens drawer")
+            return
+        }
 
         val texture = preview.surfaceTexture ?: return
         val lens = lenses.getOrNull(activeLens) ?: lenses.first()
@@ -1075,6 +1107,11 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (SettingsActivity.lockRequested) { SettingsActivity.lockRequested = false; lockScreenOn() }
         followSony()
+        // v197: Settings, LIVE, PAIR asked for the QR to be read from the picture
+        if (com.mantraproductions.ndi.live.LiveLink.scanRequested) {
+            com.mantraproductions.ndi.live.LiveLink.scanRequested = false
+            startPairScan()
+        }
         if (keptRunning) resumeKept()
         ui.removeCallbacks(logExposureTick)
         ui.post(logExposureTick)
@@ -1674,6 +1711,7 @@ class MainActivity : AppCompatActivity() {
         if (index == activeLens && pipeline.isRunning && !sonyActive) return
         val fromSony = sonyActive
         sonyActive = false
+        testSource = null      // v197
         if (fromSony) ui.post { meterFollowsLens() }   // v193: the phone's own sound back
         activeLens = index
         settings.lens = index + 1           // v148: the camera opens on it next time
@@ -2303,7 +2341,7 @@ class MainActivity : AppCompatActivity() {
             }
             // v144: a setting's value keeps its case (a source name, a folder)
             val raw = intent.getStringExtra("v")?.trim().orEmpty()
-            val v = if (cmd == "set") raw else raw.lowercase()
+            val v = if (cmd == "set" || cmd == "live") raw else raw.lowercase()   // v197: live keeps the case of a link
             val said = runCatching { adbCommand(cmd, v) }.getOrElse { Trace.fault("adb", it); "error: ${it.javaClass.simpleName}" }
             Trace.control("adb", "$cmd $v", said)
             resultData = said + "\n" + adbState()
@@ -2352,6 +2390,40 @@ class MainActivity : AppCompatActivity() {
             refreshKeys()
             return said
         }
+        // v197, GO LIVE over adb, for tests on a machine nobody watches:
+        //   live test <id> <pw>   publishes to a made-up VDO.Ninja id (never the band site's), no site call
+        //   live go | stop        what the LIVE key does (go asks the paired site)
+        //   live pair <link>      pairs by the mantracam:// link;  live unpair
+        //   live probe <site>     asks <site>/api/live status with a made-up token: proves the 401 path
+        //   live state
+        if (cmd == "live") {
+            val a = v.split(' ').filter { it.isNotEmpty() }
+            return when (a.firstOrNull()?.lowercase()) {
+                "test" -> {
+                    if (a.size < 3) return "live test <id> <password>"
+                    if (liveState.phase != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) stopLive("restart")
+                    liveFromSite = false
+                    startPublishing(a[1], a[2]); "publishing test stream ${a[1].take(4)}…"
+                }
+                "go" -> { liveTap(); "go asked" }
+                "stop" -> { if (liveState.phase == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) "already off" else { stopLive("adb"); "stopped" } }
+                "pair" -> if (a.size > 1 && pairWith(v.trim().substringAfter(' ').trim())) "paired" else "not paired"
+                "unpair" -> { com.mantraproductions.ndi.live.LiveLink.unpair(this); refreshTelemetry(); "unpaired" }
+                "probe" -> {
+                    val site = a.getOrNull(1)?.trimEnd('/') ?: return "live probe https://site"
+                    if (!site.startsWith("https://")) return "https only"
+                    val fake = "fake" + com.mantraproductions.ndi.live.VdoCrypto.randomHex(24)
+                    liveWorker.execute {
+                        val r = com.mantraproductions.ndi.live.LiveLink.call(site, fake, "status")
+                        Trace.step("live probe: HTTP ${r.code} live=${r.live} error=${r.error}")
+                        ui.post { say("LIVE probe: HTTP ${r.code} ${r.error ?: ""}") }
+                    }
+                    "probing $site"
+                }
+                else -> "live " + livePhaseWord() + " frames=" + (live?.framesOut ?: 0) +
+                    " paired=" + com.mantraproductions.ndi.live.LiveLink.paired(this)
+            }
+        }
         if (cmd == "restart") {
             restoreMode = pipeline.mode
             pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
@@ -2366,6 +2438,8 @@ class MainActivity : AppCompatActivity() {
         // v141 (Marko: "Lens two is the best"): a lens by its number in the drawer, L1, L2 …, the stream kept
         if (cmd == "lens") {
             // v193: mcam lens sony (or usb): the USB camera
+            // v197: mcam lens test: the moving pattern with a clock
+            if (v == "test") { chooseTest(); return "TEST pattern" }
             if (v == "sony" || v == "usb") {
                 if (usbDevice == null && usbHub.find() == null) return "no USB camera plugged in"
                 chooseSony()
@@ -4470,7 +4544,7 @@ class MainActivity : AppCompatActivity() {
     // --- what the keys say ----------------------------------------------------
 
     private fun refreshKeys() {
-        if (sonyActive) lensChooser.sub = sonyKey.label
+        if (sonyActive) lensChooser.sub = if (testSource != null) "TEST" else sonyKey.label
         else lenses.getOrNull(activeLens)?.equivalentMm?.takeIf { it > 0 }?.let { lensChooser.sub = "${it}mm" }
         lensChooser.state = if (lensesOpen) RailButton.State.ARMED else RailButton.State.ON
         // v130/v173: an open drawer is the whole right rail; every other key steps aside and comes back when it closes
@@ -4478,9 +4552,9 @@ class MainActivity : AppCompatActivity() {
         for (i in 0 until railRight.childCount) {
             val k = railRight.getChildAt(i)
             k.visibility = when {
-                lensesOpen -> if (k in lensKeys || (k === sonyKey && usbDevice != null)) View.VISIBLE else View.GONE      // v180: no opener; the lens in use closes it
+                lensesOpen -> if (k in lensKeys || (k === sonyKey && usbDevice != null) || (k === testKey && showTest)) View.VISIBLE else View.GONE      // v180: no opener; the lens in use closes it
                 assistOpen -> if (k === assistKey || k in assists) View.VISIBLE else View.GONE
-                else -> if (k in lensKeys || k in assists || k === sonyKey) View.GONE else View.VISIBLE
+                else -> if (k in lensKeys || k in assists || k === sonyKey || k === testKey) View.GONE else View.VISIBLE
             }
         }
         for (k in listOf(peakKey, falseKey, zebraKey)) k.scale = if (assistOpen) 1.35f else 1f
@@ -4514,7 +4588,11 @@ class MainActivity : AppCompatActivity() {
         }
         sonyKey.state = RailButton.State.SHOWN
         sonyKey.tint = RailButton.GREEN
-        sonyKey.marked = sonyActive && pipeline.isRunning
+        sonyKey.marked = sonyActive && testSource == null && pipeline.isRunning
+        testKey.state = RailButton.State.SHOWN
+        testKey.tint = RailButton.GREEN
+        testKey.marked = testSource != null && pipeline.isRunning
+        refreshLive()
 
         focusKey.label = when {
             tracking -> "TRK"
@@ -4705,6 +4783,7 @@ class MainActivity : AppCompatActivity() {
                 android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         sonyStatus(text)
+        liveStatus(text)       // v197
         telemetry.text = text
     }
 
@@ -4816,6 +4895,13 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         if (adbRegistered) runCatching { unregisterReceiver(adbControl) }
+        // v197: the publisher, the pairing scan and its worker go with the activity (LESSONS 29)
+        ui.removeCallbacks(pairScanTick)
+        pairScanner?.close()
+        if (liveState.phase != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) stopLive("closed")
+        live?.release()
+        live = null
+        liveWorker.shutdown()
         SonyLink.unlisten(sonyHeard)
         // v157 (27.10.2026, THE BACKGROUND FREEZE): the ticks die with the activity. onPause re-posts them when NDI goes
         // on behind other apps, so an activity swiped away kept its rateTick, and its syncService (nothing streaming
@@ -4870,7 +4956,8 @@ class MainActivity : AppCompatActivity() {
             }
             return
         }
-        if (sonyActive && pipeline.isRunning) return
+        if (sonyActive && testSource == null && pipeline.isRunning) return
+        testSource = null      // v197
         restoreMode = pipeline.mode.takeIf { it != CameraPipeline.Mode.FULL } ?: CameraPipeline.Mode.OFF
         Trace.control("lens", "SONY", usbHub.nameOf(d) + ", keeping " + restoreMode)
         pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
@@ -4882,6 +4969,7 @@ class MainActivity : AppCompatActivity() {
     /** openCamera's way for the USB camera: its mode, the same pipeline with the camera drawing into the GPU stage. */
     private fun openSony() {
         val texture = preview.surfaceTexture ?: return
+        testSource?.let { openTest(texture, it); return }      // v197
         val d = usbDevice ?: return fallBackFromSony("The USB camera is not plugged in")
         val cam = usbCam?.takeIf { it.device.deviceName == d.deviceName }
             ?: run { usbCam?.close(); usbHub.open(d).also { usbCam = it } }
@@ -4913,9 +5001,218 @@ class MainActivity : AppCompatActivity() {
         refreshKeys()
     }
 
+    // ---------------------------------------------------------------- v197: THE TEST LENS
+
+    /** TEST: the pattern draws into the GPU stage as the Sony does; the phone's lens keys answer as for the Sony. */
+    private fun chooseTest() {
+        if (testSource != null && pipeline.isRunning) return
+        restoreMode = pipeline.mode.takeIf { it != CameraPipeline.Mode.FULL } ?: CameraPipeline.Mode.OFF
+        Trace.control("lens", "TEST", "pattern, keeping " + restoreMode)
+        if (pipeline.isRunning) pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
+        showTest = true
+        testSource = TestPattern(1280, 720, 30)
+        sonyActive = true
+        if (preview.isAvailable) openCamera()
+        refreshKeys()
+    }
+
+    private fun openTest(texture: android.graphics.SurfaceTexture, t: TestPattern) {
+        pipeline.maxWidth = settings.captureWidth
+        pipeline.fps = 30
+        manualQuarterTurns = 0
+        bufferSize = Size(t.width, t.height)
+        holdBufferSize()
+        applyPreviewTransform()
+        pipeline.streamBitRate = settings.streamMbps * 1_000_000
+        val ok = pipeline.start(
+            cameraId = "test", physicalId = null, previewSurface = Surface(texture),
+            sourceName = Mechanism.sanitizeSourceName(settings.sourceName),
+            curve = LogCurves.Curve.entries[curveIndex], wantTenBit = false,
+            bitRate = settings.recordMbps * 1_000_000, useGpuStage = true, usbCamera = t
+        )
+        if (!ok) { testSource = null; sonyActive = false; say("TEST: ${pipeline.usbProblem ?: "the pattern did not start"}") }
+        else say("TEST pattern ${t.width}x${t.height} @30")
+        applyLook()
+        refreshKeys()
+    }
+
+    // ---------------------------------------------------------------- v197: GO LIVE
+
+    private fun livePhaseWord(): String = when (liveState.phase) {
+        com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF -> "OFF"
+        com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING -> "CONNECTING"
+        com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> "${liveState.viewers} viewer" + if (liveState.viewers == 1) "" else "s"
+    }
+
+    /** The LIVE key's tap: GO LIVE on the paired site. While live a tap only says how to stop. */
+    private fun liveTap() {
+        if (liveState.phase != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) {
+            say("LIVE ${livePhaseWord()}: hold LIVE two seconds to stop"); return
+        }
+        val l = com.mantraproductions.ndi.live.LiveLink
+        val site = l.site(this)
+        val token = l.token(this)
+        if (site == null || token == null) { say("LIVE: pair the band site first (Settings, LIVE, PAIR)"); return }
+        if (!pipeline.usesGpuStage) { say("LIVE needs the GPU picture path (Settings)"); return }
+        say("LIVE: asking ${l.siteName(this)}")
+        liveState = com.mantraproductions.ndi.live.VdoPublisher.State(com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING, 0, "site")
+        refreshLive()
+        liveWorker.execute {
+            val a = l.call(site, token, "go")
+            ui.post {
+                if (isDestroyed) return@post
+                val id = a.push; val pw = a.password
+                if (!a.live || id == null || pw == null) {
+                    liveState = com.mantraproductions.ndi.live.VdoPublisher.State(com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF, 0, "")
+                    refreshLive()
+                    say(if (a.code == 401) "LIVE: the site does not know this camera any more: pair it again"
+                        else "LIVE: the site said ${a.error ?: "no"}")
+                    Trace.refused("live", "site go: ${a.code} ${a.error ?: ""}")
+                    return@post
+                }
+                liveFromSite = true
+                startPublishing(id, pw)
+            }
+        }
+    }
+
+    /** Held two seconds: STOP. @return true when taken (the help does not open). */
+    private fun liveHold(): Boolean {
+        if (liveState.phase == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) return false
+        stopLive("stopped")
+        return true
+    }
+
+    /** Publishes [id] / [pw] (from the site, or made up for an adb test). The token never reaches this point. */
+    private fun startPublishing(id: String, pw: String) {
+        val pub = live ?: com.mantraproductions.ndi.live.VdoPublisher(applicationContext) { st ->
+            ui.post { if (!isDestroyed) { liveState = st; refreshLive() } }
+        }.also { live = it }
+        val turned = pipeline.streamTurns % 2 == 1
+        val w = if (turned) 1080 else 1920; val h = if (turned) 1920 else 1080
+        val stereo = (meter?.channels ?: 1) >= 2 || sonyActive && testSource == null
+        pub.start(id, pw, w, h, 30, maxKbps = 4000, mic = liveMic(), stereo = stereo)
+        // the surface exists once the worker built it; attach it as the stage's fifth output
+        ui.postDelayed(object : Runnable {
+            var tries = 0
+            override fun run() {
+                if (isDestroyed) return
+                val s = pub.surface
+                if (s != null) { pipeline.setLiveSurface(s); Trace.step("live: picture attached ${pub.width}x${pub.height}") }
+                else if (++tries < 50 && pub.state.phase != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) ui.postDelayed(this, 100)
+            }
+        }, 100)
+        Trace.control("live", "go", "${id.take(4)}… stereo=$stereo ${w}x$h")
+    }
+
+    private fun stopLive(why: String) {
+        pipeline.setLiveSurface(null)
+        live?.stop()
+        if (liveFromSite) {
+            val l = com.mantraproductions.ndi.live.LiveLink
+            val site = l.site(this); val token = l.token(this)
+            if (site != null && token != null) liveWorker.execute { l.call(site, token, "stop") }
+        }
+        liveFromSite = false
+        say("LIVE OFF")
+        Trace.control("live", "stop", why)
+    }
+
+    /** The Sony's USB audio while it is the lens, else the phone's own microphone (null). */
+    private fun liveMic(): android.media.AudioDeviceInfo? {
+        if (!sonyActive || testSource != null) return null
+        val name = usbDevice?.productName?.trim().orEmpty()
+        val am = getSystemService(android.media.AudioManager::class.java) ?: return null
+        val usb = am.getDevices(android.media.AudioManager.GET_DEVICES_INPUTS).filter {
+            it.type == android.media.AudioDeviceInfo.TYPE_USB_DEVICE || it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET
+        }
+        return usb.firstOrNull { name.isNotEmpty() && it.productName?.toString()?.contains(name) == true } ?: usb.firstOrNull()
+    }
+
+    private fun refreshLive() {
+        if (!::liveKey.isInitialized) return
+        val ph = liveState.phase
+        liveKey.sub = when (ph) {
+            com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF -> "OFF"
+            com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING -> "…"
+            com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> "${liveState.viewers}"
+        }
+        liveKey.state = when (ph) {
+            com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF -> RailButton.State.OFF
+            com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING -> RailButton.State.ARMED
+            com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> RailButton.State.ON
+        }
+        liveKey.tint = if (ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE) android.graphics.Color.rgb(255, 59, 48) else null
+        liveKey.invalidate()
+        refreshTelemetry()
+    }
+
+    /** After the outputs: LIVE OFF grey (only once paired or used), LIVE CONNECTING white, ● LIVE n viewers red dot. */
+    private fun liveStatus(text: android.text.SpannableStringBuilder) {
+        val ph = liveState.phase
+        if (ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF && live == null &&
+            !com.mantraproductions.ndi.live.LiveLink.paired(this)) return
+        text.append(".")
+        val start = text.length
+        if (ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE) {
+            text.append("● ")
+            text.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.rgb(255, 59, 48)),
+                start, text.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val w = text.length
+        text.append("LIVE ").append(livePhaseWord())
+        text.setSpan(android.text.style.ForegroundColorSpan(
+            if (ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) android.graphics.Color.argb(120, 200, 204, 208)
+            else android.graphics.Color.WHITE), w, text.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+
+    // --- v197: pairing by the QR on the admin page: the preview is read twice a second until a mantracam:// link shows
+    private var pairScanner: com.google.mlkit.vision.barcode.BarcodeScanner? = null
+    private var pairScanUntil = 0L
+    private val pairScanTick = object : Runnable {
+        override fun run() {
+            if (isDestroyed || System.currentTimeMillis() > pairScanUntil) {
+                if (pairScanUntil != 0L) say("PAIR: no QR found, try again from Settings, LIVE")
+                pairScanUntil = 0L
+                return
+            }
+            val bmp = runCatching { preview.getBitmap(960, 540) }.getOrNull()
+            val sc = pairScanner ?: com.google.mlkit.vision.barcode.BarcodeScanning.getClient(
+                com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder()
+                    .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE).build()
+            ).also { pairScanner = it }
+            if (bmp == null) { ui.postDelayed(this, 500); return }
+            sc.process(com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0))
+                .addOnSuccessListener { codes ->
+                    val link = codes.firstNotNullOfOrNull { it.rawValue?.takeIf { v -> v.startsWith("mantracam://") } }
+                    if (link != null && pairWith(link)) pairScanUntil = 0L
+                    else if (pairScanUntil != 0L) ui.postDelayed(this, 500)
+                }
+                .addOnFailureListener { if (pairScanUntil != 0L) ui.postDelayed(this, 1000) }
+        }
+    }
+
+    private fun startPairScan() {
+        pairScanUntil = System.currentTimeMillis() + 60_000
+        say("PAIR: hold the camera on the QR of the band site")
+        ui.removeCallbacks(pairScanTick)
+        ui.post(pairScanTick)
+    }
+
+    /** @return true when the link paired this camera. */
+    private fun pairWith(link: String): Boolean {
+        val p = com.mantraproductions.ndi.live.LiveLink.parsePair(link) ?: run { say("PAIR: not a camera pairing link"); return false }
+        val ok = com.mantraproductions.ndi.live.LiveLink.pair(this, p.first, p.second)
+        say(if (ok) "Paired: ${com.mantraproductions.ndi.live.LiveLink.siteName(this)}" else "PAIR: the phone could not keep the key")
+        Trace.control("live", "pair", if (ok) "paired" else "refused")
+        refreshTelemetry()
+        return ok
+    }
+
     /** Back to the phone's lens it was on, with a short message on the picture. */
     private fun fallBackFromSony(message: String, closeDevice: Boolean = false) {
         sonyActive = false
+        testSource = null
         restoreMode = pipeline.mode.takeIf { pipeline.isRunning } ?: CameraPipeline.Mode.OFF
         if (pipeline.isRunning) pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
         if (closeDevice) { usbCam?.close(); usbCam = null }

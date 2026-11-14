@@ -101,6 +101,37 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(android.content.Intent(this, com.mantraproductions.ndi.sony.TcJamActivity::class.java))
         }
         showSony()
+        // v197: LIVE, the band site pairing (santoshi_band_site /api/cam pair -> mantracam://pair?site=...&token=...)
+        findViewById<View>(R.id.livePairScan).setOnClickListener {
+            com.mantraproductions.ndi.live.LiveLink.scanRequested = true
+            Trace.control("live", "pair", "scan asked")
+            finish()
+        }
+        findViewById<View>(R.id.livePairPaste).setOnClickListener {
+            val box = findViewById<android.widget.EditText>(R.id.livePairLink)
+            val p = com.mantraproductions.ndi.live.LiveLink.parsePair(box.text.toString())
+            if (p == null) {
+                android.widget.Toast.makeText(this, "Not a mantracam://pair link", android.widget.Toast.LENGTH_LONG).show()
+            } else {
+                val ok = com.mantraproductions.ndi.live.LiveLink.pair(this, p.first, p.second)
+                box.setText("")
+                Trace.control("live", "pair", if (ok) "paired by link" else "could not keep the token")
+            }
+            showLive()
+        }
+        findViewById<View>(R.id.liveUnpair).setOnClickListener {
+            com.mantraproductions.ndi.live.LiveLink.unpair(this)
+            Trace.control("live", "unpair", "done")
+            showLive()
+        }
+        showLive()
+    }
+
+    private fun showLive() {
+        val l = com.mantraproductions.ndi.live.LiveLink
+        findViewById<TextView>(R.id.liveNow).text =
+            if (l.paired(this)) "Paired: ${l.siteName(this)}" else "Not paired"
+        findViewById<View>(R.id.liveUnpair).isEnabled = l.paired(this)
     }
 
     private fun showSony() {
@@ -305,7 +336,7 @@ class SettingsActivity : AppCompatActivity() {
         // scrolling down. Mostly it's going left or right"); a swipe goes to the next or the one before
         val tabs = listOf(R.id.tabCamera to R.id.pageCamera, R.id.tabFocus to R.id.pageFocus, R.id.tabTrack to R.id.pageTrack,
             R.id.tabOutputs to R.id.pageOutputs, R.id.tabSound to R.id.pageSound, R.id.tabDisplay to R.id.pageDisplay,
-            R.id.tabSony to R.id.pageSony, R.id.tabMore to R.id.pageMore)
+            R.id.tabSony to R.id.pageSony, R.id.tabLive to R.id.pageLive, R.id.tabMore to R.id.pageMore)   // v197: LIVE
         val prefs = getSharedPreferences("settings_screen", MODE_PRIVATE)
         fun showTab(n: Int) {
             tabs.forEachIndexed { i, (t, pg) ->
@@ -660,6 +691,7 @@ class SettingsActivity : AppCompatActivity() {
         showAddresses()
         showWire()
         showSony()
+        showLive()
         showAudioSources()
         showFolder()
     }

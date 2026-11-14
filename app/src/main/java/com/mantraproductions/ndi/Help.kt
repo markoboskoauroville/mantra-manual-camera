@@ -6,6 +6,8 @@ package com.mantraproductions.ndi
  */
 object Help {
     fun forKey(name: String, power: PowerMonitor.Reading? = null): Pair<String, String> = when {
+        name == "LIVE" -> "LIVE · GO LIVE" to "A tap goes live on the paired band site through VDO.Ninja: the lens in use and its sound. Hold LIVE two seconds to stop. The top line says LIVE CONNECTING, then LIVE and how many watch. Pair the site first in Settings, LIVE."
+        name == "TEST" -> "TEST · PATTERN" to "A moving test picture with a clock, for a phone with no working camera. The take, NDI and LIVE all work from it."
         name == "L" -> "L · LENSES" to "Opens the drawer of this phone's lenses (wide, main, tele, selfie). A tap on one switches to it; the stream goes on. The lens is remembered."
         name.matches(Regex("L\\d.*")) -> "LENS ${name.drop(1).take(1)}" to "Switches to this lens. Its focal length is written under it."
         name == "MARK0" -> "□ FOCUS SQUARE" to "Shows or hides the focus square. A tap on the picture focuses there; pinch the square from an eye to the whole frame; FOC shows the distance."

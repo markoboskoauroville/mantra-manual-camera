@@ -50,7 +50,7 @@ class GpuStage private constructor(
     private val height: Int,
     val tenBit: Boolean
 ) {
-    enum class Output { PREVIEW, RECORD, STREAM }
+    enum class Output { PREVIEW, RECORD, STREAM, LIVE }   // v197: LIVE, the VDO.Ninja publisher's picture
 
     private val thread = HandlerThread("gpu-stage").also { it.start() }
     private val handler = Handler(thread.looper)
@@ -295,7 +295,7 @@ class GpuStage private constructor(
     fun setOutput(output: Output, surface: Surface?, enabled: Boolean = true) = onGpu {
         targets.remove(output)?.let { EGL14.eglDestroySurface(display, it.egl) }
         if (surface == null || !surface.isValid) return@onGpu
-        val sdr = output == Output.STREAM && streamEightBit
+        val sdr = (output == Output.STREAM || output == Output.LIVE) && streamEightBit
         val attribs = if (tenBit && !sdr) intArrayOf(EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_BT2020_HLG_EXT, EGL14.EGL_NONE)
             else intArrayOf(EGL14.EGL_NONE)
         val egl = runCatching {
