@@ -58,3 +58,8 @@ the Sony, and whether the Sony's standby clears while streaming.
    pairing link.
 4. GO LIVE test: in STREAMING press VDO NINJA, or tap LIVE on the rail. Open the band site on another device and
    check the picture moves, the sound is there, and the top line counts the viewer. Hold LIVE two seconds to stop.
+
+## Builds (GitHub Actions, all green)
+
+- v204: https://github.com/markoboskoauroville/mantra-manual-camera/actions/runs/43645591663
+- v205: https://github.com/markoboskoauroville/mantra-manual-camera/actions/runs/43646590424 — release v205 is marked Latest.
