@@ -15,7 +15,7 @@ package com.mantraproductions.ndi
  * frames. At rest the ratio is the drift between the two clocks ([Tap.driftPpm]).
  *
  * **Adaptive target.** The fill a tap aims for is 40 ms + 3 × the measured arrival jitter (RFC 3550 style), plus 10 ms
- * for each recent dropout (decaying), at most 160 ms. A dropout (the ring ran dry) gives silence and waits until the
+ * for each recent dropout (decaying), at most 250 ms (v209: Tailscale through a relay). A dropout (the ring ran dry) gives silence and waits until the
  * target is there again; a fill far above the target (a burst after Wi-Fi power save) jumps back to the target.
  *
  * Both taps aim for the same target, so the take and the stream hear the Mac at the same delay (LESSONS: lip-sync).
@@ -55,7 +55,7 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 2) {
 
     /** The fill the taps aim for, in frames. */
     fun targetFrames(): Int {
-        val ms = (40.0 + 3.0 * jitterFrames * 1000.0 / rate + bumpMs).coerceIn(40.0, 160.0)
+        val ms = (40.0 + 3.0 * jitterFrames * 1000.0 / rate + bumpMs).coerceIn(40.0, 250.0)
         return (ms * rate / 1000.0).toInt()
     }
 
@@ -150,7 +150,7 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 2) {
             val inc = step * ratio
             if (have < frames * inc + 2) {                                            // dry: silence, buffer again
                 underruns++
-                bumpMs = minOf(80.0, bumpMs + 10.0)
+                bumpMs = minOf(120.0, bumpMs + 10.0)
                 waiting = true
                 java.util.Arrays.fill(out, 0, frames * channels, 0)
                 fill = have

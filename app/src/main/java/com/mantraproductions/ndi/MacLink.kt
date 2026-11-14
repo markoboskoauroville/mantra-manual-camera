@@ -31,6 +31,8 @@ import kotlin.concurrent.thread
  */
 object MacLink {
     const val SERVICE_TYPE = "_mantrasound._udp"
+    /** v209: the fixed UDP port on every interface, so the Mac finds the phone over Tailscale by probing it. */
+    const val PORT = 47474
     private const val QUIET_MS = 1500L
 
     val jitter = LinkJitter()
@@ -66,7 +68,11 @@ object MacLink {
     fun start(context: Context) {
         if (running) return
         appContext = context.applicationContext
-        val s = runCatching { DatagramSocket(0).apply { soTimeout = 250; receiveBufferSize = 1 shl 18 } }.getOrElse {
+        val s = runCatching {
+            // v209: the fixed port on all interfaces (Wi-Fi and Tailscale); any free port when it is taken
+            runCatching { DatagramSocket(null).apply { reuseAddress = true; bind(java.net.InetSocketAddress(PORT)) } }
+                .getOrElse { DatagramSocket(0) }.apply { soTimeout = 250; receiveBufferSize = 1 shl 18 }
+        }.getOrElse {
             Trace.fault("sound link", it); return
         }
         socket = s
@@ -133,7 +139,8 @@ object MacLink {
         val b = p.data
         if (b[0] != 'M'.code.toByte() || b[1] != 'S'.code.toByte() || b[2] != 'L'.code.toByte()) return
         val from = p.socketAddress
-        if (active && from != mac) return                    // one Mac at a time
+        // one Mac at a time; a hello from another (a Tailscale probe) is still answered, so the phone stays listed
+        if (active && from != mac && b[3].toInt().toChar() != 'H') return
         val bb = ByteBuffer.wrap(b, 0, n)                    // big-endian, the header's order
         when (b[3].toInt().toChar()) {
             'A' -> {
@@ -152,6 +159,7 @@ object MacLink {
                 val ping = bb.getInt(5)
                 val macNs = bb.getLong(9)
                 val len = b[17].toInt() and 0xff
+                if (active && from != mac) { report(s, from, ping, macNs); return }
                 if (18 + len <= n) macName = String(b, 18, len, Charsets.UTF_8)
                 if (!active) { mac = from }
                 report(s, from, ping, macNs)

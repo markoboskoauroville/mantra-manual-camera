@@ -122,6 +122,8 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
             iceServers = fetchIce()
             connect()
             ticker = worker.scheduleWithFixedDelay({ tick() }, 3, 3, TimeUnit.SECONDS)
+            // v209 SOUND LINK: the WebRTC recorder wrapped as soon as it records (and again if it is made again)
+            wrapTicker = worker.scheduleWithFixedDelay({ MacAudioRecord.install(adm) }, 1, 1, TimeUnit.SECONDS)
         }
     }
 
@@ -140,13 +142,7 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
                 .setUseHardwareAcousticEchoCanceler(false)
                 .setUseHardwareNoiseSuppressor(false)
                 .setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
-                // v206 SOUND LINK: while the Mac sends, its sound replaces the recorder's buffer before it is encoded
-                // (stream-webrtc-android 1.3.10: AudioRecordDataCallback, ~10 ms of PCM 16-bit, changed in place)
-                .setAudioRecordDataCallback(object : org.webrtc.audio.AudioRecordDataCallback {
-                    override fun onAudioDataRecorded(audioFormat: Int, channelCount: Int, sampleRate: Int, audioBuffer: java.nio.ByteBuffer) {
-                        com.mantraproductions.ndi.MacLink.fillLive(audioBuffer, channelCount, sampleRate)
-                    }
-                })
+                // v209 SOUND LINK: 1.3.10 never calls AudioRecordDataCallback; the recorder is wrapped instead (MacAudioRecord)
                 .createAudioDeviceModule()
             adm = audio
             factory = PeerConnectionFactory.builder()
@@ -175,8 +171,11 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
         audioTrack = f.createAudioTrack("mantra-audio", audioSource)
     }
 
+    private var wrapTicker: java.util.concurrent.ScheduledFuture<*>? = null
+
     private fun stopNow(why: String) {
         ticker?.cancel(false); ticker = null
+        wrapTicker?.cancel(false); wrapTicker = null
         for (p in peers.values) closePeer(p, sendBye = true)
         peers.clear()
         ws?.close(1000, "bye"); ws = null

@@ -4765,7 +4765,7 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------------------------------------------------------- v206: SOUND LINK, the Mac's sound
 
-    private fun macLinkLine(): String = "Sound: MAC LINK · ${MacLink.macName.ifEmpty { "Mac" }} · " +
+    private fun macLinkLine(): String = "Sound: MAC LINK · ${MacLink.macName.ifEmpty { "Mac" }.take(16)} · " +
         (if ((meter?.channels ?: 2) >= 2) "stereo" else "mono")
 
     /**
@@ -4799,8 +4799,10 @@ class MainActivity : AppCompatActivity() {
             else -> {
                 val model = when (val m = cam.name.removePrefix("ILCE-")) { "7M5" -> "α7 V"; "7M4" -> "α7 IV"; "7SM3" -> "α7S III"; else -> m }
                 val fps = String.format(java.util.Locale.ROOT, "%.0f", cam.fps)
-                val sound = if (MacLink.active) "MAC LINK · stereo" else meter?.let { if (it.channels >= 2) "stereo" else "mono" } ?: "no sound"
-                "SONY MODE · $model · USB ${cam.width}x${cam.height} ${fps}p · ${cam.mode?.kind ?: ""} · $sound"
+                val sound = meter?.let { if (it.channels >= 2) "stereo" else "mono" } ?: "no sound"
+                // v209 (never cut text): with the Mac's sound the details shrink so MAC LINK is always whole
+                if (MacLink.active) "SONY MODE · $model ${cam.height}p${fps} · MAC LINK · stereo"
+                else "SONY MODE · $model · USB ${cam.width}x${cam.height} ${fps}p · ${cam.mode?.kind ?: ""} · $sound"
             }
         }
         val out = android.text.SpannableString(body)

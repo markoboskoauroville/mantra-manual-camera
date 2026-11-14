@@ -1647,3 +1647,7 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 > "please build in the tiny web browser the tiniest you can find on GitHub in my camera. Then I go to the Santoshi page, which is already in admin, and I log in, and then I do pairing" (Marko, 14.11.2026, about 23:45)
 
 **Status:** v208: Settings → STREAMING, SANTOSHI ADMIN opens https://santoshi-band.pages.dev/admin in a Chrome Custom Tab over the camera (androidx.browser, about 100 KB; it shares Chrome's Google sign-in, which Google refuses inside any WebView browser: disallowed_useragent). The admin's OPEN IN MANUAL CAMERA link (mantracam://pair) comes back into the app: paired, "Paired with santoshi-band.pages.dev", back on STREAMING. The Sony stays open as the lens while the tab or settings are in front.
+
+## 14.11.2026 ~23:45, Sound Link over Tailscale (word for word)
+
+"please also make a sound link work over tail scale because maybe we will not be on the same Wi-Fi"
