@@ -202,14 +202,10 @@ class RailButton @JvmOverloads constructor(
             return
         }
 
-        // A faint gear behind the words, so a key that is also the way into settings says so
-        // (Marko, 7.11.2026: "a gear icon as a background of this free space text").
+        // v198 (Marko, 14.11.2026: "it needs to be gray ... the graphics behind representing settings must be gone"):
+        // the free-space key is a thin square in the keys' inactive grey; the v189 gear is gone.
         if (gearBehind) {
-            ghostGear.color = Color.argb(70, Color.red(tint), Color.green(tint), Color.blue(tint))
-            drawGear(canvas, dw / 2f, dh / 2f, minOf(dw, dh) * 0.5f, ghostGear)
-            // v197 (Marko, 14.11.2026: "put one white square around it so people understand they need to press it"):
-            // one thin white outline, the same weight as the other outlined keys, so the readout reads as a button.
-            val sq = Paint(mark).apply { color = WHITE; strokeWidth = density(1.4f) }
+            val sq = Paint(mark).apply { color = GREY; strokeWidth = density(1.4f) }
             val ins = density(2f)
             canvas.drawRoundRect(ins, ins, dw - ins, dh - ins, density(3f), density(3f), sq)
         }
@@ -272,7 +268,7 @@ class RailButton @JvmOverloads constructor(
 
     private fun fit(paint: Paint, text: String, full: Float) {
         paint.textSize = full
-        val room = dw - density(if (gearBehind) 12f else 3f)
+        val room = dw - density(if (gearBehind) 9f else 3f)
         val needed = paint.measureText(text)
         if (needed > room && needed > 0f) paint.textSize = (full * room / needed).coerceAtLeast(density(6f))
     }
