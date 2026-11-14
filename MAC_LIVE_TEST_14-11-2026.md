@@ -13,3 +13,15 @@ From the Mac session claude-code-8a, at Marko's request: "test now and stream to
 2. Pairing with the Santoshi site: scan the PAIR CAMERA QR (mantracam://pair) on admin LIVE, keep the Bearer token, call /api/live go / stop / status.
 3. The stream must keep the Sony lens (not fall back to the phone camera) and stereo audio; show LIVE red + viewers on the top line.
 4. Marko is ready to test tonight: the Sony is connected and streaming into the Pixel now. As soon as a build is green and Latest, write here (or to the Mac session) and the Mac installs the release APK on the Pixel and runs the live test against the Santoshi site viewer.
+
+## NEW REQUEST from Marko, 14.11.2026 ~22:20 (word for word, also in momentaryupdates.md). This shapes the GO LIVE design.
+
+> "for this to be understandable and easy to work, you need to build one more tab inside the settings, and that is the default first tab: streaming. In the streaming, I can select which streaming is available right now at this moment while the camera is working. One of these streamings will be VDO Ninja. When I press Video Ninja, I can minimize this app on the same phone. I can go to my Santoshi page, log in as an administrator, click Stream, and the camera will stream To my Santoshi stream."
+
+How the Mac session reads it (build it this way unless the spec says otherwise):
+1. Settings gets a new first tab STREAMING, opened by default when settings open (the settings open from the time/space key, which now gets a white square: Mac worker, v197 or next free number).
+2. STREAMING lists the outputs that can run right now (VDO Ninja first; NDI, YouTube, USB as they exist), each one key, lit when on.
+3. Pressing VDO NINJA starts the native publisher at once (the Sony lens if selected + its stereo audio) in a foreground service (camera + microphone types, notification "Streaming to Santoshi"), so it keeps sending when the app is minimised.
+4. Same phone, no QR: the camera already knows the Santoshi site (the pairing token stored once; offer "pair this phone" as a mantracam://pair link the admin page opens on the same phone, besides the QR for another phone).
+5. On santoshi site admin LIVE, the Stream button (/api/live go with the token) makes the site show that camera's VDO.Ninja stream to viewers; STOP ends it. The camera shows LIVE red when the site has gone live.
+6. Test path Marko will do: press VDO NINJA, home button, open the Santoshi page in Chrome on the same Pixel, sign in as admin, press Stream, and the viewer page plays the Sony picture with sound.

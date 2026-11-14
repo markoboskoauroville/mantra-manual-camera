@@ -1567,3 +1567,7 @@ Note: "headline" means hairline (dictation).
 > "please update the camera looks. There is a settings gear icon behind that, and that's not clear. There is a space available and time available thing. Actually, this display, put one white square around it so people understand they need to press it that opens up settings" (Marko, 14.11.2026, 22:15)
 
 **Status:** v197 (in progress): one thin white square outline around the remaining-time / free-space key, gear stays behind it.
+
+## 14.11.2026 ~22:20 Streaming tab
+
+"for this to be understandable and easy to work, you need to build one more tab inside the settings, and that is the default first tab: streaming. In the streaming, I can select which streaming is available right now at this moment while the camera is working. One of these streamings will be VDO Ninja. When I press Video Ninja, I can minimize this app on the same phone. I can go to my Santoshi page, log in as an administrator, click Stream, and the camera will stream To my Santoshi stream."
