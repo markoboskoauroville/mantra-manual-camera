@@ -1637,3 +1637,8 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 ## 14.11.2026 ~23:15, Sound Link: the camera receives the Mac's sound (word for word)
 
 "another Swift app to develop for this case, that is Sound Link. A Sound Link is basically finding this application in the Mantra manual camera on the network and sending the sound from my Mac. We're going to have the camera on one corner and my Mac on another corner. They will both be in the same Wi-Fi network, and on my Mac there will be a connected XLR mixer with all its 16 channels, 18 channels, I don't know. This is a stereo link only, so I'm choosing 2 channels. I'm choosing the source, and I press Send. When I press Send, my camera app automatically switches the sound and puts the status text that it's receiving sound from the Mac. In that case, we can have the sound from the desk in the stream. That's the idea. Please make a Sound Link"
+
+## 14.11.2026: Bluetooth is off while the Sony streams: the Sony keys leave SONY MODE
+> "Bluetooth is, as you said, disabled during streaming completely" (Marko, 14.11.2026; α7 V Help Guide p. 415: while USB Streaming runs, network functions including Bluetooth are unavailable)
+
+**Status:** in progress: REC SONY BT, TC JAM and the BT state leave SONY MODE (USB Streaming has no Bluetooth and no PTP); they show only on a phone lens with a Bluetooth Sony ready, or a Sony in Remote Shoot on USB, and stay in Settings → SONY. The SONY report adds how to record on the Sony's card (MENU → Network → Streaming → Rec During Streaming: Enable, then the camera's own REC).
