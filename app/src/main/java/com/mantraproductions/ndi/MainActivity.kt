@@ -1204,12 +1204,13 @@ class MainActivity : AppCompatActivity() {
         }
         // v135: the microphone settings name (AUTO, the phone's, or a USB-C / wired device), mono or stereo.
         val choice = audioChoice()
-        val m = AudioMeter(this, choice, settings.audioStereo,
-            onLevel = { rms -> ui.post { vu.setLevel(rms) } },
+        // v194: the Sony's USB sound is stereo: asked for in stereo whatever the setting (mono if it offers only one)
+        val m = AudioMeter(this, choice, settings.audioStereo || sonyActive,
+            onLevel = { levels -> ui.post { vu.setLevels(levels) } },
             onRoute = { label, asChosen ->
                 audioLabel = label
                 if (!asChosen) say("${Routing.choiceLabel(choice)} is not plugged in — sound from $label")
-                else say("Sound: $label")
+                else say("Sound: $label · " + (if ((meter?.channels ?: 1) == 2) "stereo L R" else "mono"))
                 refreshTelemetry()
             })
         if (m.start()) {

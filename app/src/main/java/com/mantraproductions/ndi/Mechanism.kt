@@ -2184,6 +2184,26 @@ object Mechanism {
     /** RMS of 16 bit little endian PCM, sampling every [stride] bytes. */
     fun rmsOfPcm16(pcm: ByteArray, stride: Int = 4): Float = rmsOfPcm16Range(pcm, pcm.size, stride)
 
+    /**
+     * v194: the RMS of one channel of interleaved 16-bit PCM ([channels] of them), every frame over the first
+     * [length] bytes, for the meter split into left and right.
+     */
+    fun rmsOfPcm16Channel(pcm: ByteArray, length: Int, channels: Int, channel: Int): Float {
+        val frame = 2 * channels.coerceAtLeast(1)
+        var sumSquares = 0.0
+        var counted = 0
+        var i = 2 * channel
+        val end = minOf(length, pcm.size)
+        while (i + 1 < end) {
+            val value = ((pcm[i + 1].toInt() shl 8) or (pcm[i].toInt() and 0xFF)).toShort()
+            val normalised = value / 32768.0
+            sumSquares += normalised * normalised
+            counted++
+            i += frame
+        }
+        return if (counted == 0) 0f else sqrt(sumSquares / counted).toFloat()
+    }
+
     /** v136: over the first [length] bytes, so the reader thread does not copy every buffer to meter it. */
     fun rmsOfPcm16Range(pcm: ByteArray, length: Int, stride: Int = 4): Float {
         var sumSquares = 0.0

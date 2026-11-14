@@ -40,7 +40,8 @@ class AudioMeter(
     /** [Routing.AUDIO_AUTO], [Routing.AUDIO_PHONE] or a device's [Routing.Input.key]. */
     private val choice: String = Routing.AUDIO_AUTO,
     stereo: Boolean = false,
-    private val onLevel: (rms: Float) -> Unit,
+    /** v194: one linear RMS per channel actually opened (one for mono, left and right for stereo). */
+    private val onLevel: (levels: FloatArray) -> Unit,
     /** Called on the main thread whenever the input changes: its label, and whether it is the one chosen. */
     private val onRoute: ((label: String, asChosen: Boolean) -> Unit)? = null
 ) {
@@ -128,6 +129,8 @@ class AudioMeter(
         }
 
         record = audioRecord
+        // v194: the count the recorder really opened decides the meter (one bar or split), the take and NDI
+        channels = audioRecord.channelCount.coerceIn(1, 2)
         if (device != null) runCatching { audioRecord.setPreferredDevice(device) }
         audioRecord.startRecording()
         Trace.state("audio meter running at $SAMPLE_RATE Hz, ${channels}ch, choice ${Routing.choiceLabel(choice)}" +
@@ -150,7 +153,8 @@ class AudioMeter(
                     overruns++
                     if (overruns % 50 == 1L) Trace.refused("audio meter", "read error $read ($overruns)")
                 } else if (read > 0) {
-                    onLevel(Mechanism.rmsOfPcm16Range(buffer, read))
+                    onLevel(if (ch == 2) floatArrayOf(Mechanism.rmsOfPcm16Channel(buffer, read, 2, 0), Mechanism.rmsOfPcm16Channel(buffer, read, 2, 1))
+                        else floatArrayOf(Mechanism.rmsOfPcm16Range(buffer, read)))
                     sink?.invoke(buffer, read)
                     NdiAudio.feed(buffer, read, ch, SAMPLE_RATE)
                 }
@@ -197,7 +201,7 @@ class AudioMeter(
         runCatching { record?.stop() }
         runCatching { record?.release() }
         record = null
-        onLevel(0f)
+        onLevel(FloatArray(channels.coerceIn(1, 2)))
     }
 
     companion object {
