@@ -1242,7 +1242,8 @@ class MainActivity : AppCompatActivity() {
         // the screen off, settings) keeps the camera, the microphone and the sender running under the foreground
         // service; only the preview window is let go. The ticks that watch the stream and the wire keep running.
         // v201: LIVE (VDO.Ninja) goes on behind other apps the same way (Marko: "I can minimize this app")
-        if (pipeline.isRunning && (pipeline.mode != CameraPipeline.Mode.OFF || liveOn) && pipeline.usesGpuStage) {
+        // v208: the Sony on USB stays open too (settings, SANTOSHI ADMIN's Custom Tab): a USB restart is what dropped it
+        if (pipeline.isRunning && (pipeline.mode != CameraPipeline.Mode.OFF || liveOn || onSony) && pipeline.usesGpuStage) {
             keptRunning = true
             keptWith = snapshot()
             if (!StreamService.running) StreamService.start(this, serviceLine())

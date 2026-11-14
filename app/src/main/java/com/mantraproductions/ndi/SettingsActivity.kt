@@ -37,6 +37,12 @@ class SettingsActivity : AppCompatActivity() {
         const val EXTRA_LENS_NAME = "lensName"
         /** The newest signed APK lives here (CI publishes every version as a release). */
         const val LATEST_RELEASE = "https://github.com/markoboskoauroville/mantra-manual-camera/releases/latest"
+        /** v208: the band site's admin, opened by SANTOSHI ADMIN. */
+        const val SANTOSHI_ADMIN = "https://santoshi-band.pages.dev/admin"
+        /** v208: PairActivity brings settings back on STREAMING after a pairing from the admin. */
+        const val EXTRA_STREAMING = "streaming"
+        /** v208: settings are alive (under the Custom Tab), so a pairing returns here. */
+        @Volatile var open = false
     }
 
     /** The system's folder picker: any drive, a USB SSD included. */
@@ -118,6 +124,17 @@ class SettingsActivity : AppCompatActivity() {
                 Trace.control("live", "pair", if (ok) "paired by link" else "could not keep the token")
             }
             showLive()
+        }
+        // v208: SANTOSHI ADMIN in a Chrome Custom Tab (not a WebView: Google refuses its sign-in there)
+        findViewById<View>(R.id.santoshiAdmin).setOnClickListener {
+            val url = android.net.Uri.parse(SANTOSHI_ADMIN)
+            Trace.control("streaming", "SANTOSHI ADMIN", "custom tab")
+            runCatching {
+                androidx.browser.customtabs.CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(this, url)
+            }.onFailure {
+                runCatching { startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, url)) }
+                    .onFailure { android.widget.Toast.makeText(this, "No browser on this phone", android.widget.Toast.LENGTH_LONG).show() }
+            }
         }
         // v201: VDO NINJA goes live (or stops) on the camera screen, which holds the picture; settings close for it
         findViewById<View>(R.id.streamVdo).setOnClickListener {
@@ -288,8 +305,14 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    override fun onDestroy() {
+        open = false
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        open = true
         setContentView(R.layout.activity_settings)
         settings = Settings(this)
         slots = LutSlots(this)
@@ -706,6 +729,13 @@ class SettingsActivity : AppCompatActivity() {
         root.tag == "hint" -> listOf(root)
         root is ViewGroup -> (0 until root.childCount).flatMap { hints(root.getChildAt(it)) }
         else -> emptyList()
+    }
+
+    /** v208: the pairing link came back from the admin (PairActivity): STREAMING again, with the new state. */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_STREAMING, false)) { swipeTo(0); showLive() }
     }
 
     override fun onResume() {
