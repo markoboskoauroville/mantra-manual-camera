@@ -783,6 +783,14 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
+        <!-- v211 (Marko, 14.11.2026 ~23:58: "I just want to send one stream, and then it is relayed somewhere"): SANTOSHI RELAY first -->
+        <Button
+            android:id="@+id/streamRelay"
+            style="@style/MantraKey"
+            android:layout_width="match_parent"
+            android:text="SANTOSHI RELAY" />
+        <TextView android:tag="hint" style="@style/MantraHint"
+            android:text="SANTOSHI RELAY sends ONE stream (WHIP) to the band's relay in Frankfurt; every viewer of the band site watches it there, about a second behind, and the relay records it to Drive. The phone's upload stays the same however many watch. The default once the band site is paired. Press again to stop." />
         <!-- v201 (Marko, 14.11.2026 ~22:20): STREAMING, the first tab: what can stream right now, one key each -->
         <Button
             android:id="@+id/streamVdo"
@@ -790,7 +798,7 @@
             android:layout_width="match_parent"
             android:text="VDO NINJA" />
         <TextView android:tag="hint" style="@style/MantraHint"
-            android:text="VDO NINJA streams the lens in use and its sound to the paired band site. It keeps streaming when you leave the app (home button), so on this same phone you can open the band site, sign in and watch it. Press again to stop." />
+            android:text="VDO NINJA, the second choice: the phone sends a copy to every viewer itself (peer to peer), fine for two or three. It streams the lens in use and its sound to the paired band site. It keeps streaming when you leave the app (home button), so on this same phone you can open the band site, sign in and watch it. Press again to stop." />
         <!-- v208 (Marko, 14.11.2026 ~23:45): the band site's admin in Chrome's Custom Tab, signed in as in Chrome -->
         <Button
             android:id="@+id/santoshiAdmin"

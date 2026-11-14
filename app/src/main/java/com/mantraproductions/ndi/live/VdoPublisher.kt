@@ -5,7 +5,9 @@ import android.media.AudioDeviceInfo
 import android.media.MediaRecorder
 import android.view.Surface
 import com.mantraproductions.ndi.Trace
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -127,7 +129,202 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
         }
     }
 
+    /**
+     * v211, SANTOSHI RELAY: publishes by WHIP to [url] (the relay's door, from the site) as [user] / [key]. [viewers] is asked every
+     * 15 s on a side thread (the site's watching count; the relay itself does not tell the phone). Returns at once.
+     */
+    fun startWhip(url: String, user: String, key: String, w: Int = 1920, h: Int = 1080, fps: Int = 30, maxKbps: Int = 4000,
+                  mic: AudioDeviceInfo? = null, stereo: Boolean = false, viewers: (() -> Int?)? = null) {
+        worker.execute {
+            if (running) stopNow("restart")
+            running = true
+            whipUrl = url; whipAuth = okhttp3.Credentials.basic(user, key); whipCount = viewers; relayViewers = 0
+            streamId = "relay"; password = ""
+            width = w; height = h
+            this.maxKbps = maxKbps
+            set(Phase.CONNECTING, "opening")
+            runCatching { build(fps, mic, stereo) }.onFailure {
+                Trace.fault("live", it)
+                set(Phase.OFF, "WebRTC did not start: ${it.javaClass.simpleName}")
+                running = false
+                return@execute
+            }
+            iceServers = listOf(PeerConnection.IceServer.builder(listOf("stun:stun.cloudflare.com:3478")).createIceServer())
+            whipConnect()
+            ticker = worker.scheduleWithFixedDelay({ whipTick() }, 3, 3, TimeUnit.SECONDS)
+            // v209 SOUND LINK: the WebRTC recorder wrapped as soon as it records (and again if it is made again)
+            wrapTicker = worker.scheduleWithFixedDelay({ MacAudioRecord.install(adm) }, 1, 1, TimeUnit.SECONDS)
+        }
+    }
+
+    /** How many peer connections the phone holds now: 1 on the relay, one per viewer on VDO.Ninja (the adb "live" line). */
+    val peerCount: Int get() = peers.size
+
+    /** True while this publisher sends to the relay (WHIP), false for VDO.Ninja. */
+    val relay: Boolean get() = whipUrl != null
+
     fun stop() = worker.execute { stopNow("stopped") }
+
+    // --- v211: WHIP to the relay ----------------------------------------------------------------------------------------
+
+    private var whipUrl: String? = null
+    private var whipAuth = ""
+    private var whipResource: String? = null
+    private var whipCount: (() -> Int?)? = null
+    private var whipTries = 0
+    private var whipTicks = 0
+    @Volatile private var relayViewers = 0
+    private val side = Executors.newSingleThreadExecutor { Thread(it, "live-side") }
+
+    private fun whipConnect() {
+        if (!running || whipUrl == null) return
+        val f = factory ?: return
+        peers.values.forEach { closePeer(it, false) }; peers.clear()
+        whipDelete()
+        val p = Peer("relay", "whip")
+        peers[p.uuid] = p
+        val cfg = PeerConnection.RTCConfiguration(iceServers).apply {
+            sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
+            rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE
+            continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_ONCE
+        }
+        val pc = f.createPeerConnection(cfg, whipObserver(p)) ?: run { peers.clear(); return }
+        p.pc = pc
+        videoTrack?.let { pc.addTrack(it, listOf("mantra")) }
+        audioTrack?.let { pc.addTrack(it, listOf("mantra")) }
+        for (t in pc.transceivers) {
+            t.direction = RtpTransceiver.RtpTransceiverDirection.SEND_ONLY
+            if (t.mediaType == MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO) {
+                onlyH264(f, t)
+                val sn = t.sender
+                val params = sn.parameters
+                params.degradationPreference = RtpParameters.DegradationPreference.BALANCED
+                params.encodings.forEach { e -> e.maxBitrateBps = maxKbps * 1000; e.maxFramerate = 30 }
+                sn.parameters = params
+            }
+        }
+        pc.createOffer(object : Sdp() {
+            override fun onCreateSuccess(d: SessionDescription) = worker.execute {
+                val sdp = SessionDescription(d.type, LiveLink.opusStereo(d.description))
+                pc.setLocalDescription(object : Sdp() {
+                    override fun onSetSuccess() = worker.execute {
+                        // the whole offer at once (no trickle): wait for the gathering, at most 2 s
+                        worker.schedule({ if (peers[p.uuid] === p && !p.offerSent) whipPost(p) }, 2, TimeUnit.SECONDS)
+                    }
+                    override fun onSetFailure(e: String?) { Trace.refused("live", "relay local offer: $e") }
+                }, sdp)
+            }
+            override fun onCreateFailure(e: String?) { Trace.refused("live", "relay offer: $e") }
+        }, MediaConstraints())
+        Trace.step("live: relay offer made (one connection)")
+        set(Phase.CONNECTING, "relay")
+    }
+
+    private fun whipPost(p: Peer) {
+        val pc = p.pc ?: return
+        val offer = pc.localDescription?.description ?: return
+        p.offerSent = true
+        val url = whipUrl ?: return
+        val req = Request.Builder().url(url)
+            .header("Authorization", whipAuth)
+            .post(offer.toRequestBody("application/sdp".toMediaTypeOrNull()))
+            .build()
+        http.newCall(req).enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) = worker.execute {
+                Trace.refused("live", "relay WHIP: ${e.javaClass.simpleName}: ${e.message?.take(100)}")
+                whipRetry(p)
+            }
+            override fun onResponse(call: okhttp3.Call, response: Response) {
+                val code = response.code
+                val loc = response.header("Location")
+                val body = runCatching { response.body?.string()?.take(64_000) }.getOrNull().orEmpty()
+                response.close()
+                worker.execute {
+                    if (peers[p.uuid] !== p) return@execute
+                    if (code != 201 || !body.startsWith("v=")) {
+                        Trace.refused("live", "relay WHIP: HTTP $code ${body.take(120).replace('\n', ' ')}")
+                        if (code == 401 || code == 403) { set(Phase.CONNECTING, "relay refused the key"); }
+                        whipRetry(p); return@execute
+                    }
+                    whipResource = loc?.let { runCatching { java.net.URI(url).resolve(it).toString() }.getOrNull() }
+                    val ans = SessionDescription(SessionDescription.Type.ANSWER, LiveLink.opusStereo(body))
+                    pc.setRemoteDescription(object : Sdp() {
+                        override fun onSetSuccess() = worker.execute { p.remoteSet = true; Trace.step("live: relay WHIP 201, answer set") }
+                        override fun onSetFailure(e: String?) { Trace.refused("live", "relay answer: $e"); worker.execute { whipRetry(p) } }
+                    }, ans)
+                }
+            }
+        })
+    }
+
+    private fun whipRetry(p: Peer) {
+        if (!running || peers[p.uuid] !== p) return
+        closePeer(p, false); peers.remove(p.uuid)
+        whipTries++
+        val wait = (3L * whipTries).coerceAtMost(30L)
+        Trace.refused("live", "relay: again in $wait s")
+        set(Phase.CONNECTING, "reconnecting to the relay")
+        worker.schedule({ if (running && peers.isEmpty()) whipConnect() }, wait, TimeUnit.SECONDS)
+    }
+
+    /** Ends the relay session (DELETE on the WHIP resource), off the worker thread, best effort. */
+    private fun whipDelete() {
+        val r = whipResource ?: return
+        whipResource = null
+        val auth = whipAuth
+        runCatching {
+            http.newCall(Request.Builder().url(r).header("Authorization", auth).delete().build()).enqueue(object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
+                override fun onResponse(call: okhttp3.Call, response: Response) { response.close() }
+            })
+        }
+    }
+
+    private fun whipTick() {
+        val p = peers["relay"]
+        val now = System.currentTimeMillis()
+        if (p != null) {
+            if (!p.everConnected && now - p.born > 20_000) { Trace.refused("live", "relay: not connected in 20 s"); whipRetry(p); return }
+            if (p.everConnected && !p.connected && p.lostAt > 0 && now - p.lostAt > 8_000) { Trace.refused("live", "relay: lost for 8 s"); whipRetry(p); return }
+        }
+        if (++whipTicks % 5 == 1) whipCount?.let { c -> side.execute { runCatching { c() }.getOrNull()?.let { n -> worker.execute { relayViewers = n; refresh() } } } }
+    }
+
+    /** The relay takes H.264 only (its HLS fallback and recording cannot carry VP8): H.264 (+ its retransmission) offered, nothing else. */
+    private fun onlyH264(f: PeerConnectionFactory, t: RtpTransceiver) = runCatching {
+        val all = f.getRtpSenderCapabilities(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO).codecs
+        val h = all.filter { it.name.equals("H264", true) && it.parameters["packetization-mode"] == "1" }
+            .sortedBy { if (it.parameters["profile-level-id"]?.startsWith("42e0") == true) 0 else 1 }
+        if (h.isEmpty()) { preferH264(f, t); return@runCatching }
+        t.setCodecPreferences(h + all.filter { it.name.equals("rtx", true) || it.name.equals("red", true) || it.name.equals("ulpfec", true) })
+    }
+
+    private fun whipObserver(p: Peer) = object : PeerConnection.Observer {
+        override fun onIceCandidate(c: IceCandidate) {}
+        override fun onIceGatheringChange(s: PeerConnection.IceGatheringState) {
+            if (s == PeerConnection.IceGatheringState.COMPLETE) worker.execute { if (peers[p.uuid] === p && !p.offerSent) whipPost(p) }
+        }
+        override fun onConnectionChange(s: PeerConnection.PeerConnectionState) = worker.execute {
+            if (peers[p.uuid] !== p) return@execute
+            Trace.step("live: relay $s")
+            when (s) {
+                PeerConnection.PeerConnectionState.CONNECTED -> { p.connected = true; p.everConnected = true; p.lostAt = 0L; whipTries = 0 }
+                PeerConnection.PeerConnectionState.FAILED -> { p.connected = false; whipRetry(p) }
+                PeerConnection.PeerConnectionState.DISCONNECTED -> { p.connected = false; p.lostAt = System.currentTimeMillis() }
+                else -> {}
+            }
+            refresh()
+        }
+        override fun onSignalingChange(s: PeerConnection.SignalingState) {}
+        override fun onIceConnectionChange(s: PeerConnection.IceConnectionState) {}
+        override fun onIceConnectionReceivingChange(b: Boolean) {}
+        override fun onIceCandidatesRemoved(c: Array<out IceCandidate>) {}
+        override fun onAddStream(s: MediaStream) {}
+        override fun onRemoveStream(s: MediaStream) {}
+        override fun onDataChannel(dc: DataChannel) {}
+        override fun onRenegotiationNeeded() {}
+    }
 
     private var maxKbps = 4000
 
@@ -178,6 +375,7 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
         wrapTicker?.cancel(false); wrapTicker = null
         for (p in peers.values) closePeer(p, sendBye = true)
         peers.clear()
+        whipDelete(); whipUrl = null; whipCount = null; whipTries = 0
         ws?.close(1000, "bye"); ws = null
         running = false
         surface?.release(); surface = null
@@ -198,6 +396,7 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
         adm?.release(); adm = null
         eglBase?.release(); eglBase = null
         worker.shutdown()
+        side.shutdown()
     }
 
     // --- STUN / TURN, once per GO LIVE (section 4) --------------------------------------------------------------------
@@ -423,11 +622,12 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
     private fun refresh() {
         if (!running) return
         val n = peers.values.count { it.connected }
+        if (whipUrl != null) { if (n > 0) set(Phase.LIVE, "relay") else set(Phase.CONNECTING, "relay"); return }
         if (n > 0) set(Phase.LIVE, "") else set(Phase.CONNECTING, if (ws == null) "reconnecting" else "waiting for a viewer")
     }
 
     private fun set(phase: Phase, note: String) {
-        val n = peers.values.count { it.connected }
+        val n = if (whipUrl != null) relayViewers else peers.values.count { it.connected }
         val s = State(phase, if (phase == Phase.LIVE) n else 0, note)
         if (s != state) { state = s; listener(s) }
     }

@@ -136,17 +136,21 @@ class SettingsActivity : AppCompatActivity() {
                     .onFailure { android.widget.Toast.makeText(this, "No browser on this phone", android.widget.Toast.LENGTH_LONG).show() }
             }
         }
-        // v201: VDO NINJA goes live (or stops) on the camera screen, which holds the picture; settings close for it
-        findViewById<View>(R.id.streamVdo).setOnClickListener {
+        // v201: VDO NINJA goes live (or stops) on the camera screen, which holds the picture; settings close for it.
+        // v211: SANTOSHI RELAY the same way, ONE stream to the band's relay in Frankfurt; the key pressed is the way the next GO LIVE takes.
+        fun streamKey(id: Int, via: String, label: String) = findViewById<View>(id).setOnClickListener {
             val l = com.mantraproductions.ndi.live.LiveLink
             if (!l.paired(this) && l.livePhase == "OFF") {
                 android.widget.Toast.makeText(this, "Pair the band site first (below)", android.widget.Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
+            if (l.livePhase == "OFF") l.setVia(this, via)
             l.toggleRequested = true
-            Trace.control("streaming", "VDO NINJA", if (l.livePhase == "OFF") "go asked" else "stop asked")
+            Trace.control("streaming", label, if (l.livePhase == "OFF") "go asked" else "stop asked")
             finish()
         }
+        streamKey(R.id.streamRelay, "relay", "SANTOSHI RELAY")
+        streamKey(R.id.streamVdo, "vdo", "VDO NINJA")
         findViewById<View>(R.id.streamNdi).setOnClickListener { swipeTo(4) }
         findViewById<View>(R.id.liveUnpair).setOnClickListener {
             com.mantraproductions.ndi.live.LiveLink.unpair(this)
@@ -158,16 +162,19 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun showLive() {
         val l = com.mantraproductions.ndi.live.LiveLink
-        findViewById<android.widget.Button>(R.id.streamVdo).let { b ->
-            val on = l.livePhase != "OFF"
-            b.text = when {
-                !l.paired(this) -> "VDO NINJA · pair the band site first"
-                on -> "VDO NINJA · ${l.livePhase} · press to stop"
-                else -> "VDO NINJA · ${l.siteName(this)}"
+        val running = l.livePhase != "OFF"
+        for ((id, via, label) in listOf(Triple(R.id.streamRelay, "relay", "SANTOSHI RELAY"), Triple(R.id.streamVdo, "vdo", "VDO NINJA")))
+            findViewById<android.widget.Button>(id).let { b ->
+                val on = running && l.liveVia == via
+                b.text = when {
+                    !l.paired(this) -> "$label · pair the band site first"
+                    on -> "$label · ${l.livePhase} · press to stop"
+                    running -> "$label · press to stop the running stream"
+                    else -> "$label · ${l.siteName(this)}" + if (l.via(this) == via) " · default" else ""
+                }
+                b.isSelected = on
+                b.setTextColor(if (on) android.graphics.Color.rgb(255, 59, 48) else getColor(R.color.sand))
             }
-            b.isSelected = on
-            b.setTextColor(if (on) android.graphics.Color.rgb(255, 59, 48) else getColor(R.color.sand))
-        }
         findViewById<TextView>(R.id.liveNow).text =
             if (l.paired(this)) "Paired: ${l.siteName(this)}" else "Not paired"
         findViewById<View>(R.id.liveUnpair).isEnabled = l.paired(this)

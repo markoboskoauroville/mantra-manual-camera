@@ -2484,6 +2484,7 @@ class MainActivity : AppCompatActivity() {
         //   live go | stop        what the LIVE key does (go asks the paired site)
         //   live pair <link>      pairs by the mantracam:// link;  live unpair
         //   live probe <site>     asks <site>/api/live status with a made-up token: proves the 401 path
+        //   live via relay|vdo    v211: the way GO LIVE takes (SANTOSHI RELAY, the default, or VDO NINJA)
         //   live state
         if (cmd == "live") {
             val a = v.split(' ').filter { it.isNotEmpty() }
@@ -2496,6 +2497,10 @@ class MainActivity : AppCompatActivity() {
                     "publishing test stream ${a[1].take(4)}…"
                 }
                 "go" -> { liveTap(); "go asked" }
+                "via" -> when (a.getOrNull(1)?.lowercase()) {
+                    "relay", "vdo" -> { com.mantraproductions.ndi.live.LiveLink.setVia(this, a[1].lowercase()); "via ${a[1].lowercase()}" }
+                    else -> "via " + com.mantraproductions.ndi.live.LiveLink.via(this) + " (live via relay|vdo)"
+                }
                 "stop" -> { if (liveState.phase == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) "already off" else { stopLive("adb"); "stopped" } }
                 "pair" -> if (a.size > 1 && pairWith(v.trim().substringAfter(' ').trim())) "paired" else "not paired"
                 "unpair" -> { com.mantraproductions.ndi.live.LiveLink.unpair(this); refreshTelemetry(); "unpaired" }
@@ -2510,7 +2515,8 @@ class MainActivity : AppCompatActivity() {
                     }
                     "probing $site"
                 }
-                else -> "live " + livePhaseWord() + " frames=" + (live?.framesOut ?: 0) +
+                else -> "live " + livePhaseWord() + " via=" + com.mantraproductions.ndi.live.LiveLink.liveVia.ifEmpty { com.mantraproductions.ndi.live.LiveLink.via(this) + "(next)" } +
+                    " peers=" + (live?.peerCount ?: 0) + " frames=" + (live?.framesOut ?: 0) +
                     " paired=" + com.mantraproductions.ndi.live.LiveLink.paired(this)
             }
         }
@@ -5551,11 +5557,19 @@ class MainActivity : AppCompatActivity() {
         say("LIVE: asking ${l.siteName(this)}")
         liveState = com.mantraproductions.ndi.live.VdoPublisher.State(com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING, 0, "site")
         refreshLive()
+        // v211: SANTOSHI RELAY (one stream to Frankfurt) unless VDO NINJA was the last one chosen in STREAMING
+        val via = l.via(this)
         liveWorker.execute {
-            val a = l.call(site, token, "go")
+            val a = l.call(site, token, "go", via)
             ui.post {
                 if (isDestroyed) return@post
                 val id = a.push; val pw = a.password
+                if (via == "relay" && a.live && a.whip != null && a.whipUser != null && a.whipKey != null) {
+                    liveFromSite = true
+                    startPublishing(id ?: "relay", pw ?: "", whip = Triple(a.whip, a.whipUser, a.whipKey))
+                    return@post
+                }
+                if (via == "relay" && a.live) Trace.refused("live", "site gave no relay door: VDO.Ninja instead")
                 if (!a.live || id == null || pw == null) {
                     liveState = com.mantraproductions.ndi.live.VdoPublisher.State(com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF, 0, "")
                     refreshLive()
@@ -5578,7 +5592,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Publishes [id] / [pw] (from the site, or made up for an adb test). The token never reaches this point. */
-    private fun startPublishing(id: String, pw: String, tall: Int = 1080) {
+    private fun startPublishing(id: String, pw: String, tall: Int = 1080, whip: Triple<String, String, String>? = null) {
         val pub = live ?: com.mantraproductions.ndi.live.VdoPublisher(applicationContext) { st ->
             ui.post { if (!isDestroyed) { liveState = st; refreshLive() } }
         }.also { live = it }
@@ -5586,7 +5600,17 @@ class MainActivity : AppCompatActivity() {
         val long = tall * 16 / 9
         val w = if (turned) tall else long; val h = if (turned) long else tall
         val stereo = (meter?.channels ?: 1) >= 2 || sonyActive && testSource == null || MacLink.active
-        pub.start(id, pw, w, h, 30, maxKbps = 4000, mic = liveMic(), stereo = stereo)
+        if (whip != null) {
+            // v211: ONE stream to the relay; the watching count comes from the site every 15 s
+            val l = com.mantraproductions.ndi.live.LiveLink
+            val site = l.site(this); val token = l.token(this)
+            pub.startWhip(whip.first, whip.second, whip.third, w, h, 30, maxKbps = 4000, mic = liveMic(), stereo = stereo,
+                viewers = if (site != null && token != null) ({ l.call(site, token, "status").viewers }) else null)
+            l.liveVia = "relay"
+        } else {
+            pub.start(id, pw, w, h, 30, maxKbps = 4000, mic = liveMic(), stereo = stereo)
+            com.mantraproductions.ndi.live.LiveLink.liveVia = "vdo"
+        }
         // the surface exists once the worker built it; attach it as the stage's fifth output
         ui.postDelayed(object : Runnable {
             var tries = 0
@@ -5597,12 +5621,13 @@ class MainActivity : AppCompatActivity() {
                 else if (++tries < 50 && pub.state.phase != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) ui.postDelayed(this, 100)
             }
         }, 100)
-        Trace.control("live", "go", "${id.take(4)}… stereo=$stereo ${w}x$h")
+        Trace.control("live", "go", (if (whip != null) "SANTOSHI RELAY (one stream)" else "VDO.Ninja ${id.take(4)}…") + " stereo=$stereo ${w}x$h")
     }
 
     private fun stopLive(why: String) {
         pipeline.setLiveSurface(null)
         live?.stop()
+        com.mantraproductions.ndi.live.LiveLink.liveVia = ""
         if (liveFromSite) {
             val l = com.mantraproductions.ndi.live.LiveLink
             val site = l.site(this); val token = l.token(this)

@@ -20,6 +20,8 @@ import javax.crypto.spec.GCMParameterSpec
  *   The token is sealed with an AES key that lives in the Android Keystore and never leaves it, and is never logged.
  * - GO LIVE: POST {site}/api/live {action:"go"} with Authorization: Bearer token. The answer names the VDO.Ninja
  *   push id and password the site's viewer is waiting for; STOP sends {action:"stop"}.
+ * - v211, SANTOSHI RELAY: GO with {via:"relay"} also returns whip + whipUser + whipKey: the camera sends ONE stream to the band's
+ *   relay (MediaMTX in Frankfurt) and the viewers watch it there. The key is used in the WHIP header only and never logged.
  */
 object LiveLink {
 
@@ -29,6 +31,12 @@ object LiveLink {
     @Volatile var toggleRequested = false
     /** What the camera screen last said: OFF, CONNECTING or "n viewers", for the STREAMING tab. */
     @Volatile var livePhase = "OFF"
+    /** v211: which way the running live goes: "relay" (SANTOSHI RELAY) or "vdo" (VDO NINJA); "" while off. */
+    @Volatile var liveVia = ""
+
+    /** v211: the way GO LIVE takes: SANTOSHI RELAY by default, VDO NINJA when that was the last one pressed. */
+    fun via(ctx: Context): String = ctx.getSharedPreferences(PREFS, 0).getString("via", "relay") ?: "relay"
+    fun setVia(ctx: Context, v: String) { ctx.getSharedPreferences(PREFS, 0).edit().putString("via", if (v == "vdo") "vdo" else "relay").apply() }
 
     // --- pure, unit tested -------------------------------------------------------------------------------------------
 
@@ -65,7 +73,9 @@ object LiveLink {
     }
 
     /** What the site said to a go. */
-    data class Go(val live: Boolean, val push: String?, val password: String?, val view: String?, val error: String?, val code: Int)
+    data class Go(val live: Boolean, val push: String?, val password: String?, val view: String?, val error: String?, val code: Int,
+                  /** v211, SANTOSHI RELAY: the relay's WHIP door and its publish key (only to a paired camera), the viewers counted by the site */
+                  val whip: String? = null, val whipUser: String? = null, val whipKey: String? = null, val viewers: Int? = null)
 
     fun parseAnswer(code: Int, body: String): Go = runCatching {
         val j = JSONObject(body)
@@ -77,14 +87,18 @@ object LiveLink {
             password = j.optString("password").ifEmpty { null },
             view = j.optString("view").ifEmpty { null },
             error = j.optString("error").ifEmpty { null } ?: if (code >= 400) "HTTP $code" else null,
-            code = code
+            code = code,
+            whip = j.optString("whip").takeIf { it.startsWith("https://") },
+            whipUser = j.optString("whipUser").ifEmpty { null },
+            whipKey = j.optString("whipKey").ifEmpty { null },
+            viewers = if (j.has("viewers") && !j.isNull("viewers")) j.optInt("viewers") else null
         )
     }.getOrElse { Go(false, null, null, null, if (code >= 400) "HTTP $code" else "unreadable answer", code) }
 
     // --- the site ----------------------------------------------------------------------------------------------------
 
     /** POST {site}/api/live {action}. Blocking: call from a worker thread. The token goes in the header only. */
-    fun call(site: String, token: String, action: String): Go {
+    fun call(site: String, token: String, action: String, via: String? = null): Go {
         val c = (URL("$site/api/live").openConnection() as HttpURLConnection)
         return try {
             c.requestMethod = "POST"
@@ -92,7 +106,8 @@ object LiveLink {
             c.doOutput = true
             c.setRequestProperty("Content-Type", "application/json")
             c.setRequestProperty("Authorization", "Bearer $token")
-            c.outputStream.use { it.write(JSONObject().put("action", action).toString().toByteArray()) }
+            val body = JSONObject().put("action", action).also { if (via != null) it.put("via", via) }
+            c.outputStream.use { it.write(body.toString().toByteArray()) }
             val code = c.responseCode
             val body = (if (code >= 400) c.errorStream else c.inputStream)?.use { s ->
                 s.readBytes().decodeToString().take(16_000)       // bounded read
