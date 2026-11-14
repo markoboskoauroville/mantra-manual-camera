@@ -114,7 +114,7 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 2) {
         private var drift = 0.0
         @Volatile var underruns = 0L; private set
         @Volatile var skips = 0L; private set
-        /** Frames waiting ahead of this tap at its last read. */
+        /** Frames waiting ahead of this tap, smoothed over about a second (what it steers on). */
         @Volatile var fill = 0.0; private set
         private var waiting = true
         private var scratch = ShortArray(0)
@@ -170,7 +170,7 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 2) {
                 p += inc
             }
             pos = p
-            fill = head - pos
+            fill = smooth            // the level it steers on (before each read), not the dip right after one
             true
         }
 
