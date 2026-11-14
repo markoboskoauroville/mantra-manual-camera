@@ -1528,3 +1528,8 @@ it (Mac: 0 of 477 frames lost). So the GPU tracker must keep what made libmv win
 **Status:** v190 in progress, built by GitHub only.
 
 **Status (9.11.2026, 02:30):** v191 released (Latest; v190 had screen pinning, whose dialog and keyguard got in the way, so it was taken out). LOCK key on the right rail; tested on the Pixel_7 emulator (closed and open padlock, two taps unlock, take still REC after) and, with v190, on the real Pixel 7 (locked state, pulse, running time). Open-lock state and unlock on the real phone still wait: the Pixel is behind its own PIN screen. Limit: the home gesture still leaves the app and closes the take cleanly (screen pinning in Android settings holds it). Screenshots: docs/lock-v191/.
+
+## 14.11.2026: VDO.Ninja stream + Sony A7 view
+> "Now, next updated that I want with this manual camera to stream our video ninja to my band live stream. You need to see Santoshi webpage, santoshibandpages.dev, we have there video ninja and when I log in there, and so on. Now the Sony camera Alpha 7 is connected and it streaming to this phone Pixel 7 and I want to be able to look at what is streaming right inside my manual camera and then I will be able also to stream either I don't know how to do this. that actually I'm streaming from my camera to my website over Video Ninja. So, please find technical solution for this and update app." (Marko, 14.11.2026)
+
+**Status:** requested, research in progress.
