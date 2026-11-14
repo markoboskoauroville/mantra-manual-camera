@@ -3,6 +3,6 @@
      (0x096F, still image class 6) has not. Android's dialog then offers Manual Camera, "Always" keeps the permission. -->
 <resources>
     <usb-device vendor-id="1356" class="14" />
-    <!-- v202: and in Remote Shoot (PTP, still image class 6), for the time code jam on the plug -->
-    <usb-device vendor-id="1356" class="6" />
+    <!-- v202: no PTP (class 6) entry: the α7 V passes through 0x096F for 2.7 s on every plug, and a dialog for that
+         passing mode would pop up each time. TC JAM asks for its permission when its key is pressed. -->
 </resources>

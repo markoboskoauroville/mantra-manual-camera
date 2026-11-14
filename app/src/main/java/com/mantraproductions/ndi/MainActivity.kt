@@ -2327,6 +2327,9 @@ class MainActivity : AppCompatActivity() {
 
     /** The quarter turns from the stream to this screen, and back. */
     private fun streamDegrees(): Int {
+        // v202 (Marko, 14.11.2026: "Streaming is in a vertical view. We are in horizontal"): a USB picture (the Sony,
+        // TEST) arrives upright and landscape; the closed phone camera's sensor angle turned it to 1080x1920 (measured)
+        if (pipeline.isUsb) return 0
         val e = pipeline.engine
         return Mechanism.sensorToViewDegrees(e.sensorOrientation, displayDegrees(), e.isFrontFacing, manualQuarterTurns)
     }
@@ -5279,6 +5282,14 @@ class MainActivity : AppCompatActivity() {
         Trace.state("tc jam: ${usbHub.describe(d)}${if (pressed) ", pressed" else ", on the plug"}")
         if (jamBusy) return
         val usbManager = getSystemService(android.hardware.usb.UsbManager::class.java)
+        if (!pressed) {
+            // measured 14.11.2026 22:44: the α7 V shows 0x096F for 2.7 s on every plug, then becomes USB Streaming
+            // 0x0F51 (audio + video only, no PTP). On the plug: only a camera that stays, only with the permission
+            // already given (Android's "Always"); never a dialog for a mode that is about to go.
+            if (!usbHub.hasPermission(d)) { Trace.state("tc jam: no permission on the plug, TC key jams by hand"); return }
+            ui.postDelayed({ if (usbHub.stillAttached(d)) autoJam(d, pressed = true) else Trace.state("tc jam: the PTP mode went again (USB Streaming next)") }, 4000)
+            return
+        }
         if (!usbHub.hasPermission(d)) {
             usbHub.requestPermission(d) { granted -> ui.post { if (granted) autoJam(d, pressed) else say("TC: USB permission refused") } }
             return
