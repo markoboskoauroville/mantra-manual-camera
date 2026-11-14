@@ -1555,3 +1555,10 @@ Note: "headline" means hairline (dictation).
 > "please fix my lens selection in the landscape mode because its font needs to be smaller and every line should fit They don't fit. I should be able to scroll." (Marko, 14.11.2026)
 
 **Status:** v195: drawer words at 1.3 (were 1.7), each lens key 76 dp high with its four rows shrunk to fit its height and width, the right rail in a ScrollView so the drawer scrolls past the screen (SONY adds a key); closed, the rail fills the screen as before.
+
+## 14.11.2026: the stereo meter, corrected
+> "you didn't understand me. For my camera hairline, this is not what I meant. I meant that actually the look of the meter is changing. The look itself is changing instead of one line going up and down, which is the meter. Two lines are going up and down with a small gap in between. Remove this line and the alert title" (Marko, 14.11.2026)
+
+("alert title" = the L R labels.)
+
+**Status:** v196: mono one bar; stereo two bars side by side with a small empty gap, each with its own peak hold; no drawn line, no labels; back to 5 dp.

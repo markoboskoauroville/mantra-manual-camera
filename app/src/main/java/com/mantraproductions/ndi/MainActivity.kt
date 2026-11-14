@@ -1227,7 +1227,7 @@ class MainActivity : AppCompatActivity() {
             onRoute = { label, asChosen ->
                 audioLabel = label
                 if (!asChosen) say("${Routing.choiceLabel(choice)} is not plugged in — sound from $label")
-                else say("Sound: $label · " + (if ((meter?.channels ?: 1) == 2) "stereo L R" else "mono"))
+                else say("Sound: $label · " + (if ((meter?.channels ?: 1) == 2) "stereo" else "mono"))
                 refreshTelemetry()
             })
         if (m.start()) {

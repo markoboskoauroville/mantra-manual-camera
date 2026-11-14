@@ -41,10 +41,11 @@ class VuMeterView @JvmOverloads constructor(
     }
 
     /**
-     * v194, ONE METER, SPLIT FOR STEREO (Marko, 14.11.2026; MANTRA_MANIFEST modules/vu-meter-mono-stereo.md): a mono
-     * source is one bar; a stereo source is the same meter in the same place and size, split down the middle by a
-     * hairline, left level on the left and right on the right, each with its own peak hold, and small L and R at the
-     * top. The count comes from the recorder actually opened ([setLevels] gets one level per channel), never a setting.
+     * v194/v196, ONE METER, TWO BARS FOR STEREO (Marko, 14.11.2026: "Two lines are going up and down with a small gap
+     * in between. Remove this line and the alert title"; MANTRA_MANIFEST modules/vu-meter-mono-stereo.md): mono is one
+     * bar; stereo is the same meter in the same place and size drawn as two bars side by side with a small empty gap,
+     * left and right, each with its own peak hold. No line drawn between them, no labels. The count comes from the
+     * recorder actually opened ([setLevels] gets one level per channel), never a setting.
      */
     var channels = 1
         private set
@@ -54,12 +55,6 @@ class VuMeterView @JvmOverloads constructor(
     private val peak = FloatArray(2)
     private val peakHoldFrames = IntArray(2)
 
-    private val hairlinePaint = Paint().apply { color = Color.argb(200, 255, 255, 255); strokeWidth = 1f }
-    private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(220, 255, 255, 255)
-        textAlign = Paint.Align.CENTER
-        isFakeBoldText = true
-    }
 
     /** True while nothing is reading the microphone at all. */
     var dead: Boolean = false
@@ -108,9 +103,8 @@ class VuMeterView @JvmOverloads constructor(
         val h = height.toFloat()
         canvas.drawRect(0f, 0f, w, h, backgroundPaint)
 
-        // the L and R labels sit in a strip at the top, in mono too, so the bars never change length
-        val labels = LABEL_DP * resources.displayMetrics.density
-        val bars = h - labels
+        val labels = 0f
+        val bars = h
 
         // −6 and −18 marked, because those are the two numbers anybody is
         // actually looking for: headroom left, and whether it is up at all.
@@ -120,16 +114,13 @@ class VuMeterView @JvmOverloads constructor(
         }
 
         val stereo = channels == 2
-        val half = if (stereo) w / 2f else w
-        if (stereo) {
-            labelPaint.textSize = labels * 0.8f
-            canvas.drawText("L", w / 4f, labels * 0.82f, labelPaint)
-            canvas.drawText("R", w * 3f / 4f, labels * 0.82f, labelPaint)
-        }
+        // v196: two bars with a small empty gap (at least one pixel) between them
+        val gap = if (stereo) max(1f, GAP_DP * resources.displayMetrics.density) else 0f
+        val half = if (stereo) (w - gap) / 2f else w
 
         if (!dead) {
             for (c in 0 until channels) {
-                val x0 = if (c == 0) 0f else half
+                val x0 = if (c == 0) 0f else half + gap
                 val x1 = if (stereo && c == 0) half else w
                 val top = labels + bars * (1f - level[c])
                 levelPaint.color = when {
@@ -144,15 +135,12 @@ class VuMeterView @JvmOverloads constructor(
                 }
             }
         }
-
-        // the hairline down the middle, over the bars
-        if (stereo) canvas.drawLine(w / 2f, 0f, w / 2f, h, hairlinePaint)
     }
 
     private companion object {
         const val MIN_DB = -54f
         const val PEAK_HOLD_FRAMES = 45
         const val PEAK_LINE_PX = 2f
-        const val LABEL_DP = 9f
+        const val GAP_DP = 1f
     }
 }
