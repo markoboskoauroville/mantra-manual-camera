@@ -1562,3 +1562,8 @@ Note: "headline" means hairline (dictation).
 ("alert title" = the L R labels.)
 
 **Status:** v196: mono one bar; stereo two bars side by side with a small empty gap, each with its own peak hold; no drawn line, no labels; back to 5 dp.
+
+## 14.11.2026: the free-space key gets a white square
+> "please update the camera looks. There is a settings gear icon behind that, and that's not clear. There is a space available and time available thing. Actually, this display, put one white square around it so people understand they need to press it that opens up settings" (Marko, 14.11.2026, 22:15)
+
+**Status:** v197 (in progress): one thin white square outline around the remaining-time / free-space key, gear stays behind it.
