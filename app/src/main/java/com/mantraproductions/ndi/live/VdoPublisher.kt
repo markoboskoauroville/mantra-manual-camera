@@ -141,10 +141,12 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
                 .setUseHardwareNoiseSuppressor(false)
                 .setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
                 // v206 SOUND LINK: while the Mac sends, its sound replaces the recorder's buffer before it is encoded
-                .setAudioBufferCallback { buffer, _, channelCount, sampleRate, _, captureTimeNs ->
-                    com.mantraproductions.ndi.MacLink.fillLive(buffer, channelCount, sampleRate)
-                    captureTimeNs
-                }
+                // (stream-webrtc-android 1.3.10: AudioRecordDataCallback, ~10 ms of PCM 16-bit, changed in place)
+                .setAudioRecordDataCallback(object : org.webrtc.audio.AudioRecordDataCallback {
+                    override fun onAudioDataRecorded(audioFormat: Int, channelCount: Int, sampleRate: Int, audioBuffer: java.nio.ByteBuffer) {
+                        com.mantraproductions.ndi.MacLink.fillLive(audioBuffer, channelCount, sampleRate)
+                    }
+                })
                 .createAudioDeviceModule()
             adm = audio
             factory = PeerConnectionFactory.builder()
