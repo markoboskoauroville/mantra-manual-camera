@@ -85,6 +85,8 @@ private const val HELP_MS = 2000L
 private const val SONY_PERMISSION = 3
 /** v201: how long a USB camera must stay before it is chosen, and how long Android's own dialog is waited for. */
 private const val SETTLE_MS = 700L
+/** v207: how to record on the Sony's own card during USB streaming (Bluetooth and PTP are off then). */
+private const val SONY_CARD_REC = "Recording on the Sony's card: press the camera's own REC button (MENU → Network → Streaming → Rec During Streaming: Enable)"
 private const val PERMISSION_WAIT_MS = 4000L
 /** v195: the lens drawer's words (were 1.7, too big for four rows), and the height of each lens key in it. */
 private const val DRAWER_SCALE = 1.3f
@@ -5281,14 +5283,21 @@ class MainActivity : AppCompatActivity() {
             rulerPlay.visibility = View.GONE
         } else phoneOnly.forEach { if (it.visibility == View.GONE) it.visibility = View.VISIBLE }
         for (v in listOf<View>(focusSquare, exposureCircle, iris, zones)) v.alpha = if (sony) 0f else 1f
-        for (k in listOf(sonyRecKey, tcJamKey, sonyStateKey)) k.visibility = if (sony) View.VISIBLE else View.GONE
-        if (!sony) return
+        // v207 (Marko, 14.11.2026: "Bluetooth is, as you said, disabled during streaming completely"; α7 V Help Guide
+        // p. 415): while the Sony streams over USB it has no Bluetooth, and USB Streaming has no PTP (measured), so in
+        // SONY MODE these keys would do nothing and are gone. They show on a phone lens only where they work: REC and
+        // the state with a Bluetooth Sony ready, TC JAM with a Sony in Remote Shoot (PTP) on USB.
         val bt = SonyLink.enabled(this)
         val ready = SonyLink.ready
         val rec = SonyLink.recording
+        val ptp = usbHub.allDevices().any { com.mantraproductions.ndi.sony.SonyPtp.hasPtp(it) }
+        val btUseful = !sony && bt && ready > 0
+        sonyRecKey.visibility = if (btUseful) View.VISIBLE else View.GONE
+        sonyStateKey.visibility = if (btUseful) View.VISIBLE else View.GONE
+        tcJamKey.visibility = if (!sony && (ptp || jamBusy)) View.VISIBLE else View.GONE
+        if (!btUseful && tcJamKey.visibility != View.VISIBLE) return
         sonyRecKey.state = when { rec > 0 -> RailButton.State.ARMED; bt && ready > 0 -> RailButton.State.SHOWN; else -> RailButton.State.OFF }
         sonyRecKey.sub = if (rec > 0) "REC $rec/$ready" else "SONY BT"
-        val ptp = usbHub.allDevices().any { com.mantraproductions.ndi.sony.SonyPtp.hasPtp(it) }
         tcJamKey.state = if (jamBusy) RailButton.State.ARMED else if (ptp) RailButton.State.SHOWN else RailButton.State.OFF
         tcJamKey.sub = if (jamBusy) "…" else "JAM"
         tcJamKey.third = sonyTc
@@ -5381,6 +5390,8 @@ class MainActivity : AppCompatActivity() {
         val sound = meter?.let { if (it.channels >= 2) "stereo audio" else "mono audio" } ?: "no audio"
         val picture = if (cam.framesIn > 0) "" else ", no picture yet"
         say("Sony found: USB Streaming (UVC), opened, ${cam.width}x${cam.height} ${fps}p, $sound$picture")
+        // v207: the camera's own card while it streams (MANTRA_MANIFEST sony-alpha-settings.md §4, found by Marko)
+        ui.postDelayed({ if (onSony) say(SONY_CARD_REC) }, 3500)
     }
 
     /** The SONY key: asks for the USB permission the first time (Android's dialog, the operator's tap), then opens it. */

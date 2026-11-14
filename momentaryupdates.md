@@ -1641,4 +1641,4 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 ## 14.11.2026: Bluetooth is off while the Sony streams: the Sony keys leave SONY MODE
 > "Bluetooth is, as you said, disabled during streaming completely" (Marko, 14.11.2026; α7 V Help Guide p. 415: while USB Streaming runs, network functions including Bluetooth are unavailable)
 
-**Status:** in progress: REC SONY BT, TC JAM and the BT state leave SONY MODE (USB Streaming has no Bluetooth and no PTP); they show only on a phone lens with a Bluetooth Sony ready, or a Sony in Remote Shoot on USB, and stay in Settings → SONY. The SONY report adds how to record on the Sony's card (MENU → Network → Streaming → Rec During Streaming: Enable, then the camera's own REC).
+**Status:** v207: REC SONY BT, TC JAM and the BT state leave SONY MODE (USB Streaming has no Bluetooth and no PTP); they show only on a phone lens with a Bluetooth Sony ready, or a Sony in Remote Shoot on USB, and stay in Settings → SONY. The SONY report adds how to record on the Sony's card (MENU → Network → Streaming → Rec During Streaming: Enable, then the camera's own REC).
