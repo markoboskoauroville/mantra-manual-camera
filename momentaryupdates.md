@@ -1581,3 +1581,8 @@ Note: "headline" means hairline (dictation).
 > "also, remove the lock icon. I don't need lock icon anymore. A lock is going out I don't know, even what it does. If it does something useful, put it in Settings and under this, describe what it is doing" (Marko, 14.11.2026, about 22:50)
 
 **Status:** v199 (in progress): the lock key leaves the right rail; its function (the black lock screen of v190) is a LOCK SCREEN switch in Settings with a plain description under it.
+
+## 14.11.2026: the battery goes to the status line
+> "also remove a battery indicator or battery thing from these rails. Put the battery thing with all its data there. There is a file USB and all these data of camera settings, please. In the same line on the right side, right-aligned, put this battery information" (Marko, 14.11.2026, about 22:55)
+
+**Status:** v199 (in progress): the battery key leaves the right rail; percent, arrow and time left sit right-aligned at the end of the top status line, same face and size, same colours (red when critical); a tap opens the power numbers.
