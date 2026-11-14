@@ -140,6 +140,11 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
                 .setUseHardwareAcousticEchoCanceler(false)
                 .setUseHardwareNoiseSuppressor(false)
                 .setAudioSource(MediaRecorder.AudioSource.CAMCORDER)
+                // v206 SOUND LINK: while the Mac sends, its sound replaces the recorder's buffer before it is encoded
+                .setAudioBufferCallback { buffer, _, channelCount, sampleRate, _, captureTimeNs ->
+                    com.mantraproductions.ndi.MacLink.fillLive(buffer, channelCount, sampleRate)
+                    captureTimeNs
+                }
                 .createAudioDeviceModule()
             adm = audio
             factory = PeerConnectionFactory.builder()

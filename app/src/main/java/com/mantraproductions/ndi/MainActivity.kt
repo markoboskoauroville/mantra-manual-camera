@@ -657,6 +657,9 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         }
+        // v206 SOUND LINK: findable on the Wi-Fi by Sound Link (Mantra) on the Mac while the app is open
+        MacLink.listener = { on, name, why -> onMacLink(on, name, why) }
+        MacLink.start(this)
     }
 
     // --- the rails -----------------------------------------------------------
@@ -1338,11 +1341,13 @@ class MainActivity : AppCompatActivity() {
         // v135: the microphone settings name (AUTO, the phone's, or a USB-C / wired device), mono or stereo.
         val choice = audioChoice()
         // v194: the Sony's USB sound is stereo: asked for in stereo whatever the setting (mono if it offers only one)
-        val m = AudioMeter(this, choice, settings.audioStereo || sonyActive,
+        // v206: the Mac's sound is stereo: the reader opens in stereo while the link is on
+        val m = AudioMeter(this, choice, settings.audioStereo || sonyActive || MacLink.active,
             onLevel = { levels -> ui.post { vu.setLevels(levels) } },
             onRoute = { label, asChosen ->
                 audioLabel = label
-                if (!asChosen) say("${Routing.choiceLabel(choice)} is not plugged in — sound from $label")
+                if (MacLink.active) say(macLinkLine())
+                else if (!asChosen) say("${Routing.choiceLabel(choice)} is not plugged in — sound from $label")
                 else say("Sound: $label · " + (if ((meter?.channels ?: 1) == 2) "stereo" else "mono"))
                 refreshTelemetry()
             })
@@ -4751,7 +4756,35 @@ class MainActivity : AppCompatActivity() {
         val mbps = if (pipeline.mode != CameraPipeline.Mode.OFF && lastMbps > 0.0) lastMbps
             else pipeline.videoBitRate / 1_000_000.0
         return String.format(java.util.Locale.ROOT, "%dx%d · %s · %.0f Mb/s",
-            bufferSize.width, bufferSize.height, if (pipeline.isTenBit) "10b" else "8b", mbps)
+            bufferSize.width, bufferSize.height, if (pipeline.isTenBit) "10b" else "8b", mbps) +
+            (if (MacLink.active) " · MAC LINK" else "")      // v206
+    }
+
+    // ---------------------------------------------------------------- v206: SOUND LINK, the Mac's sound
+
+    private fun macLinkLine(): String = "Sound: MAC LINK · ${MacLink.macName.ifEmpty { "Mac" }} · " +
+        (if ((meter?.channels ?: 2) >= 2) "stereo" else "mono")
+
+    /**
+     * v206 (Marko, 14.11.2026: "When I press Send, my camera app automatically switches the sound and puts the status
+     * text that it's receiving sound from the Mac"). On: the reader is made again in stereo when it was mono (never under
+     * a running take, whose AAC track is fixed; then the Mac's two channels are mixed into its one); the take, NDI, the
+     * meter and GO LIVE all read the Mac from now on. Off: back to the source the reader still holds, said on the line.
+     */
+    private fun onMacLink(on: Boolean, name: String, why: String) {
+        if (isDestroyed) return
+        Trace.control("sound link", if (on) "on" else "off", if (on) name else why)
+        val wantStereo = settings.audioStereo || sonyActive
+        if (on) {
+            if (meter != null && (meter?.channels ?: 1) < 2 && !rolling) { meter?.stop(); meter = null; startMeter() }
+            say(macLinkLine())
+            ui.postDelayed({ if (MacLink.active) say(macLinkLine()) }, 1500)
+        } else {
+            if (meter != null && (meter?.channels ?: 1) >= 2 && !wantStereo && !rolling) { meter?.stop(); meter = null; startMeter() }
+            val back = audioLabel.ifEmpty { "PHONE MIC" }
+            say("Sound: back to $back · Mac link stopped ($why)")
+        }
+        refreshTelemetry()
     }
 
     /** v202: "SONY MODE · α7 V · USB 1920x1080 30p · stereo", what the UVC stream really delivers; SONY MODE in amber. */
@@ -4763,7 +4796,7 @@ class MainActivity : AppCompatActivity() {
             else -> {
                 val model = when (val m = cam.name.removePrefix("ILCE-")) { "7M5" -> "α7 V"; "7M4" -> "α7 IV"; "7SM3" -> "α7S III"; else -> m }
                 val fps = String.format(java.util.Locale.ROOT, "%.0f", cam.fps)
-                val sound = meter?.let { if (it.channels >= 2) "stereo" else "mono" } ?: "no sound"
+                val sound = if (MacLink.active) "MAC LINK · stereo" else meter?.let { if (it.channels >= 2) "stereo" else "mono" } ?: "no sound"
                 "SONY MODE · $model · USB ${cam.width}x${cam.height} ${fps}p · ${cam.mode?.kind ?: ""} · $sound"
             }
         }
@@ -5038,6 +5071,8 @@ class MainActivity : AppCompatActivity() {
         meter?.stop()
         meter = null
         StreamService.stop(this)
+        MacLink.listener = null
+        MacLink.stop()      // v206
     }
 
     // ---------------------------------------------------------------- v193: THE SONY AS A LENS
@@ -5498,7 +5533,7 @@ class MainActivity : AppCompatActivity() {
         val turned = pipeline.streamTurns % 2 == 1
         val long = tall * 16 / 9
         val w = if (turned) tall else long; val h = if (turned) long else tall
-        val stereo = (meter?.channels ?: 1) >= 2 || sonyActive && testSource == null
+        val stereo = (meter?.channels ?: 1) >= 2 || sonyActive && testSource == null || MacLink.active
         pub.start(id, pw, w, h, 30, maxKbps = 4000, mic = liveMic(), stereo = stereo)
         // the surface exists once the worker built it; attach it as the stage's fifth output
         ui.postDelayed(object : Runnable {
