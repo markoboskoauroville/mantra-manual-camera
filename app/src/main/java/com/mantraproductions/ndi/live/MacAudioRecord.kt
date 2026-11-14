@@ -21,42 +21,50 @@ import java.nio.ByteBuffer
  * The superclass is made with the smallest buffer and released at once: only [real] is ever used.
  */
 @SuppressLint("MissingPermission")
-class MacAudioRecord(val real: AudioRecord) : AudioRecord(
+class MacAudioRecord(wrapped: AudioRecord) : AudioRecord(
     MediaRecorder.AudioSource.MIC, 48_000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
     AudioRecord.getMinBufferSize(48_000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT).coerceAtLeast(4096)
 ) {
-    init { runCatching { super.release() } }
+    /**
+     * Null while AudioRecord's own constructor runs: it calls overridden getters (getFormat, …) before this class's
+     * fields exist (v209 crashed there with a NullPointerException). Every override falls back to the superclass then.
+     */
+    @Volatile private var inner: AudioRecord? = null
+    val real: AudioRecord get() = inner!!
+
+    init { inner = wrapped; runCatching { super.release() } }
 
     @Volatile private var mac = false
 
     private fun after(buffer: ByteBuffer, read: Int): Int {
         if (read <= 0) return read
-        val on = MacLink.fillLive(buffer, real.channelCount, real.sampleRate)
+        val r = inner ?: return read
+        val on = MacLink.fillLive(buffer, r.channelCount, r.sampleRate)
         if (on != mac) { mac = on; Trace.state(if (on) "live audio: MAC LINK" else "live audio: microphone") }
         return read
     }
 
-    override fun read(audioBuffer: ByteBuffer, sizeInBytes: Int): Int = after(audioBuffer, real.read(audioBuffer, sizeInBytes))
+    override fun read(audioBuffer: ByteBuffer, sizeInBytes: Int): Int = inner?.let { after(audioBuffer, it.read(audioBuffer, sizeInBytes)) } ?: super.read(audioBuffer, sizeInBytes)
     override fun read(audioBuffer: ByteBuffer, sizeInBytes: Int, readMode: Int): Int =
-        after(audioBuffer, real.read(audioBuffer, sizeInBytes, readMode))
-    override fun read(audioData: ByteArray, offsetInBytes: Int, sizeInBytes: Int): Int = real.read(audioData, offsetInBytes, sizeInBytes)
-    override fun read(audioData: ShortArray, offsetInShorts: Int, sizeInShorts: Int): Int = real.read(audioData, offsetInShorts, sizeInShorts)
+        inner?.let { after(audioBuffer, it.read(audioBuffer, sizeInBytes, readMode)) } ?: super.read(audioBuffer, sizeInBytes, readMode)
+    override fun read(audioData: ByteArray, offsetInBytes: Int, sizeInBytes: Int): Int = inner?.read(audioData, offsetInBytes, sizeInBytes) ?: super.read(audioData, offsetInBytes, sizeInBytes)
+    override fun read(audioData: ShortArray, offsetInShorts: Int, sizeInShorts: Int): Int = inner?.read(audioData, offsetInShorts, sizeInShorts) ?: super.read(audioData, offsetInShorts, sizeInShorts)
 
-    override fun getRecordingState(): Int = real.recordingState
-    override fun getState(): Int = real.state
-    override fun getChannelCount(): Int = real.channelCount
-    override fun getSampleRate(): Int = real.sampleRate
-    override fun getAudioFormat(): Int = real.audioFormat
-    override fun getAudioSessionId(): Int = real.audioSessionId
-    override fun getAudioSource(): Int = real.audioSource
-    override fun getBufferSizeInFrames(): Int = real.bufferSizeInFrames
-    override fun getFormat(): AudioFormat = real.format
-    override fun getRoutedDevice(): AudioDeviceInfo? = real.routedDevice
-    override fun setPreferredDevice(deviceInfo: AudioDeviceInfo?): Boolean = real.setPreferredDevice(deviceInfo)
-    override fun getTimestamp(outTimestamp: AudioTimestamp, timebase: Int): Int = real.getTimestamp(outTimestamp, timebase)
-    override fun startRecording() = real.startRecording()
-    override fun stop() = real.stop()
-    override fun release() = real.release()
+    override fun getRecordingState(): Int = inner?.recordingState ?: super.getRecordingState()
+    override fun getState(): Int = inner?.state ?: super.getState()
+    override fun getChannelCount(): Int = inner?.channelCount ?: super.getChannelCount()
+    override fun getSampleRate(): Int = inner?.sampleRate ?: super.getSampleRate()
+    override fun getAudioFormat(): Int = inner?.audioFormat ?: super.getAudioFormat()
+    override fun getAudioSessionId(): Int = inner?.audioSessionId ?: super.getAudioSessionId()
+    override fun getAudioSource(): Int = inner?.audioSource ?: super.getAudioSource()
+    override fun getBufferSizeInFrames(): Int = inner?.bufferSizeInFrames ?: super.getBufferSizeInFrames()
+    override fun getFormat(): AudioFormat = inner?.format ?: super.getFormat()
+    override fun getRoutedDevice(): AudioDeviceInfo? = inner?.routedDevice ?: super.getRoutedDevice()
+    override fun setPreferredDevice(deviceInfo: AudioDeviceInfo?): Boolean = inner?.setPreferredDevice(deviceInfo) ?: super.setPreferredDevice(deviceInfo)
+    override fun getTimestamp(outTimestamp: AudioTimestamp, timebase: Int): Int = inner?.getTimestamp(outTimestamp, timebase) ?: super.getTimestamp(outTimestamp, timebase)
+    override fun startRecording() { inner?.startRecording() ?: super.startRecording() }
+    override fun stop() { inner?.stop() ?: super.stop() }
+    override fun release() { inner?.release() ?: super.release() }
 
     companion object {
         /**
