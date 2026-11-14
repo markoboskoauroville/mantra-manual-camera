@@ -66,8 +66,8 @@ the Sony, and whether the Sony's standby clears while streaming.
 
 ## Sound Link (the Mac's sound into the camera), 15.11.2026 night
 
-**Versions.** Mac: Sound Link (Mantra) v5 (repo SOUND_LINK, all runs green, installed and running). Camera: Sound Link code
-in v206, v207, v209, v210, v212 and v213 (v212 installed on the Pixel; v213 built, waiting to be installed until the relay test is done).
+**Versions.** Mac: Sound Link (Mantra) v6 (repo SOUND_LINK, all runs green, installed). Camera: Sound Link code in v206–v215
+(v215 installed on the Pixel, Latest).
 
 **What works.** On the Mac: 1 SOURCE (BlackHole or the mixer, a pair of channels), 2 CAMERA, 3 SEND. The camera switches to
 "Sound: MAC LINK · MacBook Pro · stereo" by itself. The meter, the take and NDI carry the Mac. The status line shows
@@ -86,19 +86,29 @@ and over Tailscale (probe on UDP 47474). It takes the Wi-Fi first and falls back
 The Wi-Fi is clearly faster: total delay about 0.17 s, against about 0.64 s over Tailscale. The Pixel's Wi-Fi also changed
 between the runs (−69 dBm on "mantra", then −54 dBm on "Something"), so part of the gain is the network.
 
+**GO LIVE carries the Mac (v215, installed, 00:57).** Measured in Firefox with a WHEP client on the relay (the site's
+own path, https://relay.ples-duse.org:8889/santoshi/whep):
+- Mac sending: audio level 0.04–0.15.
+- Mac stopped: the stream falls back to the phone's microphone, and packets keep flowing (quiet room 0.0003).
+- SEND again: level back to 0.06–0.10 within a second.
+- The same on VDO.Ninja: level 0.08–0.15, energy 0.22 after 18 s (it was 0 before the fix).
+- How the swap works: WebRTC's AudioRecord is wrapped (live/MacAudioRecord.kt). Making the wrapper stopped the real recorder;
+  v215 starts it again, so the microphone comes back without the Mac.
+- v215 also allows only ONE MainActivity (singleTask). A second `am start` or the pairing link no longer opens a second
+  camera that publishes over the first.
+
 **Not finished.**
-1. GO LIVE does not carry the Mac yet. The WebRTC recorder is now wrapped (v212), but after the swap its microphone read
-   gives 0 bytes ("AudioRecord.read failed: 0"), so the viewer got silence. v213 paces itself on the clock and hands the
-   Mac's sound to WebRTC in that case. It must be tested on SANTOSHI RELAY and on VDO.Ninja.
-2. Lip-sync: the picture is not yet delayed by the link's delay. A take with MAC LINK has its sound about 0.17 s late on
-   the Wi-Fi (0.64 s over Tailscale); the number is on the status line. LESSONS.md, "Sound Link".
-3. MONITOR (v210): the key beside the meter, only while MAC LINK. Tap: on/off; hold: 100/50/25 %. Not tried by ear (night).
+1. Lip-sync, v214 + Mac v6: the take's sound is stamped earlier by the link's delay (the Mac's ~9 ms + half the round trip
+   + the buffer), computed ~173 ms on the Wi-Fi and ~626 ms over Tailscale. The stream's capture times are moved too, but
+   that the viewer's A/V sync uses them is not proven. No clap test yet.
+2. MONITOR (v210): the key beside the meter, only while MAC LINK. Tap: on/off; hold: 100/50/25 %. Not tried by ear (night).
 
 **Marko in the morning.**
 1. Mixer test: plug the XLR desk into the Mac. In Sound Link choose it in 1 SOURCE and the pair of the stereo bus
    (e.g. 1-2). Open Manual Camera and press 3 SEND. Check that the status line says MAC LINK and the meter moves.
 2. Tap MONITOR on the phone (headphones in) and listen for clicks or gaps.
-3. A short take, then check the sound in the file and say how late it feels.
+3. A short take with a clap in front of the Sony while the desk mic hears it, then check in the file that sound and picture line up.
+4. GO LIVE with Sound Link on: the site should carry the desk's sound.
 
 ## Frankfurt relay (SANTOSHI RELAY), 15.11.2026 ~00:40
 

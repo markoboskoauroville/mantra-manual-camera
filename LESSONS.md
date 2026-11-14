@@ -325,3 +325,8 @@ real client off: probe with the app's own status, not with a second connection.
   in 228 s). v210 sends the block from two packets back again in μ-law inside each packet (1468 bytes, one Wi-Fi frame),
   conceals what is still missing by repeating the block before at half level, and fades instead of clicking.
 - **Installing a new APK restarts the app**, so a running GO LIVE drops for the restart and comes back.
+- **Making a second AudioRecord stops the first one.** Constructing the wrapper (a released dummy AudioRecord for the
+  superclass) left WebRTC's real recorder STOPPED (state 1). Its reads then gave 0 in a busy loop, 725 000 times in
+  seconds, and the stream went silent without the Mac. v215 starts the real recorder again right after the wrap, and
+  paces silence on the clock while it restarts.
+- **One MainActivity:** launchMode singleTask plus onNewIntent. Two activities published over each other on the relay.
