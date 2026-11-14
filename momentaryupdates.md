@@ -1655,3 +1655,7 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 ## 14.11.2026 ~23:55, Wi-Fi first (word for word)
 
 "now the phones are on the same network, the phone and the laptop ... So you can now check if it goes through Tailscale or goes to Wi-Fi. Wi-Fi needs to have an advantage over Tailscale, and I guess Tailscale has more delay. I'm not sure. Let me know."
+
+## 14.11.2026 ~00:00, MONITOR on the phone (word for word)
+
+"please make the sound pass through so I can listen to it on my Pixel phone. I want to listen to it to make sure it's okay not to have a microphone, because it will be kind of feedback, but music can play"

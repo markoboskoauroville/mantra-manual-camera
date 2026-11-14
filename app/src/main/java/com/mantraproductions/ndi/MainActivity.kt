@@ -661,7 +661,9 @@ class MainActivity : AppCompatActivity() {
         }
         // v206 SOUND LINK: findable on the Wi-Fi by Sound Link (Mantra) on the Mac while the app is open
         MacLink.listener = { on, name, why -> onMacLink(on, name, why) }
+        MacLink.monitor = false      // v210: MONITOR is off at every start
         MacLink.start(this)
+        makeMonitorKey()
     }
 
     // --- the rails -----------------------------------------------------------
@@ -4760,7 +4762,7 @@ class MainActivity : AppCompatActivity() {
             else pipeline.videoBitRate / 1_000_000.0
         return String.format(java.util.Locale.ROOT, "%dx%d · %s · %.0f Mb/s",
             bufferSize.width, bufferSize.height, if (pipeline.isTenBit) "10b" else "8b", mbps) +
-            (if (MacLink.active) " · MAC LINK" else "")      // v206
+            (if (MacLink.active) " · MAC LINK" else "") + (if (MacLink.active && MacLink.monitor) " · MONITOR" else "")
     }
 
     // ---------------------------------------------------------------- v206: SOUND LINK, the Mac's sound
@@ -4774,8 +4776,42 @@ class MainActivity : AppCompatActivity() {
      * a running take, whose AAC track is fixed; then the Mac's two channels are mixed into its one); the take, NDI, the
      * meter and GO LIVE all read the Mac from now on. Off: back to the source the reader still holds, said on the line.
      */
+    // v210: MONITOR, a small key beside the meter, there only while the sound is the Mac's (never a microphone: feedback).
+    // Tap: on / off. Hold: its own volume 100 → 50 → 25 %. The take and the stream are not touched by it.
+    private var monitorKey: TextView? = null
+
+    private fun makeMonitorKey() {
+        val parent = vu.parent as? android.widget.FrameLayout ?: return
+        val d = resources.displayMetrics.density
+        val k = TextView(this).apply {
+            textSize = 12f
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
+            setPadding((8 * d).toInt(), (6 * d).toInt(), (8 * d).toInt(), (6 * d).toInt())
+            visibility = View.GONE
+            setOnClickListener { MacLink.monitor = !MacLink.monitor; refreshMonitorKey(); status.text = formatLine()
+                Trace.control("monitor", if (MacLink.monitor) "on" else "off", "${(MacLink.monitorVolume * 100).toInt()} %") }
+            setOnLongClickListener {
+                MacLink.monitorVolume = when { MacLink.monitorVolume > 0.75f -> 0.5f; MacLink.monitorVolume > 0.4f -> 0.25f; else -> 1f }
+                refreshMonitorKey(); true }
+        }
+        parent.addView(k, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+            android.view.Gravity.START or android.view.Gravity.BOTTOM).apply {
+            marginStart = (10 * d).toInt(); bottomMargin = (24 * d).toInt() })
+        monitorKey = k
+    }
+
+    private fun refreshMonitorKey() {
+        val k = monitorKey ?: return
+        k.visibility = if (MacLink.active) View.VISIBLE else View.GONE
+        val vol = (MacLink.monitorVolume * 100).toInt()
+        k.text = if (vol == 100) "MONITOR" else "MONITOR $vol%"
+        k.setTextColor(if (MacLink.monitor) android.graphics.Color.rgb(0x33, 0xD1, 0x7A) else android.graphics.Color.rgb(0x9A, 0x9A, 0x9E))
+    }
+
     private fun onMacLink(on: Boolean, name: String, why: String) {
         if (isDestroyed) return
+        refreshMonitorKey()
         Trace.control("sound link", if (on) "on" else "off", if (on) name else why)
         val wantStereo = settings.audioStereo || sonyActive
         if (on) {
@@ -4801,7 +4837,7 @@ class MainActivity : AppCompatActivity() {
                 val fps = String.format(java.util.Locale.ROOT, "%.0f", cam.fps)
                 val sound = meter?.let { if (it.channels >= 2) "stereo" else "mono" } ?: "no sound"
                 // v209 (never cut text): with the Mac's sound the details shrink so MAC LINK is always whole
-                if (MacLink.active) "SONY MODE · $model ${cam.height}p${fps} · MAC LINK · stereo"
+                if (MacLink.active) "SONY MODE · $model ${cam.height}p${fps} · MAC LINK · " + (if (MacLink.monitor) "MONITOR" else "stereo")
                 else "SONY MODE · $model · USB ${cam.width}x${cam.height} ${fps}p · ${cam.mode?.kind ?: ""} · $sound"
             }
         }

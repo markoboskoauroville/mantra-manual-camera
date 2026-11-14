@@ -103,6 +103,7 @@ object MacLink {
             serviceName = "Manual Camera (${Build.MODEL})"
             serviceType = SERVICE_TYPE
             this.port = port
+            runCatching { setAttribute("id", deviceId) }      // v210: the Mac knows it is the same phone over Tailscale
         }
         val l = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(i: NsdServiceInfo) = Trace.state("sound link: findable as \"${i.serviceName}\" on UDP $port")
@@ -183,6 +184,7 @@ object MacLink {
     private fun end(why: String) {
         if (!active) return
         active = false
+        monitor = false            // v210: MONITOR goes with the link
         holdWifi(false)
         Trace.state("sound link: OFF ($why) after ${(SystemClock.elapsedRealtime() - startedAt) / 1000} s · " + numbers())
         val name = macName.ifEmpty { "Mac" }
@@ -197,11 +199,18 @@ object MacLink {
             "live tap fill ${liveTap.fillMs} ms underruns ${liveTap.underruns}"
     }
 
+    /** v210: this phone's own id (ANDROID_ID), the same over Wi-Fi and Tailscale. */
+    private val deviceId: String by lazy {
+        runCatching { android.provider.Settings.Secure.getString(appContext?.contentResolver, android.provider.Settings.Secure.ANDROID_ID) }
+            .getOrNull().orEmpty().take(32)
+    }
+
     /** The answer to a hello: the ping echoed and the numbers, so the Mac shows "camera receiving" and the latency. */
     private fun report(s: DatagramSocket, to: SocketAddress, ping: Int, macNs: Long) {
         val name = "Manual Camera · ${Build.MODEL}".toByteArray(Charsets.UTF_8).let { if (it.size > 60) it.copyOf(60) else it }
         val t = meterTap
-        val bb = ByteBuffer.allocate(47 + name.size).order(ByteOrder.BIG_ENDIAN)
+        val id = deviceId.toByteArray(Charsets.US_ASCII)
+        val bb = ByteBuffer.allocate(48 + name.size + id.size).order(ByteOrder.BIG_ENDIAN)
         bb.put("MSLR".toByteArray(Charsets.US_ASCII)).put(1.toByte())
         bb.put((if (!active) 0 else if (t.started && t.fill > 0) 2 else 1).toByte())
         bb.putShort(t.fillMs.coerceIn(0, 65535).toShort()).putShort(jitter.targetMs().toShort())
@@ -209,6 +218,7 @@ object MacLink {
         bb.putInt(t.underruns.toInt()).putInt(jitter.lost.toInt()).putInt(jitter.late.toInt())
         bb.putInt(t.driftPpm).putInt(jitter.packets.toInt()).putInt(t.skips.toInt())
         bb.put(name.size.toByte()).put(name)
+        bb.put(id.size.toByte()).put(id)                     // v210: after the name (older Macs read up to the name)
         runCatching { s.send(DatagramPacket(bb.array(), bb.position(), to)) }
     }
 
@@ -246,4 +256,49 @@ object MacLink {
     }
 
     private var liveScratch = ShortArray(0)
-}
+
+    // ---------------------------------------------------------------- v210: MONITOR (Marko, 14.11.2026: "please make
+    // the sound pass through so I can listen to it on my Pixel phone ... it will be kind of feedback, but music can play")
+
+    /** Off at every start of the app and at every end of the link; only the Mac's sound is ever played (no feedback). */
+    @Volatile var monitor = false
+    /** Its own volume, 0..1; the take and the stream are not touched by it. */
+    @Volatile var monitorVolume = 1f
+    private var track: android.media.AudioTrack? = null
+    private var trackChannels = 0
+
+    /**
+     * From the microphone's reader, right after [fillMeter]: the very buffer the take, NDI and the meter carry is also
+     * played (headphones when plugged in, else the speaker, as Android routes media). Never blocks the reader.
+     */
+    fun monitorOut(buffer: ByteArray, bytes: Int, channels: Int, filled: Boolean) {
+        if (!(monitor && filled && active)) { if (track != null) closeTrack(); return }
+        if (track == null || trackChannels != channels) {
+            closeTrack()
+            track = runCatching {
+                val mask = if (channels == 2) android.media.AudioFormat.CHANNEL_OUT_STEREO else android.media.AudioFormat.CHANNEL_OUT_MONO
+                val min = android.media.AudioTrack.getMinBufferSize(48_000, mask, android.media.AudioFormat.ENCODING_PCM_16BIT)
+                android.media.AudioTrack.Builder()
+                    .setAudioAttributes(android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build())
+                    .setAudioFormat(android.media.AudioFormat.Builder().setSampleRate(48_000)
+                        .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT).setChannelMask(mask).build())
+                    .setBufferSizeInBytes(min * 4)
+                    .setTransferMode(android.media.AudioTrack.MODE_STREAM)
+                    .build().also { it.play() }
+            }.onFailure { Trace.fault("monitor", it) }.getOrNull()
+            trackChannels = channels
+            Trace.state("monitor: playing the Mac's sound on the phone (${channels}ch)")
+        }
+        track?.let { t ->
+            runCatching { t.setVolume(monitorVolume); t.write(buffer, 0, bytes, android.media.AudioTrack.WRITE_NON_BLOCKING) }
+        }
+    }
+
+    private fun closeTrack() {
+        val t = track ?: return
+        track = null
+        runCatching { t.pause(); t.flush(); t.release() }
+        Trace.state("monitor: off")
+    }

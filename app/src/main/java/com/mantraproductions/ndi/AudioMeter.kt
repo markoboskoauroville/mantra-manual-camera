@@ -155,7 +155,8 @@ class AudioMeter(
                 } else if (read > 0) {
                     // v206 SOUND LINK: while the Mac sends, its sound replaces this buffer, timed by this reader's clock,
                     // so the meter, the take and NDI below all carry the Mac (MacLink, LinkJitter)
-                    MacLink.fillMeter(buffer, read, ch)
+                    val mac = MacLink.fillMeter(buffer, read, ch)
+                    MacLink.monitorOut(buffer, read, ch, mac)     // v210: MONITOR, the same buffer, only the Mac's
                     onLevel(if (ch == 2) floatArrayOf(Mechanism.rmsOfPcm16Channel(buffer, read, 2, 0), Mechanism.rmsOfPcm16Channel(buffer, read, 2, 1))
                         else floatArrayOf(Mechanism.rmsOfPcm16Range(buffer, read)))
                     sink?.invoke(buffer, read)
