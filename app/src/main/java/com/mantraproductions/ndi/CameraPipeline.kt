@@ -499,7 +499,9 @@ class CameraPipeline(private val context: Context) {
             // v193: the Sony's frames go where the camera's would: the stage's input. No session, no RAW, no full NDI.
             startedAtUs = SystemClock.elapsedRealtimeNanos() / 1000
             rateAt = SystemClock.elapsedRealtime()
-            val why = usbCamera.start(stage!!.inputSurface)
+            // v195: frames paced by when they arrived from the camera, not by when their decode finished
+            stage!!.frameTimeNs = { usbCamera.postedFrameNs }
+            val why = usbCamera.start(stage.inputSurface)
             if (why != null) {
                 usbProblem = why
                 Trace.refused("usb camera", why)

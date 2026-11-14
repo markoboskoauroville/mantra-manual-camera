@@ -90,6 +90,14 @@ class GpuStage private constructor(
     )
     private val targets = HashMap<Output, Target>()
 
+    /**
+     * v195: where a frame's time comes from when the producer is not a camera. The USB camera draws through a
+     * canvas, whose buffers are stamped when they are posted (after a decode of uneven length); this gives the
+     * monotonic time the frame arrived from the camera instead, so the take and the stream are paced by the camera.
+     */
+    @Volatile var frameTimeNs: (() -> Long)? = null
+    private var lastStamp = 0L
+
     /** Frames drawn, for the trace and the rate readout. */
     @Volatile var framesDrawn = 0L
         private set
@@ -331,7 +339,8 @@ class GpuStage private constructor(
         val st = input ?: return
         runCatching { EGL14.eglMakeCurrent(display, pbuffer, pbuffer, context); st.updateTexImage() }
             .onFailure { return }
-        val timestamp = st.timestamp
+        val timestamp = frameTimeNs?.invoke()?.takeIf { it > 0L }
+            ?.let { if (it <= lastStamp) lastStamp + 1 else it }?.also { lastStamp = it } ?: st.timestamp
         lastFrameAt = android.os.SystemClock.elapsedRealtime()
         for ((output, target) in targets) {
             if (!target.enabled) continue

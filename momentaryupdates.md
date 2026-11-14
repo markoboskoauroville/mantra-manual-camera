@@ -1548,3 +1548,5 @@ back to the last phone lens with a message. Phase 2 (VDO.Ninja) is separate.
 Note: "headline" means hairline (dictation).
 
 **Status (14.11.2026):** v194: the VU meter (VuMeterView) is one bar for mono and the same meter split by a hairline into L and R, each with its own peak hold, for stereo; decided by the channel count AudioRecord really opened. The Sony lens asks for stereo whatever the setting. The status line says mono or stereo L R. The Monitor app has no level meter. Rule: MANTRA_MANIFEST modules/vu-meter-mono-stereo.md.
+
+**Status (14.11.2026, v195):** lens drawer keys fit their text in height too (Marko: "the font is going out of the frame": L1 cut at the top, 12MP at the bottom with five lenses); Sony frames are paced by when they arrived from the camera (monotonic clock), not by when their decode ended; the trace gives fps in and drawn, decode ms, overwritten frames and the arrival spacing; TC Jam no longer opens when a Sony is plugged in, so the SONY lens alone claims it.

@@ -71,7 +71,7 @@
             android:label="@string/settings"
             android:screenOrientation="fullUser" />
 
-        <!-- v187: SONY REMOTE, the Mantra Sony Remote's TC JAM, opened from Settings → SONY and by a Sony on USB -->
+        <!-- v187: SONY REMOTE, the Mantra Sony Remote's TC JAM, opened from Settings → SONY (v195: no longer by a Sony on USB) -->
         <activity
             android:name=".sony.TcJamActivity"
             android:label="Sony Remote"
@@ -79,10 +79,7 @@
             android:launchMode="singleTop"
             android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
             android:screenOrientation="fullSensor">
-            <intent-filter>
-                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
-            </intent-filter>
-            <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/sony_usb" />
+            <!-- v195: no USB_DEVICE_ATTACHED filter any more: the SONY lens is the only thing that claims the Sony on USB -->
         </activity>
 
         <service

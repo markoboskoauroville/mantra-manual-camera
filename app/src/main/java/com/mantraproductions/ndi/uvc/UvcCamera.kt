@@ -144,6 +144,10 @@ class UvcCamera internal constructor(
     @Volatile var framesDrawn = 0L; private set
     @Volatile var lastFrameAt = 0L; private set
     @Volatile var decodeMs = 0.0; private set
+    /** v195: System.nanoTime when the frame now being posted arrived whole from the camera (the GPU stage's clock). */
+    @Volatile var postedFrameNs = 0L; private set
+    /** v195: the spacing of arrivals, for the trace: mean and the worst gap in ms over the last report. */
+    @Volatile var arrivalJitter = ""; private set
     /** What failed last, for the trace and adb state. */
     @Volatile var problem: String? = null; private set
 
@@ -232,11 +236,20 @@ class UvcCamera internal constructor(
         var lastSize = 0
             private set
 
-        fun put(b: ByteArray, n: Int) {
+        private var arrived = 0L
+        /** When the frame [take] gave last arrived (System.nanoTime). */
+        var lastArrived = 0L
+            private set
+        /** Frames that came in while the one before was still waiting: dropped, never queued. */
+        var overwritten = 0L
+            private set
+
+        fun put(b: ByteArray, n: Int, at: Long) {
             lock.lock()
             try {
                 if (data.size < n) data = ByteArray(n + n / 4)
-                System.arraycopy(b, 0, data, 0, n); size = n; fresh = true
+                if (fresh) overwritten++
+                System.arraycopy(b, 0, data, 0, n); size = n; fresh = true; arrived = at
                 ready.signalAll()
             } finally { lock.unlock() }
         }
@@ -250,6 +263,7 @@ class UvcCamera internal constructor(
                 val out = if (into.size >= size) into else ByteArray(size + size / 4)
                 System.arraycopy(data, 0, out, 0, size); fresh = false
                 lastSize = size
+                lastArrived = arrived
                 return out
             } finally { lock.unlock() }
         }
@@ -279,7 +293,7 @@ class UvcCamera internal constructor(
                 framesIn++
                 lastFrameAt = SystemClock.elapsedRealtime()
                 stallSaid = false
-                slot.put(frame, size)
+                slot.put(frame, size, System.nanoTime())
             }
         }
     }
@@ -296,6 +310,8 @@ class UvcCamera internal constructor(
         var decodeSum = 0.0
         var decodeCount = 0
         var badSaid = false
+        var prevArrived = 0L
+        val gaps = Gaps()
         while (running.get()) {
             val got = runCatching { slot.take(scratch, 500) }.getOrNull() ?: continue
             scratch = got
@@ -335,6 +351,7 @@ class UvcCamera internal constructor(
             bitmap = pic
             decodeSum += (System.nanoTime() - t0) / 1e6; decodeCount++
             val drawn = runCatching {
+                postedFrameNs = slot.lastArrived
                 val canvas = surface.lockHardwareCanvas()
                 try {
                     canvas.drawBitmap(pic, null, Rect(0, 0, canvas.width, canvas.height), paint)
@@ -348,17 +365,30 @@ class UvcCamera internal constructor(
                 break
             }
             framesDrawn++
+            if (prevArrived > 0L) gaps.add((slot.lastArrived - prevArrived) / 1e6)
+            prevArrived = slot.lastArrived
             val now = SystemClock.elapsedRealtime()
             if (now - reportAt >= 5000) {
                 val s = (now - reportAt) / 1000.0
                 decodeMs = if (decodeCount > 0) decodeSum / decodeCount else 0.0
+                arrivalJitter = gaps.summary()
                 Trace.state("usb camera: " + String.format(java.util.Locale.ROOT,
-                    "%.1f fps in, %.1f fps drawn, decode %.1f ms, %s %dx%d",
-                    (framesIn - reportIn) / s, (framesDrawn - reportFrames) / s, decodeMs, m.kind, pic.width, pic.height))
+                    "%.1f fps in, %.1f fps drawn, decode %.1f ms, %d overwritten, arrivals %s, %s %dx%d",
+                    (framesIn - reportIn) / s, (framesDrawn - reportFrames) / s, decodeMs, slot.overwritten,
+                    arrivalJitter, m.kind, pic.width, pic.height))
+                gaps.clear()
                 reportAt = now; reportFrames = framesDrawn; reportIn = framesIn
                 decodeSum = 0.0; decodeCount = 0
             }
         }
+    }
+
+    /** v195: the gaps between drawn frames' arrivals, mean and worst, to see pacing in the trace. */
+    private class Gaps {
+        private var sum = 0.0; private var n = 0; private var worst = 0.0
+        fun add(ms: Double) { sum += ms; n++; if (ms > worst) worst = ms }
+        fun clear() { sum = 0.0; n = 0; worst = 0.0 }
+        fun summary(): String = if (n == 0) "-" else String.format(java.util.Locale.ROOT, "every %.1f ms (worst %.1f)", sum / n, worst)
     }
 
     /** The picture stops; the device stays open for the next start. */

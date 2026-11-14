@@ -223,11 +223,23 @@ class RailButton @JvmOverloads constructor(
             val h1 = word.textSize; val h2 = mm.textSize; val h3 = whisper.textSize
             // v183: the fourth line as large as the third, in its own paint so the two shrink apart
             val last = fourth?.takeIf { it.isNotBlank() }?.let { f -> Paint(whisper).also { fit(it, f, density(9f * scale)) } }
-            val h4 = last?.textSize ?: 0f
-            var y = dh / 2f - (h1 + h2 + h3 + 2 * gap + if (last != null) h4 + gap else 0f) / 2f
-            canvas.drawText(label, dw / 2f, y + h1 * 0.8f, word); y += h1 + gap
-            canvas.drawText(sub ?: "", dw / 2f, y + h2 * 0.8f, mm); y += h2 + gap
-            canvas.drawText(third!!, dw / 2f, y + h3 * 0.8f, whisper); y += h3 + gap
+            var h4 = last?.textSize ?: 0f
+            // v195 (Marko, 14.11.2026: "the font is going out of the frame"): the rows fit the key's HEIGHT too. Five
+            // lens keys on the drawer cut L1 at the top and 12MP at the bottom; all four rows shrink together.
+            var gapNow = gap
+            val total = h1 + h2 + h3 + 2 * gap + if (last != null) h4 + gap else 0f
+            val roomH = dh - density(4f)
+            var a1 = h1; var a2 = h2; var a3 = h3
+            if (total > roomH && total > 0f) {
+                val k = roomH / total
+                word.textSize = h1 * k; mm.textSize = h2 * k; whisper.textSize = h3 * k
+                last?.let { it.textSize = h4 * k }
+                a1 = h1 * k; a2 = h2 * k; a3 = h3 * k; h4 *= k; gapNow = gap * k
+            }
+            var y = dh / 2f - (a1 + a2 + a3 + 2 * gapNow + if (last != null) h4 + gapNow else 0f) / 2f
+            canvas.drawText(label, dw / 2f, y + a1 * 0.8f, word); y += a1 + gapNow
+            canvas.drawText(sub ?: "", dw / 2f, y + a2 * 0.8f, mm); y += a2 + gapNow
+            canvas.drawText(third!!, dw / 2f, y + a3 * 0.8f, whisper); y += a3 + gapNow
             if (last != null) canvas.drawText(fourth!!, dw / 2f, y + h4 * 0.8f, last)
             return
         }
@@ -235,6 +247,12 @@ class RailButton @JvmOverloads constructor(
         sub?.let { fit(whisper, it, density(9f * scale)) }
 
         val hasSub = !sub.isNullOrBlank()
+        // v195: a word and its whisper fit the key's height as well as its width
+        if (hasSub) {
+            val need = word.textSize + whisper.textSize + density(4f * scale)
+            val roomH = dh - density(2f)
+            if (need > roomH && need > 0f) { val k = roomH / need; word.textSize *= k; whisper.textSize *= k }
+        } else if (word.textSize > dh - density(2f) && dh > 0f) word.textSize = dh - density(2f)
         val metrics = word.fontMetrics
         val centre = dh / 2f
         if (hasSub) {
