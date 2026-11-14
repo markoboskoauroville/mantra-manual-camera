@@ -32,7 +32,17 @@ class MacAudioRecord(wrapped: AudioRecord) : AudioRecord(
     @Volatile private var inner: AudioRecord? = null
     val real: AudioRecord get() = inner!!
 
-    init { inner = wrapped; runCatching { super.release() } }
+    init {
+        inner = wrapped
+        runCatching { super.release() }
+        // v215: making this object (a second AudioRecord, released at once) leaves WebRTC's real recorder STOPPED
+        // (state 1 on 15.11.2026), so its reads gave 0 and the microphone never came back without the Mac: start it again
+        if (wrapped.recordingState != RECORDSTATE_RECORDING) runCatching { wrapped.startRecording() }
+            .onFailure { Trace.fault("live audio restart", it) }
+        Trace.state("live audio: the real recorder after the wrap is " + if (wrapped.recordingState == RECORDSTATE_RECORDING) "recording" else "state ${wrapped.recordingState}")
+    }
+
+    private var lastRestartNs = 0L
 
     @Volatile private var mac = false
     private var failed = 0L
@@ -50,14 +60,18 @@ class MacAudioRecord(wrapped: AudioRecord) : AudioRecord(
             if (failed == 1L || failed % 1000 == 0L)
                 Trace.refused("live audio", "the microphone read gave $read ($failed times), state ${r.recordingState}, " +
                     "${r.sampleRate} Hz ${r.channelCount}ch" + if (MacLink.active) "; paced by the clock with the Mac's sound" else "")
-            if (!MacLink.active) return read
             val ch = r.channelCount.coerceIn(1, 2)
-            val durNs = size.toLong() / (2 * ch) * 1_000_000_000L / r.sampleRate.coerceAtLeast(8000)
-            val now = System.nanoTime()
-            if (nextNs == 0L || now - nextNs > 200_000_000L) nextNs = now
-            nextNs += durNs
-            val wait = nextNs - now
-            if (wait > 0) Thread.sleep(wait / 1_000_000L, (wait % 1_000_000L).toInt())
+            if (!MacLink.active) {
+                // v215: no Mac and no microphone: start the real recorder again (once a second), and hand WebRTC paced
+                // silence meanwhile instead of returning 0 at once (that spun the thread: 725 000 reads in seconds)
+                val now = System.nanoTime()
+                if (now - lastRestartNs > 1_000_000_000L) { lastRestartNs = now; runCatching { r.startRecording() } }
+                pace(size, ch, r.sampleRate)
+                val z = buffer.duplicate(); z.clear(); while (z.hasRemaining() && z.position() < size) z.put(0.toByte())
+                if (mac) { mac = false; Trace.state("live audio: microphone (silence while it restarts)") }
+                return size
+            }
+            pace(size, ch, r.sampleRate)
             val on = MacLink.fillLive(buffer, ch, r.sampleRate)
             if (on != mac) { mac = on; Trace.state(if (on) "live audio: MAC LINK (paced)" else "live audio: microphone") }
             return if (on) size else read
@@ -66,6 +80,16 @@ class MacAudioRecord(wrapped: AudioRecord) : AudioRecord(
         val on = MacLink.fillLive(buffer, r.channelCount, r.sampleRate)
         if (on != mac) { mac = on; Trace.state(if (on) "live audio: MAC LINK" else "live audio: microphone") }
         return read
+    }
+
+    /** Sleeps until this buffer's turn on the clock (one buffer per its own duration). */
+    private fun pace(size: Int, ch: Int, rate: Int) {
+        val durNs = size.toLong() / (2 * ch) * 1_000_000_000L / rate.coerceAtLeast(8000)
+        val now = System.nanoTime()
+        if (nextNs == 0L || now - nextNs > 200_000_000L) nextNs = now
+        nextNs += durNs
+        val wait = nextNs - now
+        if (wait > 0) Thread.sleep(wait / 1_000_000L, (wait % 1_000_000L).toInt())
     }
 
     override fun read(audioBuffer: ByteBuffer, sizeInBytes: Int): Int = inner?.let { after(audioBuffer, sizeInBytes, it.read(audioBuffer, sizeInBytes)) } ?: super.read(audioBuffer, sizeInBytes)

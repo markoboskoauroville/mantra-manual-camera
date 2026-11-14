@@ -1165,6 +1165,18 @@ class MainActivity : AppCompatActivity() {
         zones.turn = keyTurn      // v183: the faders' words turn too; the faders do not
     }
 
+    /**
+     * v215: ONE MainActivity, always (launchMode singleTask). A second `am start`, the pairing link or a notification
+     * made a second one, and the two published over each other (seen 15.11.2026 on the relay). Now the running one gets
+     * the intent here; a launch with a "live" command still does it.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        Trace.state("launch: the running camera took the new intent (one MainActivity)")
+        intent.getStringExtra("live")?.let { v -> ui.postDelayed({ if (!isDestroyed) say("ADB: " + adbCommand("live", v)) }, 500) }
+    }
+
     override fun onStart() {
         super.onStart()
         com.mantraproductions.ndi.uvc.UsbAttach.inFront = true     // v201
