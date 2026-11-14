@@ -299,3 +299,23 @@ real client off: probe with the app's own status, not with a second connection.
   closed (reading the screenshot took longer) and landed on the picture as a focus tap. Tap right after the screenshot.
 - **The Pixel is not in `adb devices` until something connects it**: `scripts/mcam state` finds it over mDNS and
   connects; then use that serial (ANDROID_SERIAL), not a quoted "adb -s …" in one zsh variable (zsh does not split it).
+
+## Sound Link: the Mac's sound in the take and the stream (v206–v210, 14.11.2026)
+
+- **The phone's audio clock is the master.** The Mac's packets fill a ring indexed by the Mac's own frame count; the
+  microphone's reader (meter, take, NDI) and the GO LIVE recorder each read it through their own tap, at their own pace,
+  resampling by at most ±0.4 % steered by how full the ring is. Neither clock can drift away from the other.
+- **Lip-sync, how it is aligned today.** Both taps aim at the same buffer target, and both stand in place of the
+  microphone inside the readers that already feed the take and the stream. So the file and the stream get the same delay:
+  the Mac's sound is late against the picture by the link's delay, the buffer (150 ms on the Wi-Fi, 400 ms over
+  Tailscale, plus what it grew after dropouts) plus about half the round trip (5–50 ms). NOT DONE YET: delaying the
+  picture by that amount (or shifting the take's audio timestamps earlier by it). Until then a take with MAC LINK has
+  its sound about 0.2 s late on the Wi-Fi; slide it in the edit, the number is on the status line ("MAC LINK 165 ms").
+- **stream-webrtc-android 1.3.10 has no buffer hook.** `setAudioRecordDataCallback` is accepted and never called (its
+  WebRtcAudioRecord loop has no call). v209 wraps the recorder's own AudioRecord field (MacAudioRecord): the wrapper
+  reads the real microphone (WebRTC keeps its pace) and overwrites the buffer while the Mac sends, so the stream
+  switches under a running GO LIVE without stopping.
+- **2.4 GHz Wi-Fi loses small packets.** 200 packets a second at −54 to −69 dBm lost 4.3 % (1943 of 45551, 37 dropouts
+  in 228 s). v210 sends the block from two packets back again in μ-law inside each packet (1468 bytes, one Wi-Fi frame),
+  conceals what is still missing by repeating the block before at half level, and fades instead of clicking.
+- **Installing a new APK restarts the app**, so a running GO LIVE drops for the restart and comes back.
