@@ -90,6 +90,9 @@ class UvcHub(private val context: Context) {
 
     private var plugReceiver: BroadcastReceiver? = null
 
+    /** v202: a Sony that is not a video device (PTP, Remote Shoot) came or went; on the main thread. */
+    var onSonyOther: ((UsbDevice, Boolean) -> Unit)? = null
+
     /** Hears a camera come and go; [onChange] runs on the main thread with the device and whether it arrived. */
     fun listen(onChange: (UsbDevice, Boolean) -> Unit) {
         if (plugReceiver != null) return
@@ -101,8 +104,11 @@ class UvcHub(private val context: Context) {
                 val video = (0 until d.interfaceCount).any { d.getInterface(it).interfaceClass == UsbConstants.USB_CLASS_VIDEO }
                 if (!video) {
                     // v201: the Sony in another USB mode (PTP 0x096F) is no lens, but its coming and going is traced
-                    if (isSony(d)) Trace.state("usb camera: Sony ${if (i.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) "attached" else "detached"}, " +
-                        "not a video device: ${describe(d)}")
+                    if (isSony(d)) {
+                        val came = i.action == UsbManager.ACTION_USB_DEVICE_ATTACHED
+                        Trace.state("usb camera: Sony ${if (came) "attached" else "detached"}, not a video device: ${describe(d)}")
+                        onSonyOther?.invoke(d, came)     // v202: TC JAM over PTP
+                    }
                     return
                 }
                 onChange(d, i.action == UsbManager.ACTION_USB_DEVICE_ATTACHED)
@@ -137,7 +143,58 @@ class UvcHub(private val context: Context) {
         Trace.state("usb camera: ${nameOf(d)} UVC ${Integer.toHexString(desc.uvcVersion)}, VC if ${desc.controlInterface}, " +
             "VS if ${desc.streamingInterface}, endpoint 0x${Integer.toHexString(desc.endpointAddress)}; modes: " +
             desc.modes.joinToString { m -> m.label + "@" + m.intervals.joinToString("/") { String.format(java.util.Locale.ROOT, "%.0f", m.fpsOf(it)) } })
+        runCatching { probeControls(conn, raw) }.onFailure { Trace.refused("usb camera", "controls probe: ${it.javaClass.simpleName}") }
         return UvcCamera(d, conn, desc, nameOf(d))
+    }
+
+    /**
+     * v202, WHAT THE SONY ANSWERS OVER UVC: the camera terminal's and the processing unit's advertised controls
+     * (bmControls), each asked GET_INFO and GET_CUR, into the trace. Read only; nothing is set.
+     */
+    private fun probeControls(conn: UsbDeviceConnection, raw: ByteArray) {
+        val ct = mapOf(0 to ("scanning" to 0x01), 1 to ("AE mode" to 0x02), 2 to ("AE priority" to 0x03),
+            3 to ("exposure" to 0x04), 5 to ("focus" to 0x06), 7 to ("iris" to 0x09), 9 to ("zoom" to 0x0B),
+            11 to ("pan/tilt" to 0x0D), 13 to ("roll" to 0x0F), 17 to ("auto focus" to 0x08))
+        val pu = mapOf(0 to ("brightness" to 0x02), 1 to ("contrast" to 0x03), 2 to ("hue" to 0x06),
+            3 to ("saturation" to 0x07), 4 to ("sharpness" to 0x08), 5 to ("gamma" to 0x09), 6 to ("WB temperature" to 0x0A),
+            7 to ("WB component" to 0x0C), 8 to ("backlight" to 0x01), 9 to ("gain" to 0x04), 10 to ("power line" to 0x05),
+            12 to ("WB temperature auto" to 0x0B))
+        var i = 0
+        var ifNo = -1; var ifClass = -1; var ifSub = -1
+        val found = ArrayList<String>()
+        while (i + 2 < raw.size) {
+            val len = raw[i].toInt() and 0xFF
+            if (len < 2 || i + len > raw.size) break
+            val type = raw[i + 1].toInt() and 0xFF
+            if (type == 4 && len >= 9) { ifNo = raw[i + 2].toInt() and 0xFF; ifClass = raw[i + 5].toInt() and 0xFF; ifSub = raw[i + 6].toInt() and 0xFF }
+            if (type == 0x24 && ifClass == 14 && ifSub == 1 && len >= 4) {
+                val sub = raw[i + 2].toInt() and 0xFF
+                val unit = raw[i + 3].toInt() and 0xFF
+                fun bits(at: Int, n: Int): Long { var v = 0L; for (k in 0 until n) if (at + k < i + len) v = v or ((raw[at + k].toLong() and 0xFF) shl (8 * k)); return v }
+                val (table, map) = when {
+                    sub == 0x02 && len >= 15 && ((raw[i + 4].toInt() and 0xFF) or ((raw[i + 5].toInt() and 0xFF) shl 8)) == 0x0201 ->
+                        "camera terminal $unit" to (ct to bits(i + 15, raw[i + 14].toInt() and 0xFF))
+                    sub == 0x05 && len >= 8 -> "processing unit $unit" to (pu to bits(i + 8, raw[i + 7].toInt() and 0xFF))
+                    else -> null to (emptyMap<Int, Pair<String, Int>>() to 0L)
+                }
+                if (table != null) {
+                    val (names, mask) = map
+                    found += "$table bmControls 0x${java.lang.Long.toHexString(mask)}"
+                    for ((bit, nameSel) in names) {
+                        if ((mask and (1L shl bit)) == 0L) continue
+                        val (nm, sel) = nameSel
+                        val info = ByteArray(1)
+                        val gi = conn.controlTransfer(0xA1, 0x86, sel shl 8, (unit shl 8) or ifNo, info, 1, 300)
+                        val cur = ByteArray(8)
+                        val gc = conn.controlTransfer(0xA1, 0x81, sel shl 8, (unit shl 8) or ifNo, cur, cur.size, 300)
+                        found += "  $nm: info " + (if (gi > 0) "0x%02x".format(info[0].toInt() and 0xFF) else "no answer") +
+                            ", cur " + (if (gc > 0) cur.copyOf(gc).joinToString("") { "%02x".format(it.toInt() and 0xFF) } else "no answer")
+                    }
+                }
+            }
+            i += len
+        }
+        Trace.state("usb camera: UVC controls: " + found.joinToString("; ").ifEmpty { "none advertised" })
     }
 
     companion object {

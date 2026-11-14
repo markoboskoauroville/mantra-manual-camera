@@ -225,8 +225,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sonyKey: RailButton
     /** v201: the Sony itself is the lens (sonyActive is also true for the TEST pattern). */
     private val onSony: Boolean get() = sonyActive && testSource == null
+    /** v202: SONY MODE, the screen for a picture that is not the phone's (the Sony, or the TEST pattern). */
+    private val sonyMode: Boolean get() = sonyActive
     /** v201: the Sony dropped off USB while it was the lens of a running take: the take goes on, the picture held. */
     private var sonyHeldTake = false
+    /** v202, SONY CONTROLS on the left rail while the Sony is the lens: REC over Bluetooth, TC JAM over USB, the state. */
+    private lateinit var sonyRecKey: RailButton
+    private lateinit var tcJamKey: RailButton
+    private lateinit var sonyStateKey: RailButton
+    /** The Sony's time code as last read back over PTP (null: never read). */
+    private var sonyTc: String? = null
+    /** A jam is running on its thread. */
+    @Volatile private var jamBusy = false
     /** v201: a Sony plugged in during a take on a phone lens: it becomes the lens when the take stops. */
     private var sonyPending = false
     /** v201: how often a stalled Sony picture was re-committed without unplugging, per open. */
@@ -234,7 +244,9 @@ class MainActivity : AppCompatActivity() {
     /** v201: the device that just arrived, chosen once it stays (the Sony flips USB Streaming / PTP while it settles). */
     private var usbSettling: android.hardware.usb.UsbDevice? = null
     /** v201: Android's "Open with Manual Camera" (UsbAttachActivity) hands the device over here; held strongly. */
-    private val usbAttachHook: (android.hardware.usb.UsbDevice) -> Unit = { d -> ui.post { onUsbCamera(d, true) } }
+    private val usbAttachHook: (android.hardware.usb.UsbDevice) -> Unit = { d ->
+        ui.post { if (com.mantraproductions.ndi.sony.SonyPtp.hasPtp(d)) autoJam(d) else onUsbCamera(d, true) }
+    }
     // v197, GO LIVE (VDO.Ninja to the band site) and the TEST lens (a moving pattern with a clock, for machines with no camera)
     private lateinit var liveKey: RailButton
     private lateinit var testKey: RailButton
@@ -370,7 +382,9 @@ class MainActivity : AppCompatActivity() {
         // v193: a USB camera already plugged in, and the ones that come and go (sonyKey is built just above)
         usbDevice = usbHub.find()
         usbDevice?.let { nameUsbKey(it) }
+        usbHub.onSonyOther = { d, came -> if (came) autoJam(d) else refreshKeys() }     // v202: TC JAM on the plug
         usbHub.listen { d, attached -> onUsbCamera(d, attached) }
+        usbHub.allDevices().firstOrNull { com.mantraproductions.ndi.sony.SonyPtp.hasPtp(it) }?.let { d -> ui.postDelayed({ autoJam(d) }, 800) }
         com.mantraproductions.ndi.uvc.UsbAttach.hook = java.lang.ref.WeakReference(usbAttachHook)
         // v201 (Marko, 14.11.2026: "When I plug it in, automatically select the first lens before L1"): a Sony already
         // on USB at the start is the lens from the first frame; without the permission yet, it is asked for.
@@ -689,6 +703,11 @@ class MainActivity : AppCompatActivity() {
                 railLeft.addView(it)
             }
         }
+        // v202, SONY CONTROLS (Marko, 14.11.2026: "replace these three buttons on the left side with something useful
+        // with Sony while we stream and record"): in the place of F, E and the ruler while the Sony is the lens
+        sonyRecKey = newKey("REC") { sonyRecPressed() }.also { it.sub = "SONY BT"; it.tint = android.graphics.Color.rgb(255, 59, 48); railLeft.addView(it) }
+        tcJamKey = newKey("TC") { jamPressed() }.also { it.sub = "JAM"; railLeft.addView(it) }
+        sonyStateKey = newKey("SONY") { sonyStatePressed() }.also { it.sub = "BT OFF"; railLeft.addView(it) }
         // v165 (Marko, 28.10.2026): under the square and the circle, the focus ruler on/off, drawn as the ruler, and
         // INFO, the status line on/off (the REC time then rises to the very top)
         rulerKey = newKey("") { settings.focusPuller = !settings.focusPuller; showMeter(); refreshKeys() }
@@ -2765,7 +2784,7 @@ class MainActivity : AppCompatActivity() {
         focusMeter.visibility = if (on) View.VISIBLE else View.GONE
         focusMeter.closest = if (on) closest else 0f
         if (::rulerPlay.isInitialized) {
-            rulerPlay.visibility = if (on && !lensesOpen) View.VISIBLE else View.GONE
+            rulerPlay.visibility = if (on && !lensesOpen && !sonyMode) View.VISIBLE else View.GONE
             railLeft.post { alignRulerPlay() }
         }
     }
@@ -4525,13 +4544,23 @@ class MainActivity : AppCompatActivity() {
         // launch there): standing by, zero is zero at any rate.
         val fps = if (::pipeline.isInitialized) pipeline.fps else 25
         val tc = Mechanism.timecode(elapsedMs, fps)
-        val text = android.text.SpannableString("$word  $tc")
+        // v202 (Marko, 14.11.2026: "two numbers: one is the real-time clock, which is the real time code writing on it,
+        // and the other is the lapse time of recording"): while a take runs, the time of day the file carries first
+        val text = android.text.SpannableString(if (active) "$word  ${timeOfDayTc(fps)}  ·  $tc" else "$word  $tc")
         val wordColour = if (active) android.graphics.Color.rgb(255, 59, 48) else android.graphics.Color.WHITE
         text.setSpan(
             android.text.style.ForegroundColorSpan(wordColour), 0, word.length,
             android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
         timecode.text = text
+    }
+
+    /** v202: the time code the take is stamped with (Mp4Timecode: the TC generator, phone clock + TC JAM offset). */
+    private fun timeOfDayTc(fps: Int): String {
+        val f = fps.coerceAtLeast(1)
+        val wall = System.currentTimeMillis() + com.mantraproductions.ndi.sony.TcGenerator.offsetMs(this)
+        val local = wall + java.util.TimeZone.getDefault().getOffset(wall)
+        return Mp4Timecode.label(Mp4Timecode.frameOfDay(local, f), f)
     }
 
     private fun showTimecode(recording: Boolean) {
@@ -4604,6 +4633,7 @@ class MainActivity : AppCompatActivity() {
         // v107: each mark key wears its shape's colour of the moment (white, orange searching, green locked,
         // red failed), grey when the shape is off; a bar under it says which one is armed.
         rulerKey.state = if (settings.focusPuller) RailButton.State.ON else RailButton.State.OFF
+        sonyLeftRail()      // v202
         infoKey.state = if (settings.showStatus) RailButton.State.ON else RailButton.State.OFF
         // v173 (Marko, 29.10.2026): no bar under the key any more, only colours. GREY: hidden, and a tap on the
         // picture does nothing for it (unless TOUCH WHEN HIDDEN, its long press); WHITE: shown, a tap ON it works as
@@ -4694,11 +4724,32 @@ class MainActivity : AppCompatActivity() {
      * or quality in megabits per second. You don't need to write the word bit, just write 8b or 10b"):
      * "1920x1080 · 10b · 40 Mb/s". The rate is what the stream measures while one runs, else the recording's quality.
      */
-    private fun formatLine(): String {
+    private fun formatLine(): CharSequence {
+        if (sonyMode) return sonyModeLine()     // v202
         val mbps = if (pipeline.mode != CameraPipeline.Mode.OFF && lastMbps > 0.0) lastMbps
             else pipeline.videoBitRate / 1_000_000.0
         return String.format(java.util.Locale.ROOT, "%dx%d · %s · %.0f Mb/s",
             bufferSize.width, bufferSize.height, if (pipeline.isTenBit) "10b" else "8b", mbps)
+    }
+
+    /** v202: "SONY MODE · α7 V · USB 1920x1080 30p · stereo", what the UVC stream really delivers; SONY MODE in amber. */
+    private fun sonyModeLine(): CharSequence {
+        val cam = usbCam
+        val body = when {
+            testSource != null -> "TEST MODE · ${bufferSize.width}x${bufferSize.height} · pattern"
+            cam == null -> "SONY MODE · " + (if (sonyHeldTake) "unplugged, the take goes on" else "waiting for the picture")
+            else -> {
+                val model = when (val m = cam.name.removePrefix("ILCE-")) { "7M5" -> "α7 V"; "7M4" -> "α7 IV"; "7SM3" -> "α7S III"; else -> m }
+                val fps = String.format(java.util.Locale.ROOT, "%.0f", cam.fps)
+                val sound = meter?.let { if (it.channels >= 2) "stereo" else "mono" } ?: "no sound"
+                "SONY MODE · $model · USB ${cam.width}x${cam.height} ${fps}p · ${cam.mode?.kind ?: ""} · $sound"
+            }
+        }
+        val out = android.text.SpannableString(body)
+        val n = body.indexOf(" · ").takeIf { it > 0 } ?: body.length
+        out.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.rgb(0xF5, 0x9E, 0x0B)), 0, n,
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        return out
     }
 
     private val formatBack = Runnable { if (pipeline.isRunning) status.text = formatLine() }
@@ -4831,7 +4882,7 @@ class MainActivity : AppCompatActivity() {
     // and how many cameras are recording ... when user place record for two seconds. What will pop up on the screen is
     // Start Sony and then Start Sony will start our Bluetooth recording on everything."
 
-    private val sonyHeard: (String, String, Boolean?) -> Unit = { _, _, _ -> ui.post { refreshTelemetry() } }
+    private val sonyHeard: (String, String, Boolean?) -> Unit = { _, _, _ -> ui.post { refreshTelemetry(); if (::sonyStateKey.isInitialized) sonyLeftRail() } }
 
     /** Settings → SONY on: the shared Bluetooth remote runs and the status line listens to it. */
     private fun followSony() {
@@ -5151,6 +5202,107 @@ class MainActivity : AppCompatActivity() {
             else -> say("No Sony on USB: check the cable, then USB Streaming on the camera")
         }
         refreshKeys()
+    }
+
+    // ---------------------------------------------------------------- v202: SONY CONTROLS (left rail)
+
+    /**
+     * v202, SONY MODE (Marko, 14.11.2026: "there must be a clear distinction between Sony camera and phone camera ... As
+     * soon as I switch lens to the Sony, there's the Sony mode screen, and anything which is a useless button, which
+     * doesn't do anything, needs to simply disappear"). Decided by the code: [can] answers false for every phone lens
+     * control while the picture comes from USB (or TEST), so F and E (the focus square and the exposure circle), the
+     * ruler and its ▶, CTRL (the zones refuse the Sony), AF, LOG (no tone curve) and M (no manual exposure) go, and
+     * their marks on the picture fade. LUT, PEA/FC/ZEB, SNAP, PLAY, POR, LENS, REC, LIVE, INFO, FULL and the drive
+     * stay: they work on the GPU stage's picture whatever draws it. A phone lens gives everything back as it was.
+     */
+    private fun sonyLeftRail() {
+        if (!::sonyStateKey.isInitialized) return
+        val sony = sonyMode
+        val phoneOnly = markKeys + listOf<View>(rulerKey, ctrlKey, focusKey, logKey, manualKey)
+        if (sony) {
+            phoneOnly.forEach { it.visibility = View.GONE }
+            rulerPlay.visibility = View.GONE
+        } else phoneOnly.forEach { if (it.visibility == View.GONE) it.visibility = View.VISIBLE }
+        for (v in listOf<View>(focusSquare, exposureCircle, iris, zones)) v.alpha = if (sony) 0f else 1f
+        for (k in listOf(sonyRecKey, tcJamKey, sonyStateKey)) k.visibility = if (sony) View.VISIBLE else View.GONE
+        if (!sony) return
+        val bt = SonyLink.enabled(this)
+        val ready = SonyLink.ready
+        val rec = SonyLink.recording
+        sonyRecKey.state = when { rec > 0 -> RailButton.State.ARMED; bt && ready > 0 -> RailButton.State.SHOWN; else -> RailButton.State.OFF }
+        sonyRecKey.sub = if (rec > 0) "REC $rec/$ready" else "SONY BT"
+        val ptp = usbHub.allDevices().any { com.mantraproductions.ndi.sony.SonyPtp.hasPtp(it) }
+        tcJamKey.state = if (jamBusy) RailButton.State.ARMED else if (ptp) RailButton.State.SHOWN else RailButton.State.OFF
+        tcJamKey.sub = if (jamBusy) "…" else "JAM"
+        tcJamKey.third = sonyTc
+        sonyStateKey.label = when { !bt -> "BT OFF"; ready == 0 -> "BT …"; rec > 0 -> "REC"; else -> "STBY" }
+        sonyStateKey.sub = if (bt) "$rec/$ready" else "SONY"
+        sonyStateKey.third = sonyTc?.let { "TC $it" }
+        sonyStateKey.state = when { rec > 0 -> RailButton.State.ARMED; bt && ready > 0 -> RailButton.State.ON; else -> RailButton.State.OFF }
+        for (k in listOf(sonyRecKey, tcJamKey, sonyStateKey)) k.invalidate()
+    }
+
+    /** REC over Bluetooth: every Sony and this camera's take together; lit red from the cameras' own REC report. */
+    private fun sonyRecPressed() {
+        if (!SonyLink.enabled(this)) {
+            SonyLink.setEnabled(this, true)
+            followSony()
+            say("SONY Bluetooth on: on the camera Network → Bluetooth Rmt Ctrl: On, then pair. This camera records meanwhile")
+        }
+        startSony(!(rolling || SonyLink.recording > 0))
+        sonyLeftRail()
+    }
+
+    /** TC JAM over USB PTP, only where the camera offers it; never pretended. */
+    private fun jamPressed() {
+        val all = usbHub.allDevices()
+        val ptp = all.firstOrNull { com.mantraproductions.ndi.sony.SonyPtp.hasPtp(it) }
+        when {
+            ptp != null -> autoJam(ptp, pressed = true)
+            all.any { usbHub.isSony(it) } -> say("TC: set USB mode Remote Shoot to jam (USB Streaming has no time code over USB)")
+            else -> say("TC: no Sony on USB")
+        }
+    }
+
+    /** The Sony's state in words: Bluetooth, the take, the time code, the USB picture. */
+    private fun sonyStatePressed() {
+        val bt = if (!SonyLink.enabled(this)) "Bluetooth off (REC turns it on)"
+            else "Bluetooth ${SonyLink.ready} ready, ${SonyLink.recording} recording"
+        say("SONY: $bt" + (sonyTc?.let { ", TC $it" } ?: "") + (usbCam?.let { c -> ", USB ${c.width}x${c.height} ${String.format(java.util.Locale.ROOT, "%.0f", c.fps)}p" } ?: ""))
+    }
+
+    /**
+     * v202, TC JAM ON THE PLUG (Marko, 14.11.2026: "When I plug the camera in with USB ... it's synced with the real-time
+     * clock"): a Sony in Remote Shoot (PTP) is jammed to the TC generator as soon as it is plugged in and permitted.
+     */
+    private fun autoJam(d: android.hardware.usb.UsbDevice, pressed: Boolean = false) {
+        Trace.state("tc jam: ${usbHub.describe(d)}${if (pressed) ", pressed" else ", on the plug"}")
+        if (jamBusy) return
+        val usbManager = getSystemService(android.hardware.usb.UsbManager::class.java)
+        if (!usbHub.hasPermission(d)) {
+            usbHub.requestPermission(d) { granted -> ui.post { if (granted) autoJam(d, pressed) else say("TC: USB permission refused") } }
+            return
+        }
+        jamBusy = true
+        sonyLeftRail()
+        kotlin.concurrent.thread(name = "tc-jam") {
+            var why = "the camera could not be opened"
+            val result = runCatching {
+                com.mantraproductions.ndi.sony.SonyPtp.open(usbManager, d) { why = it }?.use { ptp ->
+                    ptp.jam({ System.currentTimeMillis() + com.mantraproductions.ndi.sony.TcGenerator.offsetMs(this) }) { Trace.state("tc jam: $it") }
+                }
+            }
+            ui.post {
+                jamBusy = false
+                val r = result.getOrNull()
+                when {
+                    r != null -> { if (r.readBack != null) sonyTc = r.readBack; say(r.words); Trace.control("tc jam", if (r.ok) "JAMMED" else "NO", r.words) }
+                    result.isFailure -> { say("TC: ${d.productName ?: "Sony"} did not answer (${result.exceptionOrNull()?.message})"); Trace.refused("tc jam", result.exceptionOrNull()?.message ?: "") }
+                    else -> { say("TC: $why"); Trace.refused("tc jam", why) }
+                }
+                sonyLeftRail()
+            }
+        }
     }
 
     /** What the Sony is doing now, in one line. */

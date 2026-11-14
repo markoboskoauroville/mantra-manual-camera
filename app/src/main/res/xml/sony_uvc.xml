@@ -3,4 +3,6 @@
      (0x096F, still image class 6) has not. Android's dialog then offers Manual Camera, "Always" keeps the permission. -->
 <resources>
     <usb-device vendor-id="1356" class="14" />
+    <!-- v202: and in Remote Shoot (PTP, still image class 6), for the time code jam on the plug -->
+    <usb-device vendor-id="1356" class="6" />
 </resources>

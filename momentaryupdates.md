@@ -1615,3 +1615,13 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 > "also, there is a bug at the beginning, at the top: File, USB, NDI, YouTube, and Sony. Sony is always grayed out. It should be lit up when Sony is connected" (Marko, 14.11.2026, about 23:40)
 
 **Status:** v201: SONY on the top line followed only the Bluetooth remote (shown only with Settings → SONY on, grey with no camera ready on Bluetooth); now it is shown and lit white whenever a Sony is on USB or the SONY lens is live, as well as when Bluetooth has a camera ready.
+
+## 14.11.2026: Sony controls on the left rail, TC jam on the plug, two numbers on REC
+(Marko's words: "Please make this possible: Bluetooth plus USB ... Let's build it into our super app", and the 23:05 request above.)
+
+**Status:** v202: while SONY is the lens, F, E, the ruler, CTRL, AF and ▶ step aside for three keys: REC (SONY BT: every Sony over Bluetooth and this take together, red from the cameras' own REC report), TC JAM (USB PTP, only in the camera's USB mode Remote Shoot; in USB Streaming it says so, never pretends) and the SONY state (BT OFF / BT … / STBY / REC, k/n, the TC read back). A Sony plugged in in Remote Shoot is jammed to the TC generator by itself. While a take runs the bottom counter shows the time of day the file is stamped with, then the take's elapsed time. The UVC camera terminal and processing unit controls the Sony advertises are probed read-only into the trace.
+
+## 14.11.2026: SONY MODE, the screen changes as a whole
+> "there must be a clear distinction between Sony camera and phone camera. When Sony is active, all this data on screen, which doesn't belong to Sony, like resolution, bits, megabits per second, different streaming, different streaming case, I think, yes, but what doesn't make sense should go in Sony mode. As soon as I switch lens to the Sony, there's the Sony mode screen, and anything which is a useless button, which doesn't do anything, needs to simply disappear" (Marko, 14.11.2026, about 23:55)
+
+**Status:** v202: SONY MODE while the lens is SONY (or TEST): F, E, ruler, ▶, CTRL, AF, LOG and M go (the code refuses each for a USB picture), the marks on the picture fade; the top line says "SONY MODE · α7 V · USB 1920x1080 30p · MJPEG · stereo" (SONY MODE in amber) instead of resolution · bits · Mb/s; the three Sony keys come in on the left. LUT, assists, SNAP, PLAY, POR, LENS, REC, LIVE, INFO, FULL, the outputs and the drive stay. A phone lens gives the phone screen back.
