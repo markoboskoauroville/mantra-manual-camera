@@ -82,6 +82,13 @@ class AacEncoder(
         if (firstUs < 0) {
             // The buffer ends now; its first sample was its own length ago.
             firstUs = clockNs() / 1000 - Mechanism.pcmDurationUs(bytes, sampleRate, channels)
+            // v214 LIP-SYNC: the Mac's sound in this buffer was played the link's delay ago, not the buffer's length ago;
+            // stamped that much earlier so the desk's sound sits on the picture it belongs to (LESSONS: Sound Link)
+            if (MacLink.active) {
+                val shift = (MacLink.delayUs() - Mechanism.pcmDurationUs(bytes, sampleRate, channels)).coerceAtLeast(0L)
+                firstUs -= shift
+                Trace.state("take's sound: MAC LINK, stamped ${shift / 1000} ms earlier (the link's delay)")
+            }
         }
         var offset = 0
         try {

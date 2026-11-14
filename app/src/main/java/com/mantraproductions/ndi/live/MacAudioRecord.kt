@@ -85,7 +85,12 @@ class MacAudioRecord(wrapped: AudioRecord) : AudioRecord(
     override fun getFormat(): AudioFormat = inner?.format ?: super.getFormat()
     override fun getRoutedDevice(): AudioDeviceInfo? = inner?.routedDevice ?: super.getRoutedDevice()
     override fun setPreferredDevice(deviceInfo: AudioDeviceInfo?): Boolean = inner?.setPreferredDevice(deviceInfo) ?: super.setPreferredDevice(deviceInfo)
-    override fun getTimestamp(outTimestamp: AudioTimestamp, timebase: Int): Int = inner?.getTimestamp(outTimestamp, timebase) ?: super.getTimestamp(outTimestamp, timebase)
+    /** v214 LIP-SYNC: while the Mac sends, the capture time WebRTC gets is moved earlier by the link's delay. */
+    override fun getTimestamp(outTimestamp: AudioTimestamp, timebase: Int): Int {
+        val r = inner?.getTimestamp(outTimestamp, timebase) ?: return super.getTimestamp(outTimestamp, timebase)
+        if (r == SUCCESS && mac) outTimestamp.nanoTime -= MacLink.delayUs(MacLink.liveTap) * 1000L
+        return r
+    }
     override fun startRecording() { inner?.startRecording() ?: super.startRecording() }
     override fun stop() { inner?.stop() ?: super.stop() }
     override fun release() { inner?.release() ?: super.release() }

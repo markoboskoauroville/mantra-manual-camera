@@ -168,12 +168,26 @@ object MacLink {
                 val len = b[17].toInt() and 0xff
                 if (active && from != mac) { report(s, from, ping, macNs); return }
                 if (18 + len <= n) macName = String(b, 18, len, Charsets.UTF_8)
+                // v214: Mac v6 adds its measured round trip and its own delay (input buffer + packet) after the name
+                if (18 + len + 8 <= n) { macRttUs = bb.getInt(18 + len).toLong() and 0xffffffffL; macSideUs = bb.getInt(22 + len).toLong() and 0xffffffffL }
                 if (!active) { mac = from }
                 report(s, from, ping, macNs)
             }
             'B' -> if (active) end("STOP on the Mac")
         }
     }
+
+    /** v214: from the Mac's hello (v6): the round trip it measured and its own delay; defaults for an older Mac. */
+    @Volatile private var macRttUs = 20_000L
+    @Volatile private var macSideUs = 9_000L
+
+    /**
+     * v214, LIP-SYNC: how late the Mac's sound is against the moment it was played, in µs: the Mac's own input buffer and
+     * packet, half the round trip, and the buffer the tap reads behind ([LinkJitter.Tap.fill], smoothed).
+     * The take's sound is stamped this much earlier (AacEncoder), and so is the stream's (MacAudioRecord.getTimestamp).
+     */
+    fun delayUs(tap: LinkJitter.Tap = meterTap): Long = if (!active) 0L else
+        macSideUs + macRttUs / 2 + (tap.fill * 1_000_000L / jitter.rate).toLong()
 
     /** v210: over Tailscale (100.64.0.0/10) the buffer starts at 400 ms, on the Wi-Fi at 150 ms. */
     @Volatile var overTailscale = false
