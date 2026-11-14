@@ -25,6 +25,10 @@ object LiveLink {
 
     /** Settings asked the camera screen to look for the pairing QR (it has the picture). */
     @Volatile var scanRequested = false
+    /** v201: STREAMING, VDO NINJA pressed: the camera screen goes live, or stops. */
+    @Volatile var toggleRequested = false
+    /** What the camera screen last said: OFF, CONNECTING or "n viewers", for the STREAMING tab. */
+    @Volatile var livePhase = "OFF"
 
     // --- pure, unit tested -------------------------------------------------------------------------------------------
 

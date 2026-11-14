@@ -119,6 +119,18 @@ class SettingsActivity : AppCompatActivity() {
             }
             showLive()
         }
+        // v201: VDO NINJA goes live (or stops) on the camera screen, which holds the picture; settings close for it
+        findViewById<View>(R.id.streamVdo).setOnClickListener {
+            val l = com.mantraproductions.ndi.live.LiveLink
+            if (!l.paired(this) && l.livePhase == "OFF") {
+                android.widget.Toast.makeText(this, "Pair the band site first (below)", android.widget.Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            l.toggleRequested = true
+            Trace.control("streaming", "VDO NINJA", if (l.livePhase == "OFF") "go asked" else "stop asked")
+            finish()
+        }
+        findViewById<View>(R.id.streamNdi).setOnClickListener { swipeTo(4) }
         findViewById<View>(R.id.liveUnpair).setOnClickListener {
             com.mantraproductions.ndi.live.LiveLink.unpair(this)
             Trace.control("live", "unpair", "done")
@@ -129,6 +141,16 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun showLive() {
         val l = com.mantraproductions.ndi.live.LiveLink
+        findViewById<android.widget.Button>(R.id.streamVdo).let { b ->
+            val on = l.livePhase != "OFF"
+            b.text = when {
+                !l.paired(this) -> "VDO NINJA · pair the band site first"
+                on -> "VDO NINJA · ${l.livePhase} · press to stop"
+                else -> "VDO NINJA · ${l.siteName(this)}"
+            }
+            b.isSelected = on
+            b.setTextColor(if (on) android.graphics.Color.rgb(255, 59, 48) else getColor(R.color.sand))
+        }
         findViewById<TextView>(R.id.liveNow).text =
             if (l.paired(this)) "Paired: ${l.siteName(this)}" else "Not paired"
         findViewById<View>(R.id.liveUnpair).isEnabled = l.paired(this)
@@ -334,9 +356,9 @@ class SettingsActivity : AppCompatActivity() {
         // v111: THE TABS instead of one long scroll. The last one chosen comes back.
         // v147: seven short tabs (Marko, 26.10.2026: "break the settings into more logical tabs ... not so much
         // scrolling down. Mostly it's going left or right"); a swipe goes to the next or the one before
-        val tabs = listOf(R.id.tabCamera to R.id.pageCamera, R.id.tabFocus to R.id.pageFocus, R.id.tabTrack to R.id.pageTrack,
+        val tabs = listOf(R.id.tabLive to R.id.pageLive, R.id.tabCamera to R.id.pageCamera, R.id.tabFocus to R.id.pageFocus, R.id.tabTrack to R.id.pageTrack,
             R.id.tabOutputs to R.id.pageOutputs, R.id.tabSound to R.id.pageSound, R.id.tabDisplay to R.id.pageDisplay,
-            R.id.tabSony to R.id.pageSony, R.id.tabLive to R.id.pageLive, R.id.tabMore to R.id.pageMore)   // v197: LIVE
+            R.id.tabSony to R.id.pageSony, R.id.tabMore to R.id.pageMore)
         val prefs = getSharedPreferences("settings_screen", MODE_PRIVATE)
         fun showTab(n: Int) {
             tabs.forEachIndexed { i, (t, pg) ->
@@ -354,7 +376,7 @@ class SettingsActivity : AppCompatActivity() {
             v.maxLines = 1
             v.layoutParams = (v.layoutParams as android.widget.LinearLayout.LayoutParams).apply { weight = v.text.length.toFloat() }
         } }
-        showTab(prefs.getInt("tab2", 0).coerceIn(0, tabs.size - 1))
+        showTab(0)      // v201 (Marko): STREAMING is the tab settings open on
 
         // Zebra from 50% to 100%.
         slider(

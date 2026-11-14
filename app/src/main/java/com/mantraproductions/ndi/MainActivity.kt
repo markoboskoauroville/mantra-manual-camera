@@ -396,6 +396,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
         startLink()
+        // v201: a machine nobody watches starts on the TEST lens and a test stream from the launch itself, with no
+        // broadcast needed: am start -n .../com.mantraproductions.ndi.MainActivity --es lens test --es live "test <id> <pw>"
+        // (lens test640 draws 640x360 for a slow emulator)
+        intent?.getStringExtra("lens")?.takeIf { it.startsWith("test") }?.let { l ->
+            showTest = true
+            testSource = if (l == "test640") TestPattern(640, 360, 30) else TestPattern(1280, 720, 30)
+            sonyActive = true
+            Trace.control("lens", "TEST", "from the launch")
+        }
+        intent?.getStringExtra("live")?.let { v -> ui.postDelayed({ if (!isDestroyed) say("ADB: " + adbCommand("live", v)) }, 6000) }
         applyShootMode()
         layoutForOrientation(resources.configuration.orientation)
 
@@ -1167,6 +1177,14 @@ class MainActivity : AppCompatActivity() {
             com.mantraproductions.ndi.live.LiveLink.scanRequested = false
             startPairScan()
         }
+        // v201: STREAMING, VDO NINJA pressed in settings: go live (or stop) here, where the picture is
+        if (com.mantraproductions.ndi.live.LiveLink.toggleRequested) {
+            com.mantraproductions.ndi.live.LiveLink.toggleRequested = false
+            ui.postDelayed({
+                if (isDestroyed) return@postDelayed
+                if (liveOn) stopLive("streaming tab") else liveTap()
+            }, 600)
+        }
         if (keptRunning) resumeKept()
         ui.removeCallbacks(logExposureTick)
         ui.post(logExposureTick)
@@ -1218,11 +1236,11 @@ class MainActivity : AppCompatActivity() {
         // v136: NDI GOES ON IN THE BACKGROUND. While it streams on the GPU path, leaving the app (home, another app,
         // the screen off, settings) keeps the camera, the microphone and the sender running under the foreground
         // service; only the preview window is let go. The ticks that watch the stream and the wire keep running.
-        if (pipeline.isRunning && pipeline.mode != CameraPipeline.Mode.OFF && pipeline.usesGpuStage) {
+        // v201: LIVE (VDO.Ninja) goes on behind other apps the same way (Marko: "I can minimize this app")
+        if (pipeline.isRunning && (pipeline.mode != CameraPipeline.Mode.OFF || liveOn) && pipeline.usesGpuStage) {
             keptRunning = true
             keptWith = snapshot()
-            if (!StreamService.running) StreamService.start(this, "Streaming NDI on " +
-                Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter))
+            if (!StreamService.running) StreamService.start(this, serviceLine())
             ui.removeCallbacks(rateTick); ui.post(rateTick)
             ui.removeCallbacks(remoteTick); ui.post(remoteTick)
             Trace.state("background: NDI ${pipeline.mode} goes on, the preview is let go")
@@ -2459,10 +2477,11 @@ class MainActivity : AppCompatActivity() {
             val a = v.split(' ').filter { it.isNotEmpty() }
             return when (a.firstOrNull()?.lowercase()) {
                 "test" -> {
-                    if (a.size < 3) return "live test <id> <password>"
+                    if (a.size < 3) return "live test <id> <password> [height]"
                     if (liveState.phase != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) stopLive("restart")
                     liveFromSite = false
-                    startPublishing(a[1], a[2]); "publishing test stream ${a[1].take(4)}…"
+                    startPublishing(a[1], a[2], a.getOrNull(3)?.toIntOrNull()?.coerceIn(180, 2160) ?: 1080)
+                    "publishing test stream ${a[1].take(4)}…"
                 }
                 "go" -> { liveTap(); "go asked" }
                 "stop" -> { if (liveState.phase == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) "already off" else { stopLive("adb"); "stopped" } }
@@ -5424,6 +5443,8 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------------------------------------------------------- v197: GO LIVE
 
+    private val liveOn: Boolean get() = liveState.phase != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF
+
     private fun livePhaseWord(): String = when (liveState.phase) {
         com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF -> "OFF"
         com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING -> "CONNECTING"
@@ -5470,12 +5491,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Publishes [id] / [pw] (from the site, or made up for an adb test). The token never reaches this point. */
-    private fun startPublishing(id: String, pw: String) {
+    private fun startPublishing(id: String, pw: String, tall: Int = 1080) {
         val pub = live ?: com.mantraproductions.ndi.live.VdoPublisher(applicationContext) { st ->
             ui.post { if (!isDestroyed) { liveState = st; refreshLive() } }
         }.also { live = it }
         val turned = pipeline.streamTurns % 2 == 1
-        val w = if (turned) 1080 else 1920; val h = if (turned) 1920 else 1080
+        val long = tall * 16 / 9
+        val w = if (turned) tall else long; val h = if (turned) long else tall
         val stereo = (meter?.channels ?: 1) >= 2 || sonyActive && testSource == null
         pub.start(id, pw, w, h, 30, maxKbps = 4000, mic = liveMic(), stereo = stereo)
         // the surface exists once the worker built it; attach it as the stage's fifth output
@@ -5530,6 +5552,8 @@ class MainActivity : AppCompatActivity() {
         }
         liveKey.tint = if (ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE) android.graphics.Color.rgb(255, 59, 48) else null
         liveKey.invalidate()
+        com.mantraproductions.ndi.live.LiveLink.livePhase = livePhaseWord()
+        if (::pipeline.isInitialized) syncService()      // v201: LIVE keeps the foreground service (LESSONS 7: pipeline first)
         refreshTelemetry()
     }
 
@@ -5629,11 +5653,17 @@ class MainActivity : AppCompatActivity() {
      * v136: the foreground service runs exactly while NDI streams. Started only while the app is in front (Android
      * refuses a camera service started from behind); stopped as soon as the stream is off.
      */
+    private fun serviceLine(): String = when {
+        liveOn && pipeline.mode != CameraPipeline.Mode.OFF -> "LIVE on ${com.mantraproductions.ndi.live.LiveLink.siteName(this) ?: "VDO.Ninja"} and NDI"
+        liveOn -> "LIVE on ${com.mantraproductions.ndi.live.LiveLink.siteName(this) ?: "VDO.Ninja"}"
+        else -> "Streaming NDI on " + Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter)
+    }
+
     private fun syncService() {
         if (isDestroyed) return
-        val streaming = pipeline.isRunning && pipeline.mode != CameraPipeline.Mode.OFF
+        val streaming = pipeline.isRunning && (pipeline.mode != CameraPipeline.Mode.OFF || liveOn)
         if (streaming && !StreamService.running && !keptRunning) {
-            StreamService.start(this, "Streaming NDI on " + Routing.wireLabel(settings.ndiTransport, pipeline.boundAdapter))
+            StreamService.start(this, serviceLine())
         } else if (!streaming && StreamService.running) {
             StreamService.stop(this)
         }

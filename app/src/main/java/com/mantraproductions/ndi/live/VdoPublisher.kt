@@ -217,7 +217,7 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
                     .setPassword(s.optString("credential")).createIceServer())
             }
             Trace.step("live: ${out.size - 1} TURN servers")
-        }.onFailure { Trace.refused("live", "no TURN list (${it.javaClass.simpleName}); STUN only") }
+        }.onFailure { Trace.refused("live", "no TURN list (${it.javaClass.simpleName}: ${it.message?.take(120)}); STUN only") }
         return out
     }
 
@@ -239,7 +239,7 @@ class VdoPublisher(private val ctx: Context, private val listener: (State) -> Un
             }
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = worker.execute { dropped(webSocket, "closed $code") }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) =
-                worker.execute { dropped(webSocket, t.javaClass.simpleName) }
+                worker.execute { dropped(webSocket, t.javaClass.simpleName + (t.message?.let { ": " + it.take(120) } ?: "") + (response?.let { " HTTP " + it.code } ?: "")) }
         })
     }
 

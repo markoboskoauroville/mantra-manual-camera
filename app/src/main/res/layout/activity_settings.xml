@@ -166,6 +166,18 @@
         android:orientation="horizontal"
         android:paddingTop="6dp">
             <TextView
+                android:id="@+id/tabLive"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:textSize="11sp"
+                android:text="STREAMING" />
+            <TextView
                 android:id="@+id/tabCamera"
                 android:layout_width="0dp"
                 android:layout_weight="1"
@@ -249,18 +261,6 @@
                 android:textStyle="bold"
                 android:textSize="11sp"
                 android:text="SONY" />
-            <TextView
-                android:id="@+id/tabLive"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:paddingTop="10dp"
-                android:paddingBottom="10dp"
-                android:fontFamily="monospace"
-                android:textStyle="bold"
-                android:textSize="11sp"
-                android:text="LIVE" />
             <TextView
                 android:id="@+id/tabMore"
                 android:layout_width="0dp"
@@ -783,6 +783,21 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="gone">
+        <!-- v201 (Marko, 14.11.2026 ~22:20): STREAMING, the first tab: what can stream right now, one key each -->
+        <Button
+            android:id="@+id/streamVdo"
+            style="@style/MantraKey"
+            android:layout_width="match_parent"
+            android:text="VDO NINJA" />
+        <TextView android:tag="hint" style="@style/MantraHint"
+            android:text="VDO NINJA streams the lens in use and its sound to the paired band site. It keeps streaming when you leave the app (home button), so on this same phone you can open the band site, sign in and watch it. Press again to stop." />
+        <Button
+            android:id="@+id/streamNdi"
+            style="@style/MantraKey"
+            android:layout_width="match_parent"
+            android:text="NDI" />
+        <TextView android:tag="hint" style="@style/MantraHint"
+            android:text="NDI to a computer on the same network or the USB cable: the OUTPUTS tab." />
         <TextView
             android:id="@+id/liveNow"
             android:layout_width="match_parent"
