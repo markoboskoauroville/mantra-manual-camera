@@ -1571,3 +1571,8 @@ Note: "headline" means hairline (dictation).
 ## 14.11.2026 ~22:20 Streaming tab
 
 "for this to be understandable and easy to work, you need to build one more tab inside the settings, and that is the default first tab: streaming. In the streaming, I can select which streaming is available right now at this moment while the camera is working. One of these streamings will be VDO Ninja. When I press Video Ninja, I can minimize this app on the same phone. I can go to my Santoshi page, log in as an administrator, click Stream, and the camera will stream To my Santoshi stream."
+
+## 14.11.2026: the square grey, the gear gone
+> "yes, Square is there. It's nice, but it needs to be gray first of all. It's too white. And second of all, this icon, this graphics behind representing settings, must be gone" (Marko, 14.11.2026, about 22:45)
+
+**Status:** v198 (in progress): the square is the keys' own inactive grey, the gear behind the free-space key is removed; the key still opens settings.
