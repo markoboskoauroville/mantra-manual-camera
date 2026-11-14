@@ -474,8 +474,17 @@ class UvcCamera internal constructor(
         reader?.join(1500)
         drawer?.join(1500)
         reader = null; drawer = null
-        // alternate setting 0 tells a camera the stream is over (the bulk cameras that care)
-        vsIf?.let { runCatching { conn.setInterface(it) } }
+        // v203: how the stream ends depends on the interface (UVC 1.5 §2.4.3; Linux uvcvideo does the same): with
+        // alternate settings (isochronous) alternate setting 0; with ONE setting (bulk, the Sony's: interface 3 has
+        // only 3/0) CLEAR_FEATURE(ENDPOINT_HALT) on the picture endpoint. v193 sent SET_INTERFACE to the Sony's
+        // single-setting interface: measured 14.11.2026 22:56, the next start got no frame for 10 s and the camera
+        // dropped off USB until it was replugged (the same as 22:15).
+        val vs = vsIf
+        val single = vs != null && (0 until device.interfaceCount).count { device.getInterface(it).id == vs.id } <= 1
+        if (single) endpoint?.let { ep ->
+            val r = runCatching { conn.controlTransfer(0x02, 0x01, 0, ep.address, null, 0, 500) }.getOrDefault(-1)
+            Trace.state("usb camera: stream ended by CLEAR_FEATURE(ENDPOINT_HALT) on 0x${Integer.toHexString(ep.address)}: $r")
+        } else vs?.let { runCatching { conn.setInterface(it) } }
         vsIf?.let { runCatching { conn.releaseInterface(it) } }
         vcIf?.let { runCatching { conn.releaseInterface(it) } }
         vsIf = null; vcIf = null

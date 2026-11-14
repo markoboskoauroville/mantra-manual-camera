@@ -1630,3 +1630,6 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 > "Streaming is in a vertical view. We are in horizontal. That doesn't match. The camera is always horizontal, almost always" (Marko, 14.11.2026, about 22:50)
 
 **Status:** v202: with the SONY lens the viewer got 1080x1920, turned 90° (measured). Cause: the stream's quarter turns were computed from the phone camera's sensor angle (pipeline.engine, closed while the Sony is the lens), so a USB picture was turned and the LIVE surface made portrait. A USB picture (Sony, TEST) now has no turn: GO LIVE, NDI and the link get it as it comes, 1920x1080.
+
+## 14.11.2026: why the Sony fell off USB (found while testing v202)
+**Status:** v203: measured 22:56: SONY → L1 → SONY within six seconds; the second start got no frame for 10 s and the α7 V dropped off USB and stayed off (the same as 22:15 after the reinstall). The stop sent SET_INTERFACE alt 0 to the Sony's video interface, which has only one setting (bulk); UVC and Linux end a bulk stream with CLEAR_FEATURE(ENDPOINT_HALT) instead. v203 does that.

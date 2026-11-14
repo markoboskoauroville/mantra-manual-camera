@@ -5160,10 +5160,10 @@ class MainActivity : AppCompatActivity() {
     private fun sonyStalled(cam: UvcCamera, msg: String) {
         if (usbCam !== cam || !onSony) return
         if (!usbHub.stillAttached(cam.device)) { say(msg); return }
-        if (sonyRestarts >= 3) { say("$msg Press SONY to check it"); return }
+        if (sonyRestarts >= 1) { say("$msg Press SONY to check it"); return }
         sonyRestarts++
         val why = pipeline.swapUsb(cam)
-        Trace.state("usb camera: no picture, stream committed again ($sonyRestarts of 3): ${why ?: "running"}")
+        Trace.state("usb camera: no picture, stream committed again once: ${why ?: "running"}")
         if (why != null) say("${cam.name}: $why")
     }
 
