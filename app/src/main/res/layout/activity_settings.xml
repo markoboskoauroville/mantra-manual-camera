@@ -283,6 +283,16 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:visibility="visible">
+        <!-- v199: the lock moved here from the right rail (Marko, 14.11.2026) -->
+        <TextView style="@style/MantraLabel" android:text="LOCK SCREEN" />
+        <Switch
+            android:id="@+id/lockScreenSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textColor="@color/sand"
+            android:text="LOCK" />
+        <TextView style="@style/MantraHint" android:text="Turns the screen black and dim and makes every touch and button do nothing, so a long take on a tripod cannot be changed by accident. The take goes on and its time shows. Tap the padlock twice to unlock." />
         <!-- v145: the light's brightness (Marko, 26.10.2026: "in our settings we can have brightness control for the LED") -->
         <TextView style="@style/MantraLabel" android:text="LIGHT" />
         <TextView android:id="@+id/torchLevelValue" style="@style/MantraValue" />

@@ -230,7 +230,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var storageKey: RailButton
     /** v155: the POWER MONITOR, beside the drive's time left (Marko, 26.10.2026). */
     private lateinit var powerMonitor: PowerMonitor
-    private lateinit var powerKey: RailButton
+    private lateinit var batteryText: android.widget.TextView
     private var lastPower: PowerMonitor.Reading? = null
     private lateinit var timecode: TextView
 
@@ -306,6 +306,13 @@ class MainActivity : AppCompatActivity() {
         railRightScroll = findViewById(R.id.railRightScroll)
         timecode = findViewById(R.id.timecode)
         statusRow = findViewById(R.id.statusRow)
+        batteryText = findViewById(R.id.batteryText)
+        batteryText.setOnClickListener { showPower() }
+        // v199: the battery is never cut and never overlapped; the status words give way (ellipsis) instead
+        statusRow.addOnLayoutChangeListener { _, l, _, r, _, _, _, _, _ ->
+            val room = (r - l) - telemetryWidth() - batteryText.width
+            if (room > 0 && status.maxWidth != room) status.maxWidth = room
+        }
         showTimecode(false)
 
         pipeline = CameraPipeline(this)
@@ -713,7 +720,6 @@ class MainActivity : AppCompatActivity() {
         peakKey = newKey("PEA") { togglePeaking() }.also { it.glyph = RailButton.Glyph.PEAKING; it.tint = SNAP_ORANGE; railRight.addView(it) }
         falseKey = newKey("FC") { falseColour = !falseColour; applyLook(); refreshKeys() }
             .also { it.glyph = RailButton.Glyph.FALSECOLOUR; it.tint = SNAP_ORANGE; railRight.addView(it) }
-        lockKey = newKey("") { lockScreenOn() }.also { it.glyph = RailButton.Glyph.LOCK; it.tint = SNAP_ORANGE; railRight.addView(it) }
         zebraKey = newKey("ZEB") { zebra = !zebra; applyLook(); refreshKeys() }
             .also { it.glyph = RailButton.Glyph.ZEBRA; it.tint = SNAP_ORANGE; railRight.addView(it) }
         // v145: no gear (Marko, 26.10.2026: "remove this settings icon, and clicking on the free space will open the
@@ -722,7 +728,6 @@ class MainActivity : AppCompatActivity() {
         // v155 (Marko, 26.10.2026: "two points of reference that tell me how long I can keep working"): the drive's
         // time left, and under it the battery's, on the ring of the POWER MONITOR; a tap opens all of its numbers
         powerMonitor = PowerMonitor(this)
-        powerKey = newKey("—") { showPower() }.also { it.tint = POWER_BLUE; railRight.addView(it) }
     }
 
     /** v130: the lens drawer opens over the whole left rail (wider in landscape, taller upright) and closes again. */
@@ -1068,6 +1073,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (SettingsActivity.lockRequested) { SettingsActivity.lockRequested = false; lockScreenOn() }
         followSony()
         if (keptRunning) resumeKept()
         ui.removeCallbacks(logExposureTick)
@@ -1278,7 +1284,6 @@ class MainActivity : AppCompatActivity() {
     private var locked = false
     private var lockScreen: LockScreen? = null
     private var brightnessBefore = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-    private lateinit var lockKey: RailButton
 
     private val lockBack = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() { /* swallowed while locked */ }
@@ -2556,6 +2561,8 @@ class MainActivity : AppCompatActivity() {
     private var shownFlow: PowerMonitor.Flow? = null
     private var shownAt = 0L
 
+    private fun telemetryWidth(): Int = findViewById<View>(R.id.telemetry).width
+
     private fun refreshPower(raw: PowerMonitor.Reading) {
         val now = android.os.SystemClock.elapsedRealtime()
         if (raw.flow != shownFlow) { shownSeconds = null; shownAt = 0L }
@@ -2568,23 +2575,23 @@ class MainActivity : AppCompatActivity() {
             PowerMonitor.Flow.CHARGING -> "▲"; PowerMonitor.Flow.DISCHARGING -> "▼"
             PowerMonitor.Flow.BALANCED -> "="; PowerMonitor.Flow.FULL -> ""
         }
-        powerKey.label = "${r.level}%$arrow"
-        powerKey.sub = when {
+        val time = when {
             r.flow == PowerMonitor.Flow.FULL -> "FULL"
             r.seconds == null -> if (r.flow == PowerMonitor.Flow.BALANCED) "BAL" else "--:--"
             else -> PowerMonitor.Calc.format(r.seconds) + " h"
         }
-        // v155 (Marko, 26.10.2026): ▲ charging green, ▼ discharging yellow, = balanced white; red only when it is
-        // critical (discharging under 20 % or under 20 minutes)
+        // v155 (Marko, 26.10.2026): charging green, discharging yellow, balanced white; red only when it is
+        // critical (discharging under 20 % or under 20 minutes). v199: the same colours on the status line.
         val low = r.flow == PowerMonitor.Flow.DISCHARGING && (r.level < 20 || (r.seconds ?: Long.MAX_VALUE) < 20 * 60)
-        powerKey.state = if (low) RailButton.State.ARMED else RailButton.State.SHOWN
-        powerKey.tint = when {
-            low -> null
+        batteryText.text = "${r.level}%$arrow $time"
+        batteryText.setTextColor(when {
+            low -> android.graphics.Color.rgb(255, 77, 77)
             r.flow == PowerMonitor.Flow.CHARGING || r.flow == PowerMonitor.Flow.FULL -> POWER_GREEN
             r.flow == PowerMonitor.Flow.DISCHARGING -> STORAGE_YELLOW
-            else -> null                                               // SHOWN without a tint: white
-        }
-        powerKey.contentDescription = PowerMonitor.Calc.describe(r)
+            else -> android.graphics.Color.WHITE
+        })
+        batteryText.contentDescription = PowerMonitor.Calc.describe(r)
+        statusRow.requestLayout()
     }
 
     /**

@@ -160,6 +160,22 @@
                     android:layout_width="0dp"
                     android:layout_height="1dp"
                     android:layout_weight="1" />
+
+                <!-- v199 (Marko, 14.11.2026): the battery, right-aligned on this same line, in the same face and size -->
+                <TextView
+                    android:id="@+id/batteryText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="#88000000"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:maxLines="1"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold"
+                    android:textSize="11sp"
+                    android:textColor="#FFFFFF" />
             </LinearLayout>
 
             <!--

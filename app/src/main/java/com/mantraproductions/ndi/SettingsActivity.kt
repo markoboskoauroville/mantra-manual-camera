@@ -31,6 +31,8 @@ class SettingsActivity : AppCompatActivity() {
     companion object {
         private const val SONY_PERMISSION = 41
         /** The lens the camera screen was on, for ROT. */
+        /** v199: set by the LOCK switch; the camera screen reads it when it comes back and locks. */
+        @Volatile var lockRequested = false
         const val EXTRA_LENS = "lens"
         const val EXTRA_LENS_NAME = "lensName"
         /** The newest signed APK lives here (CI publishes every version as a release). */
@@ -240,6 +242,9 @@ class SettingsActivity : AppCompatActivity() {
         slots = LutSlots(this)
 
         switchboard()
+        findViewById<android.widget.Switch>(R.id.lockScreenSwitch).setOnCheckedChangeListener { _, on ->
+            if (on) { lockRequested = true; Trace.control("lock", "asked", "settings"); finish() }
+        }
         sonyPage()
         findViewById<View>(R.id.closeSettings).setOnClickListener { finish() }
 
