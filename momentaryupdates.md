@@ -1664,3 +1664,6 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 
 "absolutely, my phone will not handle all these streams. I just want to send one stream, and then it is relayed somewhere ... we need to have something which works: one stream to somewhere"
 "yes, Frankfurt delay, without YouTube branding, please"
+## 14.11.2026 ~00:02, a decent buffer (word for word)
+
+"many dropouts when this is sending sound and lost packages. Can we build some decent buffer here"

@@ -1373,6 +1373,8 @@ class MainActivity : AppCompatActivity() {
             if (++storageTicks % 5 == 0) refreshStorage()
             runCatching { powerMonitor.read() }.getOrNull()?.let { refreshPower(it) }
             if (storageTicks % 2 == 0) watchWire()
+            // v210: the buffer in ms on the status line, kept fresh while the Mac sends
+            if (MacLink.active && android.os.SystemClock.elapsedRealtime() - lastSaidAt > SAID_HOLD_MS && pipeline.isRunning) status.text = formatLine()
             // v136: the stream watchdog, and the service that keeps the stream alive behind other apps
             pipeline.watchStream()?.let { Trace.refused("stream watch", it) }
             syncService()
@@ -4762,7 +4764,7 @@ class MainActivity : AppCompatActivity() {
             else pipeline.videoBitRate / 1_000_000.0
         return String.format(java.util.Locale.ROOT, "%dx%d · %s · %.0f Mb/s",
             bufferSize.width, bufferSize.height, if (pipeline.isTenBit) "10b" else "8b", mbps) +
-            (if (MacLink.active) " · MAC LINK" else "") + (if (MacLink.active && MacLink.monitor) " · MONITOR" else "")
+            (if (MacLink.active) " · MAC LINK ${MacLink.meterTap.fillMs} ms" else "") + (if (MacLink.active && MacLink.monitor) " · MONITOR" else "")
     }
 
     // ---------------------------------------------------------------- v206: SOUND LINK, the Mac's sound
@@ -4837,7 +4839,7 @@ class MainActivity : AppCompatActivity() {
                 val fps = String.format(java.util.Locale.ROOT, "%.0f", cam.fps)
                 val sound = meter?.let { if (it.channels >= 2) "stereo" else "mono" } ?: "no sound"
                 // v209 (never cut text): with the Mac's sound the details shrink so MAC LINK is always whole
-                if (MacLink.active) "SONY MODE · $model ${cam.height}p${fps} · MAC LINK · " + (if (MacLink.monitor) "MONITOR" else "stereo")
+                if (MacLink.active) "SONY MODE · $model ${cam.height}p${fps} · MAC LINK ${MacLink.meterTap.fillMs} ms" + (if (MacLink.monitor) " · MONITOR" else "")
                 else "SONY MODE · $model · USB ${cam.width}x${cam.height} ${fps}p · ${cam.mode?.kind ?: ""} · $sound"
             }
         }

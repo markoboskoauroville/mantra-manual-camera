@@ -150,10 +150,16 @@ object MacLink {
                 val frames = bb.getShort(6).toInt() and 0xffff
                 val seq = bb.getInt(8).toLong() and 0xffffffffL
                 val stamp = bb.getLong(12)
-                if (20 + frames * ch * 2 > n) return
+                val main = frames * ch * 2
+                if (20 + main > n) return
                 lastPacketAt = SystemClock.elapsedRealtime()
                 if (!active) begin(from)
                 jitter.write(stamp, seq, b, 20, frames, ch, System.nanoTime())
+                // v210: version 2 carries the block from two packets back in μ-law after the main block
+                if (b[4].toInt() >= 2 && 20 + main + 8 + frames * ch <= n) {
+                    val red = bb.getLong(20 + main)
+                    jitter.writeRedundant(red, b, 28 + main, frames, ch)
+                }
             }
             'H' -> {
                 if (n < 18) return
@@ -169,9 +175,16 @@ object MacLink {
         }
     }
 
+    /** v210: over Tailscale (100.64.0.0/10) the buffer starts at 400 ms, on the Wi-Fi at 150 ms. */
+    @Volatile var overTailscale = false
+        private set
+
     private fun begin(from: SocketAddress) {
         mac = from
         jitter.reset()
+        val ip = (from as? java.net.InetSocketAddress)?.address?.address
+        overTailscale = ip != null && ip.size == 4 && (ip[0].toInt() and 0xff) == 100 && (ip[1].toInt() and 0xc0) == 64
+        jitter.baseMs = if (overTailscale) 400.0 else 150.0
         active = true
         startedAt = SystemClock.elapsedRealtime()
         lastTraceAt = startedAt
@@ -194,7 +207,9 @@ object MacLink {
 
     fun numbers(): String {
         val t = meterTap
-        return "fill ${t.fillMs} ms (target ${jitter.targetMs()}), underruns ${t.underruns}, lost ${jitter.lost}, " +
+        return (if (overTailscale) "[Tailscale] " else "[Wi-Fi] ") +
+            "fill ${t.fillMs} ms (target ${jitter.targetMs()}), underruns ${t.underruns}, lost ${jitter.lost}, " +
+            "recovered ${jitter.recovered}, concealed ${jitter.concealed}, " +
             "late ${jitter.late}, skips ${t.skips}, drift ${t.driftPpm} ppm, packets ${jitter.packets}, " +
             "live tap fill ${liveTap.fillMs} ms underruns ${liveTap.underruns}"
     }
@@ -210,7 +225,7 @@ object MacLink {
         val name = "Manual Camera · ${Build.MODEL}".toByteArray(Charsets.UTF_8).let { if (it.size > 60) it.copyOf(60) else it }
         val t = meterTap
         val id = deviceId.toByteArray(Charsets.US_ASCII)
-        val bb = ByteBuffer.allocate(48 + name.size + id.size).order(ByteOrder.BIG_ENDIAN)
+        val bb = ByteBuffer.allocate(56 + name.size + id.size).order(ByteOrder.BIG_ENDIAN)
         bb.put("MSLR".toByteArray(Charsets.US_ASCII)).put(1.toByte())
         bb.put((if (!active) 0 else if (t.started && t.fill > 0) 2 else 1).toByte())
         bb.putShort(t.fillMs.coerceIn(0, 65535).toShort()).putShort(jitter.targetMs().toShort())
@@ -219,6 +234,7 @@ object MacLink {
         bb.putInt(t.driftPpm).putInt(jitter.packets.toInt()).putInt(t.skips.toInt())
         bb.put(name.size.toByte()).put(name)
         bb.put(id.size.toByte()).put(id)                     // v210: after the name (older Macs read up to the name)
+        bb.putInt(jitter.recovered.toInt()).putInt(jitter.concealed.toInt())
         runCatching { s.send(DatagramPacket(bb.array(), bb.position(), to)) }
     }
 
@@ -302,3 +318,4 @@ object MacLink {
         runCatching { t.pause(); t.flush(); t.release() }
         Trace.state("monitor: off")
     }
+}

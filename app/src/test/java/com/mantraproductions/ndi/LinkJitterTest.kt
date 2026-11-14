@@ -65,9 +65,10 @@ class LinkJitterTest {
         assertEquals(1000.toShort(), out[0])
     }
 
-    /** A lost packet is silence of exactly its length; nothing after it moves. */
-    @Test fun lostPacketIsCountedAndSilent() {
+    /** v210: a lost packet is concealed (the block before at half level), never a click; nothing after it moves. */
+    @Test fun lostPacketIsCountedAndConcealed() {
         val j = LinkJitter()
+        j.baseMs = 40.0
         val tap = j.tap("meter")
         val pcm = packet(240, 500)
         for (k in 0 until 40) if (k != 20) j.write(k * 240L, k.toLong(), pcm, 0, 240, 2, k * 5_000_000L)
@@ -75,13 +76,48 @@ class LinkJitterTest {
         val out = ShortArray(240 * 40 * 2)
         assertTrue(tap.read(out, 240 * 30, 2))
         // the tap starts target frames behind the head, so the hole lands inside what it read
-        val silent = (0 until 240 * 30).count { out[2 * it] == 0.toShort() }
-        assertTrue("about one packet of silence, not $silent", silent in 200..260)
+        val half = (0 until 240 * 30).count { out[2 * it] == 250.toShort() }
+        assertTrue("about one packet concealed at half level, not $half", half in 200..260)
+        assertEquals(1L, j.concealed)
     }
+
+    private fun ulaw(sample: Int): Byte {
+        var x = sample; val sign = if (x < 0) { x = -x; 0x80 } else 0
+        if (x > 32635) x = 32635
+        x += 0x84
+        var exp = 7; var mask = 0x4000
+        while (exp > 0 && (x and mask) == 0) { exp--; mask = mask shr 1 }
+        val mant = (x shr (exp + 3)) and 0x0f
+        return (sign or (exp shl 4) or mant).inv().toByte()
+    }
+
+    /** v210: the redundant copy of a lost block fills its hole before it is played. */
+    @Test fun redundantCopyRecoversALostBlock() {
+        val j = LinkJitter()
+        j.baseMs = 40.0
+        val tap = j.tap("meter")
+        val pcm = packet(240, 500)
+        val red = ByteArray(480) { ulaw(500) }
+        for (k in 0 until 40) {
+            if (k != 20) j.write(k * 240L, k.toLong(), pcm, 0, 240, 2, k * 5_000_000L)
+            if (k >= 2) j.writeRedundant((k - 2) * 240L, red, 0, 240, 2)
+        }
+        assertEquals(1L, j.lost)
+        assertEquals(1L, j.recovered)
+        assertEquals(0L, j.concealed)
+        val out = ShortArray(240 * 40 * 2)
+        assertTrue(tap.read(out, 240 * 30, 2))
+        val off = (240 until 240 * 30).count { Math.abs(out[2 * it] - 500) > 20 }   // after the 5 ms fade-in
+        assertTrue("the hole is filled, not concealed: $off off", off < 5)
+        assertNear(500, LinkJitter.ulawDecode(ulaw(500)), 16.0)
+    }
+
+    private fun assertNear(expected: Int, actual: Int, delta: Double) = org.junit.Assert.assertEquals(expected.toDouble(), actual.toDouble(), delta)
 
     /** Mono readers get left and right mixed. */
     @Test fun monoReaderGetsTheMix() {
         val j = LinkJitter()
+        j.baseMs = 40.0
         val tap = j.tap("meter")
         val b = ByteArray(240 * 4)
         for (f in 0 until 240) { b[4 * f] = 0xe8.toByte(); b[4 * f + 1] = 0x03; b[4 * f + 2] = 0; b[4 * f + 3] = 0 }   // L 1000, R 0
