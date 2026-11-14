@@ -1541,3 +1541,10 @@ LUT, peaking, REC, NDI HX and Mantra Link take it as a phone lens. The take's so
 the lens. ISO, shutter, WB, focus, LOG and CTRL answer "Set on the Sony"; full NDI is HX only from the Sony. Unplugged:
 back to the last phone lens with a message. Phase 2 (VDO.Ninja) is separate.
 
+
+## 14.11.2026: one VU meter, split for stereo (relayed by MAC_SES18)
+> "write this in the manifest, and also for any other program to have this convention. When I have mono audio running, I have one VU meter. When I have stereo audio, the same VU meter gets a headline in between, and I see left and right channels in separate levels for left and right channels. In that sense, update this application. Sony Camera has a sound which is stereo, so we can test it immediately" (Marko, 14.11.2026)
+
+Note: "headline" means hairline (dictation).
+
+**Status:** requested, v194 in progress.
