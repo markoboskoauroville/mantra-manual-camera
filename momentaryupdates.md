@@ -1572,6 +1572,11 @@ Note: "headline" means hairline (dictation).
 
 "for this to be understandable and easy to work, you need to build one more tab inside the settings, and that is the default first tab: streaming. In the streaming, I can select which streaming is available right now at this moment while the camera is working. One of these streamings will be VDO Ninja. When I press Video Ninja, I can minimize this app on the same phone. I can go to my Santoshi page, log in as an administrator, click Stream, and the camera will stream To my Santoshi stream."
 
+**Status (cloud session, 14.11.2026 21:35 UTC):** v200 pushed by the overnight cloud session: the native VDO.Ninja publisher
+(app/.../live/), a LIVE key under REC (tap GO LIVE on the paired site, hold to stop), Settings LIVE tab (PAIR by QR or link,
+UNPAIR), the TEST lens, adb `live ...`. The cloud session builds the STREAMING first tab and the run-while-minimised
+service on top of it next, as the next free numbers; Mac session: please pull before your next version number.
+
 ## 14.11.2026: the square grey, the gear gone
 > "yes, Square is there. It's nice, but it needs to be gray first of all. It's too white. And second of all, this icon, this graphics behind representing settings, must be gone" (Marko, 14.11.2026, about 22:45)
 
