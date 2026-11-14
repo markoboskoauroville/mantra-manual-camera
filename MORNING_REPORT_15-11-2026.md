@@ -99,3 +99,37 @@ between the runs (−69 dBm on "mantra", then −54 dBm on "Something"), so part
    (e.g. 1-2). Open Manual Camera and press 3 SEND. Check that the status line says MAC LINK and the meter moves.
 2. Tap MONITOR on the phone (headphones in) and listen for clicks or gaps.
 3. A short take, then check the sound in the file and say how late it feels.
+
+## Frankfurt relay (SANTOSHI RELAY), 15.11.2026 ~00:40
+
+Marko, 14.11.2026 ~23:58: "I just want to send one stream, and then it is relayed somewhere ... Frankfurt delay, without YouTube branding".
+
+**What exists now.** The phone sends ONE stream (WHIP) to MediaMTX on chromium-vm in Frankfurt (https://relay.ples-duse.org).
+Every viewer of https://santoshi-band.pages.dev watches it there in the site's own player (WebRTC/WHEP, LL-HLS fallback).
+The VM records each stream in 1-minute pieces and uploads them to Drive "Santoshi Band live (relay)/Santoshi live <date time>/Video",
+with the two Google Docs "Chat" and "Stream statistics". VDO NINJA stays as the second choice. There is no YouTube.
+
+**Proven tonight with the Sony (ILCE-7M5 over USB, v212 on the Pixel), 00:29–00:39:**
+| | measured |
+|---|---|
+| Phone upload | one connection (trace: "relay offer made (one connection)", relay sessions: 1 publisher), about 4.2 Mbit/s H.264 + Opus stereo |
+| Viewers | 8 at once: 4 WebRTC (Firefox on the Mac, including the site's banner) + 4 HLS readers on the VM |
+| Picture at the viewer | 1920x1080, 23–26 fps (the Sony gives 25), 0 packets lost, 0 frames dropped, jitter buffer 140–180 ms |
+| Delay | relay leg alone (VM test stream to the Mac) under 0.2 s (jitter buffer 32–63 ms). Sony to the viewer: estimated 0.4–0.6 s, not clocked (no clock in front of the Sony) |
+| VM | MediaMTX 13 % of one core with 8 viewers, the VM 87 % idle; egress about 4.5 Mbit/s per WebRTC viewer (= the stream's bit rate) |
+| Sound | Opus stereo reaches the relay, but tonight as digital silence (-91 dB): the source was Sound Link (the Mac), and the Mac played nothing. With the VM test stream the sound was correct (Opus 2 ch, level 0.09) |
+
+The public live was stopped at 00:39:48. Nothing is on the site overnight.
+
+**Not finished / known.**
+1. The first seconds of a stream start at 640x360 and climb to 1080p (WebRTC's own bit rate ramp). The first recorded piece is small.
+2. A second `am start` of the app opened a second camera screen, and the two published over each other (00:23–00:28). That is fixed by
+   starting the app normally (one screen). Only adb did this, not Marko's hand.
+3. Drive uploads go through rclone's shared Google client, whose per-minute quota throttled them; 64 MB chunks fixed it (48 Mbit/s).
+   The pieces also stay on the VM for 3 days.
+
+**Marko in the morning, with the Sony.**
+1. Sony on USB, Manual Camera open (v212 or newer), the Sony picture on screen.
+2. Settings → STREAMING → **SANTOSHI RELAY** (it says "· default"). Settings close and LIVE starts. The LIVE key turns red and counts the viewers.
+3. On another device open https://santoshi-band.pages.dev: the banner plays the Sony. Tap the speaker for sound.
+4. To stop: hold LIVE for two seconds (or press SANTOSHI RELAY again). The recording is in Drive "Santoshi Band live (relay)".
