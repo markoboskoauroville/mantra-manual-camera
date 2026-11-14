@@ -1659,3 +1659,8 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 ## 14.11.2026 ~00:00, MONITOR on the phone (word for word)
 
 "please make the sound pass through so I can listen to it on my Pixel phone. I want to listen to it to make sure it's okay not to have a microphone, because it will be kind of feedback, but music can play"
+
+## 14.11.2026 ~23:58, one stream to a relay in Frankfurt (Marko, word for word)
+
+"absolutely, my phone will not handle all these streams. I just want to send one stream, and then it is relayed somewhere ... we need to have something which works: one stream to somewhere"
+"yes, Frankfurt delay, without YouTube branding, please"
