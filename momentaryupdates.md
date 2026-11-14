@@ -1550,3 +1550,8 @@ Note: "headline" means hairline (dictation).
 **Status (14.11.2026):** v194: the VU meter (VuMeterView) is one bar for mono and the same meter split by a hairline into L and R, each with its own peak hold, for stereo; decided by the channel count AudioRecord really opened. The Sony lens asks for stereo whatever the setting. The status line says mono or stereo L R. The Monitor app has no level meter. Rule: MANTRA_MANIFEST modules/vu-meter-mono-stereo.md.
 
 **Status (14.11.2026, v195):** lens drawer keys fit their text in height too (Marko: "the font is going out of the frame": L1 cut at the top, 12MP at the bottom with five lenses); Sony frames are paced by when they arrived from the camera (monotonic clock), not by when their decode ended; the trace gives fps in and drawn, decode ms, overwritten frames and the arrival spacing; TC Jam no longer opens when a Sony is plugged in, so the SONY lens alone claims it.
+
+## 14.11.2026: the lens drawer in landscape
+> "please fix my lens selection in the landscape mode because its font needs to be smaller and every line should fit They don't fit. I should be able to scroll." (Marko, 14.11.2026)
+
+**Status:** v195: drawer words at 1.3 (were 1.7), each lens key 76 dp high with its four rows shrunk to fit its height and width, the right rail in a ScrollView so the drawer scrolls past the screen (SONY adds a key); closed, the rail fills the screen as before.

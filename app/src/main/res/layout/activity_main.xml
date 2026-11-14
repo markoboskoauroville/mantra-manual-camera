@@ -206,12 +206,23 @@
                 android:text="REC  00:00:00:00" />
         </com.mantraproductions.ndi.AspectFrame>
 
-        <LinearLayout
-            android:id="@+id/railRight"
+        <!-- v195 (Marko, 14.11.2026: "I should be able to scroll"): the right rail scrolls when the lens drawer has more
+             keys than the screen holds; closed, the rail fills it exactly as before (fillViewport). -->
+        <ScrollView
+            android:id="@+id/railRightScroll"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:padding="3dp" />
+            android:fillViewport="true"
+            android:scrollbars="none"
+            android:overScrollMode="never">
+
+            <LinearLayout
+                android:id="@+id/railRight"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="3dp" />
+        </ScrollView>
     </LinearLayout>
 
     <!--

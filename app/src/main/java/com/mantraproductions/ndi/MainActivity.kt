@@ -83,6 +83,9 @@ private val SNAP_ORANGE = android.graphics.Color.parseColor("#FF9500")
 /** v155: how long a finger stays on a key before its help opens. */
 private const val HELP_MS = 2000L
 private const val SONY_PERMISSION = 3
+/** v195: the lens drawer's words (were 1.7, too big for four rows), and the height of each lens key in it. */
+private const val DRAWER_SCALE = 1.3f
+private const val LENS_KEY_DP = 76f
 /** v155: the power readout is written this often (the measuring goes on every second). */
 private const val POWER_SHOW_MS = 5000L
 
@@ -209,6 +212,8 @@ class MainActivity : AppCompatActivity() {
     private var microphoneAsked = false
 
     private val lensKeys = mutableListOf<RailButton>()
+    /** v195: the right rail's scroller (the open lens drawer scrolls). */
+    private lateinit var railRightScroll: android.widget.ScrollView
     // v193, THE SONY AS A LENS: a USB video camera (the Sony ILCE-7M5 in USB Streaming) as one more key in the drawer
     private val usbHub by lazy { UvcHub(this) }
     private var usbDevice: android.hardware.usb.UsbDevice? = null
@@ -298,6 +303,7 @@ class MainActivity : AppCompatActivity() {
         stage = findViewById(R.id.stage)
         railLeft = findViewById(R.id.railLeft)
         railRight = findViewById(R.id.railRight)
+        railRightScroll = findViewById(R.id.railRightScroll)
         timecode = findViewById(R.id.timecode)
         statusRow = findViewById(R.id.statusRow)
         showTimecode(false)
@@ -612,7 +618,7 @@ class MainActivity : AppCompatActivity() {
             key.third = lens.aperture.takeIf { it > 0f }
                 ?.let { "f/" + String.format(java.util.Locale.ROOT, "%.2f", it).trimEnd('0').trimEnd('.') } ?: "f/—"
             key.fourth = lens.megapixels.takeIf { it > 0 }?.let { "${it}MP" }
-            key.scale = 1.7f
+            key.scale = DRAWER_SCALE        // v195: smaller (Marko: "its font needs to be smaller")
             key.divider = true
             lensKeys.add(key)
         }
@@ -621,7 +627,7 @@ class MainActivity : AppCompatActivity() {
         sonyKey.sub = "USB"
         sonyKey.third = " "
         sonyKey.fourth = null
-        sonyKey.scale = 1.7f
+        sonyKey.scale = DRAWER_SCALE
         sonyKey.divider = true
         // v103: the marks' keys, drawn as their marks. Grey = not on the picture, white = on it,
         // orange = the one a pinch resizes (only one). A tap steps grey → white → orange → grey.
@@ -841,7 +847,9 @@ class MainActivity : AppCompatActivity() {
                 rail === railRight && assistOpen -> if (landscape) 96 else 80
                 else -> 44
             }) * density).toInt()
-            val lp = rail.layoutParams as LinearLayout.LayoutParams
+            // v195: the right rail sits in its scroller; the scroller takes the rail's place in the stage
+            val holder: View = if (rail === railRight) railRightScroll else rail
+            val lp = holder.layoutParams as LinearLayout.LayoutParams
             if (landscape) {
                 lp.width = thickness
                 lp.height = ViewGroup.LayoutParams.MATCH_PARENT
@@ -849,14 +857,23 @@ class MainActivity : AppCompatActivity() {
                 lp.width = ViewGroup.LayoutParams.MATCH_PARENT
                 lp.height = thickness
             }
-            rail.layoutParams = lp
+            holder.layoutParams = lp
+            if (rail === railRight) {
+                rail.layoutParams = android.widget.FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                if (!lensesOpen) railRightScroll.scrollTo(0, 0)
+            }
 
+            // v195: an open lens drawer gives each lens key a fixed height its rows fit in, and scrolls past the screen
+            val drawerKeyHeight = (LENS_KEY_DP * density).toInt()
             for (i in 0 until rail.childCount) {
-                rail.getChildAt(i).layoutParams = LinearLayout.LayoutParams(
+                val child = rail.getChildAt(i)
+                val fixed = landscape && rail === railRight && lensesOpen && (child in lensKeys || child === sonyKey)
+                child.layoutParams = LinearLayout.LayoutParams(
                     if (landscape) ViewGroup.LayoutParams.MATCH_PARENT else 0,
-                    if (landscape) 0 else ViewGroup.LayoutParams.MATCH_PARENT
+                    if (fixed) drawerKeyHeight else if (landscape) 0 else ViewGroup.LayoutParams.MATCH_PARENT
                 ).apply {
-                    weight = 1f
+                    weight = if (fixed) 0f else 1f
                     setMargins(margin, margin, margin, margin)
                 }
             }
