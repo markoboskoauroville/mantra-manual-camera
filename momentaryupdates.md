@@ -1633,3 +1633,7 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 
 ## 14.11.2026: why the Sony fell off USB (found while testing v202)
 **Status:** v203: measured 22:56: SONY → L1 → SONY within six seconds; the second start got no frame for 10 s and the α7 V dropped off USB and stayed off (the same as 22:15 after the reinstall). The stop sent SET_INTERFACE alt 0 to the Sony's video interface, which has only one setting (bulk); UVC and Linux end a bulk stream with CLEAR_FEATURE(ENDPOINT_HALT) instead. v203 does that.
+
+## 14.11.2026 ~23:15, Sound Link: the camera receives the Mac's sound (word for word)
+
+"another Swift app to develop for this case, that is Sound Link. A Sound Link is basically finding this application in the Mantra manual camera on the network and sending the sound from my Mac. We're going to have the camera on one corner and my Mac on another corner. They will both be in the same Wi-Fi network, and on my Mac there will be a connected XLR mixer with all its 16 channels, 18 channels, I don't know. This is a stereo link only, so I'm choosing 2 channels. I'm choosing the source, and I press Send. When I press Send, my camera app automatically switches the sound and puts the status text that it's receiving sound from the Mac. In that case, we can have the sound from the desk in the stream. That's the idea. Please make a Sound Link"
