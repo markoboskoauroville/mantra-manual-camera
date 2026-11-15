@@ -164,7 +164,8 @@ Right rail (the bottom bar when upright):
 
 | Key | What |
 |---|---|
-| record | the master trigger: a white circle; red while every output armed in settings (file, NDI, and later USB and YouTube) runs, started together |
+| record | records the file, nothing else (v218); red while it records |
+| `LIVE` | v218: a tap starts every stream switched on under LIVE in Settings, OUTPUTS (NDI, the paired band site); held two seconds they all stop. The top line says LIVE · NDI · SITE n |
 | `PLAY` | the last take |
 | the camera icon | SNAP: the picture as a PNG beside the takes |
 | `LANDSCAPE` / `PORTRAIT` | turns the interface |

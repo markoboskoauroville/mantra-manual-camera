@@ -1,3 +1,16 @@
+**15.11.2026, 08:40 — v218 installed on the Pixel 7 (Latest): RECORD records, LIVE streams.** Marko: "record records, and to
+start streaming we go live, and that's it." The record key records the file only. The LIVE key starts every stream switched on
+under LIVE in Settings, OUTPUTS (NDI, BAND SITE; YouTube and USB still dark) and a two-second hold stops them all. NDI no longer
+starts when the camera opens. OUTPUTS is two groups, "RECORD (record key)" (FILE + folder) and "LIVE (live key)" (NDI with
+HX/FULL, wire, sound, name; BAND SITE, new switch armSite, on by default; YOUTUBE; USB). The STREAMING tab keys only choose
+the way (SANTOSHI RELAY / VDO NINJA), they no longer go live. Top line: "● LIVE · NDI · SITE n"; the LIVE key shows NDI or the
+viewer count. Also in v218: NDI "SOUND IN THE STREAM" off by default and switched off once for everybody (the Mac adds the sound
+through Sound Link), and the picture gets the sound's 1.5 Mbit/s. Build (green):
+https://github.com/markoboskoauroville/mantra-manual-camera/actions/runs/43689821007. Tested on the Pixel with NDI on and the
+band site off: REC → no NDI source on the Mac; LIVE → "Pixel 7 Camera" listed; LIVE stop → gone. The hotspot "Something" refuses
+every Mac→phone TCP connection on 10.121.232.x (even adb), so discovery went over Tailscale (100.70.23.53), and no picture frames
+arrived there (LESSONS). The band site was not touched (Marko: nothing on the internet until he is back).
+
 **15.11.2026, overnight (cloud session) — GO LIVE, phase 2.** State now, newest first:
 
 - **Released tonight on main, all built by GitHub Actions:** v200 (cloud: the native VDO.Ninja publisher, LIVE key,

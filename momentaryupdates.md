@@ -1678,10 +1678,10 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 
 "yes, that's the bad thing. We did it. It must be a different button to enable NDI streaming, not at the same time recording and streaming. Oh my God, Baba! We want to use the record button only for recording. Please undo all my stupid changes now That's too complicated to go and switch off the file. Make a more easy system that people are not confused when they use my app. Even I'm confused when I'm using my app. So record records, and to start streaming we go live, and that's it."
 
-**Plan:** RECORD key = the file only. LIVE key = every enabled stream (NDI, YouTube, band site) starts on GO LIVE and stops together. OUTPUTS split into two groups, "RECORD (record key)" and "LIVE (live key)". Saved toggles kept; only the trigger changes. Status: in progress (v218).
+**Plan:** RECORD key = the file only. LIVE key = every enabled stream (NDI, YouTube, band site) starts on GO LIVE and stops together. OUTPUTS split into two groups, "RECORD (record key)" and "LIVE (live key)". Saved toggles kept; only the trigger changes. Status: done in v218 (15.11.2026), installed on the Pixel; REC/LIVE proven by NDI discovery.
 
 ## 15.11.2026, picture only when the Mac adds the sound (Marko, word for word)
 
 "also, one piece of advice: if I'm streaming through my SoundLink, I'm sending a picture from my phone to my computer, and then New Sound is attached. Then my device, my phone, does not need to send audio. It only needs to send a picture. In that way, we can use more bandwidth for the picture. Understand"
 
-**Plan:** NDI "SOUND IN THE STREAM" off by default, note "Off when the Mac adds the sound (Sound Link)"; with sound off, NDI HX gives the audio's share of the bit rate to the picture; existing users switched off once in v218. Status: in progress (v218, with the record/live change).
+**Plan:** NDI "SOUND IN THE STREAM" off by default, note "Off when the Mac adds the sound (Sound Link)"; with sound off, NDI HX gives the audio's share of the bit rate to the picture; existing users switched off once in v218. Status: done in v218 (15.11.2026); migration seen on the Pixel (ndiAudio=false).

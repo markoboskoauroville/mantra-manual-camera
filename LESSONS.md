@@ -356,3 +356,14 @@ Tailscale), GO LIVE on the phone OFF (two publishers otherwise: the phone's rela
   your own server (ADB_SERVER_SOCKET=tcp:localhost:5038) rather than killing the shared one.
 - The phone's DNS can die inside Tailscale (100.100.100.100, "Unable to resolve host" on GO LIVE) while IP works: force-stop
   com.tailscale.ipn, go live, then `am broadcast -a com.tailscale.ipn.CONNECT_VPN -n com.tailscale.ipn/.IPNReceiver`.
+
+## 15.11.2026: record and LIVE separated (v218)
+
+- One key, one job. v91 started every armed output from REC, v130 made NDI start when the camera opened; both confused Marko
+  ("Even I'm confused when I'm using my app"). Now REC = file, LIVE = every stream switched on under LIVE. Keep it that way:
+  never tie a stream to REC again, and never start a stream just because the camera opened.
+- A LIVE with nothing left to carry (site refused or ended, NDI off) ends itself in refreshLive, so the key never hangs on "…".
+- Testing NDI from the Mac on the hotspot "Something": the Mac (en17, 10.121.232.41) gets "Connection refused" on every phone
+  port (adb 5555 too) and ping fails, so Bonjour and --extra-ips 10.121.232.96 see nothing, which looks like "NDI is off".
+  A negative test there proves nothing: check discovery over Tailscale (extra-ips 100.70.23.53) first. Over Tailscale the source
+  is listed but the picture did not arrive (0 frames in 25 s): the sender is pinned to the wlan0 address.
