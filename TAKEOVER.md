@@ -1,3 +1,13 @@
+**15.11.2026, 08:50 — v219 installed (Latest):** from the NDI review (MANTRA_MANIFEST modules/ndi-best-practice.md): NDI source
+names lose "(" ")" (sanitizeSourceName; a saved name with them is cleaned when sent), and the ndi-video thread asks the encoder
+for a keyframe as soon as NDIlib_send_is_keyframe_required says a receiver waits (at most every 300 ms; "keyAsks" in the NDI LIVE
+trace line). Build (green): https://github.com/markoboskoauroville/mantra-manual-camera/actions/runs/43690959742. On the Pixel:
+LIVE lists "Pixel 7 Camera" over Tailscale. **Open, need a network where the Mac receives the phone's picture** (the hotspot
+"Something" refuses Mac→phone on the LAN, the Mac being on the cable en17): the HX preview stream (~640 px, *_lowest_bandwidth,
+a second encoder and its own parameter sets in ndi_bridge.cpp, which today keeps one g_video_extra), the 40-minute Advanced SDK
+trial soak (docs: Android stops after 5 min without a License ID) and a make-before-break sender refresh if it drops, and the
+proof in NDI Video Monitor (`ndimon select "Pixel 7 Camera"`, `ndimon shot`).
+
 **15.11.2026, 08:40 — v218 installed on the Pixel 7 (Latest): RECORD records, LIVE streams.** Marko: "record records, and to
 start streaming we go live, and that's it." The record key records the file only. The LIVE key starts every stream switched on
 under LIVE in Settings, OUTPUTS (NDI, BAND SITE; YouTube and USB still dark) and a two-second hold stops them all. NDI no longer
