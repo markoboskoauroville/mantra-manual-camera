@@ -165,7 +165,7 @@ Right rail (the bottom bar when upright):
 | Key | What |
 |---|---|
 | record | records the file, nothing else (v218); red while it records |
-| `LIVE` | v218: a tap starts every stream switched on under LIVE in Settings, OUTPUTS (NDI, the paired band site); held two seconds they all stop. The top line says LIVE · NDI · SITE n |
+| `LIVE` | v218: a tap starts every stream switched on under LIVE in Settings, OUTPUTS (NDI, the paired Santoshi band site); held two seconds they all stop. The top line says LIVE · NDI · SANTOSHI n. Settings always stand upright (v220) |
 | `PLAY` | the last take |
 | the camera icon | SNAP: the picture as a PNG beside the takes |
 | `LANDSCAPE` / `PORTRAIT` | turns the interface |

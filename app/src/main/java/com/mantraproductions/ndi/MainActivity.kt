@@ -5566,13 +5566,13 @@ class MainActivity : AppCompatActivity() {
      */
     private var liveSession = false
 
-    /** What is live right now, for the top line and the adb state: NDI, SITE n. */
+    /** What is live right now, for the top line and the adb state: NDI, SANTOSHI n. */
     private fun liveParts(): List<String> = listOfNotNull(
         if (::pipeline.isInitialized && pipeline.mode != CameraPipeline.Mode.OFF) "NDI"
         else if (settings.armNdi) "NDI…" else null,
         when (liveState.phase) {
-            com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> "SITE ${liveState.viewers}"
-            com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING -> "SITE…"
+            com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> "SANTOSHI ${liveState.viewers}"
+            com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING -> "SANTOSHI…"
             else -> null
         }
     )
@@ -5588,14 +5588,14 @@ class MainActivity : AppCompatActivity() {
         val paired = l.site(this) != null && l.token(this) != null
         val site = settings.armSite && paired
         if (!settings.armNdi && !site) {
-            say(if (settings.armSite) "LIVE: switch NDI on, or pair the band site (Settings, OUTPUTS, LIVE)"
+            say(if (settings.armSite) "LIVE: switch NDI on, or pair the Santoshi band site (Settings, STREAMING)"
                 else "LIVE: nothing switched on (Settings, OUTPUTS, LIVE)")
             return
         }
         liveSession = true
         Trace.control("live", "go", "ndi=${settings.armNdi} site=$site")
         if (settings.armNdi) followNdiSwitch()
-        if (settings.armSite && !paired) say("LIVE: NDI only, the band site is not paired")
+        if (settings.armSite && !paired) say("LIVE: NDI only, the Santoshi band site is not paired")
         if (site) goSite()
         refreshLive()
     }
@@ -5605,7 +5605,7 @@ class MainActivity : AppCompatActivity() {
         val l = com.mantraproductions.ndi.live.LiveLink
         val site = l.site(this) ?: return
         val token = l.token(this) ?: return
-        if (!pipeline.usesGpuStage) { say("LIVE on the site needs the GPU picture path (Settings)"); return }
+        if (!pipeline.usesGpuStage) { say("LIVE on the Santoshi band site needs the GPU picture path (Settings)"); return }
         say("LIVE: asking ${l.siteName(this)}")
         liveState = com.mantraproductions.ndi.live.VdoPublisher.State(com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING, 0, "site")
         refreshLive()
@@ -5625,8 +5625,8 @@ class MainActivity : AppCompatActivity() {
                 if (!a.live || id == null || pw == null) {
                     liveState = com.mantraproductions.ndi.live.VdoPublisher.State(com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF, 0, "")
                     refreshLive()
-                    say(if (a.code == 401) "LIVE: the site does not know this camera any more: pair it again"
-                        else "LIVE: the site said ${a.error ?: "no"}")
+                    say(if (a.code == 401) "LIVE: the Santoshi band site does not know this camera any more: pair it again"
+                        else "LIVE: the Santoshi band site said ${a.error ?: "no"}")
                     Trace.refused("live", "site go: ${a.code} ${a.error ?: ""}")
                     return@post
                 }
@@ -5793,7 +5793,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startPairScan() {
         pairScanUntil = System.currentTimeMillis() + 60_000
-        say("PAIR: hold the camera on the QR of the band site")
+        say("PAIR: hold the camera on the QR of the Santoshi band site")
         ui.removeCallbacks(pairScanTick)
         ui.post(pairScanTick)
     }

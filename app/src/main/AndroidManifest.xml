@@ -85,7 +85,11 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:label="@string/settings"
-            android:screenOrientation="fullUser" />
+            android:screenOrientation="portrait" />
+        <!-- v220 (Marko, 15.11.2026: "Every time I open settings, they should be in a portrait mode, never in the
+             landscape mode"): settings and the screens opened from them stand upright; the camera keeps its own rotation.
+             PairActivity and UsbAttachActivity are invisible translucent trampolines (a fixed orientation on a translucent
+             activity crashes Android 8.0), so they stay as they are. -->
 
         <!-- v187: SONY REMOTE, the Mantra Sony Remote's TC JAM, opened from Settings → SONY (v195: no longer by a Sony on USB) -->
         <activity
@@ -94,7 +98,7 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
-            android:screenOrientation="fullSensor">
+            android:screenOrientation="portrait">
             <!-- v195: no USB_DEVICE_ATTACHED filter any more: the SONY lens is the only thing that claims the Sony on USB -->
         </activity>
 

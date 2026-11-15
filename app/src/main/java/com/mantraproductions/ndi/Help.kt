@@ -6,7 +6,7 @@ package com.mantraproductions.ndi
  */
 object Help {
     fun forKey(name: String, power: PowerMonitor.Reading? = null): Pair<String, String> = when {
-        name == "LIVE" -> "LIVE · GO LIVE" to "A tap starts every stream switched on under LIVE in Settings, OUTPUTS: NDI and the paired band site. Hold LIVE two seconds and they all stop. REC never streams; LIVE never records. The top line says what is live: LIVE · NDI · SITE and how many watch."
+        name == "LIVE" -> "LIVE · GO LIVE" to "A tap starts every stream switched on under LIVE in Settings, OUTPUTS: NDI and the paired Santoshi band site. Hold LIVE two seconds and they all stop. REC never streams; LIVE never records. The top line says what is live: LIVE · NDI · SANTOSHI and how many watch."
         name == "TEST" -> "TEST · PATTERN" to "A moving test picture with a clock, for a phone with no working camera. The take, NDI and LIVE all work from it."
         name == "L" -> "L · LENSES" to "Opens the drawer of this phone's lenses (wide, main, tele, selfie). A tap on one switches to it; the stream goes on. The lens is remembered."
         name.matches(Regex("L\\d.*")) -> "LENS ${name.drop(1).take(1)}" to "Switches to this lens. Its focal length is written under it."

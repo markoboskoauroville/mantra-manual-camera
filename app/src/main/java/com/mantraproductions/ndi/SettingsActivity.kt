@@ -176,7 +176,7 @@ class SettingsActivity : AppCompatActivity() {
             findViewById<android.widget.Button>(id).let { b ->
                 val on = running && l.liveVia == via
                 b.text = when {
-                    !l.paired(this) -> "$label · pair the band site first"
+                    !l.paired(this) -> "$label · pair the Santoshi band site first"
                     on -> "$label · ${l.livePhase} · hold LIVE to stop"
                     running -> "$label"
                     l.via(this) == via -> "● $label · used by LIVE"

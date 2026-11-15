@@ -606,7 +606,7 @@
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:textColor="@color/sand"
-                android:text="BAND SITE" />
+                android:text="SANTOSHI BAND SITE" />
             <Switch
                 android:id="@+id/armSite"
                 android:layout_width="wrap_content"
@@ -824,7 +824,7 @@
             android:layout_width="match_parent"
             android:text="SANTOSHI RELAY" />
         <TextView android:tag="hint" style="@style/MantraHint"
-            android:text="SANTOSHI RELAY sends ONE stream (WHIP) to the band's relay in Frankfurt; every viewer of the band site watches it there, about a second behind, and the relay records it to Drive. The phone's upload stays the same however many watch. The default once the band site is paired." />
+            android:text="SANTOSHI RELAY sends ONE stream (WHIP) to the band's relay in Frankfurt; every viewer of the Santoshi band site watches it there, about a second behind, and the relay records it to Drive. The phone's upload stays the same however many watch. The default once the Santoshi band site is paired." />
         <!-- v201 (Marko, 14.11.2026 ~22:20): STREAMING, the first tab: what can stream right now, one key each -->
         <Button
             android:id="@+id/streamVdo"
@@ -832,7 +832,7 @@
             android:layout_width="match_parent"
             android:text="VDO NINJA" />
         <TextView android:tag="hint" style="@style/MantraHint"
-            android:text="VDO NINJA, the second choice: the phone sends a copy to every viewer itself (peer to peer), fine for two or three. It streams the lens in use and its sound to the paired band site. It keeps streaming when you leave the app (home button), so on this same phone you can open the band site, sign in and watch it." />
+            android:text="VDO NINJA, the second choice: the phone sends a copy to every viewer itself (peer to peer), fine for two or three. It streams the lens in use and its sound to the paired Santoshi band site. It keeps streaming when you leave the app (home button), so on this same phone you can open the Santoshi band site, sign in and watch it." />
         <!-- v208 (Marko, 14.11.2026 ~23:45): the band site's admin in Chrome's Custom Tab, signed in as in Chrome -->
         <Button
             android:id="@+id/santoshiAdmin"
@@ -840,7 +840,7 @@
             android:layout_width="match_parent"
             android:text="SANTOSHI ADMIN" />
         <TextView android:tag="hint" style="@style/MantraHint"
-            android:text="Opens the band site's admin over the camera, signed in as in Chrome. In LIVE, OPEN IN MANUAL CAMERA pairs this camera and brings you back here. Back returns to the camera." />
+            android:text="Opens the Santoshi band site's admin over the camera, signed in as in Chrome. In LIVE, OPEN IN MANUAL CAMERA pairs this camera and brings you back here. Back returns to the camera." />
         <Button
             android:id="@+id/streamNdi"
             style="@style/MantraKey"
@@ -863,7 +863,7 @@
             android:layout_width="match_parent"
             android:text="PAIR: SCAN THE QR" />
         <TextView android:tag="hint" style="@style/MantraHint"
-            android:text="On the band site, admin page, LIVE tab: PAIR CAMERA shows a QR. Press PAIR here, then hold the camera on the QR until it says Paired." />
+            android:text="On the Santoshi band site, admin page, LIVE tab: PAIR CAMERA shows a QR. Press PAIR here, then hold the camera on the QR until it says Paired." />
         <EditText
             android:id="@+id/livePairLink"
             android:layout_width="match_parent"
@@ -885,7 +885,7 @@
             android:layout_width="match_parent"
             android:text="UNPAIR" />
         <TextView android:tag="hint" style="@style/MantraHint"
-            android:text="LIVE on the right rail starts the stream; the key here only chooses the way the band site gets it. Hold LIVE two seconds to stop." />
+            android:text="LIVE on the right rail starts the stream; the key here only chooses the way the Santoshi band site gets it. Hold LIVE two seconds to stop." />
             </LinearLayout>
             <LinearLayout
                 android:id="@+id/pageMore"
