@@ -335,3 +335,24 @@ real client off: probe with the app's own status, not with a second connection.
 The Mac takes the camera's NDI (already in the app, proven since v136) as its picture and encodes the master itself (SOUND_LINK/studio).
 No phone change was needed for it. For the concert: NDI on, the phone on the same Wi-Fi as the Mac (or `--extra-ips <phone>` over
 Tailscale), GO LIVE on the phone OFF (two publishers otherwise: the phone's relay and the Mac's studio).
+
+## 15.11.2026: Sound Link holes in the live stream, measured at three points (v216–v217)
+- **How it was measured.** Test signal (1 kHz −12 dBFS 60 s, L440/R880, clicks 1/s, sweep, pink noise) played by sox straight into
+  BlackHole 2ch (the default output untouched); three points: Sound Link stats + phone trace (Mac→phone), MediaMTX's own
+  1-minute recordings on the VM decoded with ffmpeg (phone→relay), an audio-only WHEP client in a Firefox tab with WebAudio capture
+  + getStats (viewer). Analysis: 5 ms RMS blocks (drop = below half the median) and the sine residual x[n+1]+x[n−1]−2cos(w)x[n]
+  (glitch = splice). Tools in the session scratchpad: analyze.py, probe.js, run.sh, vmgrab.sh.
+- **Found:** holes of 240–740 ms every 2–4 minutes on the Mac→phone leg, with no packet lost (late, then all at once) while a 50 ms
+  ping to the phone stayed under 70 ms; after each, the tap played +0.36–0.40 % fast for one to two minutes (1004 Hz for 1000 Hz).
+  The phone→relay leg itself was clean (click arrival std 0.4 ms, MediaMTX lost 318 RTP packets in 50 min, video included).
+- **Fixed:** v216 LinkJitter remembers the longest arrival gap (stallMs, −1 ms per 5 s) and the target covers it (+60 ms, cap
+  1200 ms); after a dropout the excess is trimmed inside the fade-in instead of being played fast; gaps >150 ms are traced
+  ("nothing came for N ms"). v217 trims an oversized first start too (camera opened while the Mac was sending: 394 vs 155 ms).
+  Sound Link v7 (Mac) runs its pump under a latency-critical activity with App Nap off. After both: 0 underruns and no gap over
+  141 ms in 22 min; 716 s of sine on the relay recording with 0 drops and 0 glitches.
+- MediaMTX recording pieces start their audio 0.14–0.24 s in: that is alignment to the first video frame, not a hole (each piece's
+  end meets the next one's first sample). A concat of pieces shows ~0.4 s pts jumps at each minute: ignore them.
+- adb: a long-running adb server without macOS Local Network permission gets "No route to host" for 192.168.x while nc works; run
+  your own server (ADB_SERVER_SOCKET=tcp:localhost:5038) rather than killing the shared one.
+- The phone's DNS can die inside Tailscale (100.100.100.100, "Unable to resolve host" on GO LIVE) while IP works: force-stop
+  com.tailscale.ipn, go live, then `am broadcast -a com.tailscale.ipn.CONNECT_VPN -n com.tailscale.ipn/.IPNReceiver`.
