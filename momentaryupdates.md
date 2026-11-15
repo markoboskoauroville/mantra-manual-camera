@@ -1692,3 +1692,11 @@ Names without parentheses (the NDI Video Monitor listed "Meditation Room (Mantra
 a receiver asks (NDIlib_send_is_keyframe_required); the HX preview stream (~640 px, *_lowest_bandwidth); the Advanced SDK trial
 limit soak (40 min) and a sender refresh if it drops. Status: v219 has the names and the keyframe on request; the preview
 stream and the soak wait for a network where the Mac receives the phone's picture (TAKEOVER 15.11.2026).
+
+## 15.11.2026, settings always portrait; "Santoshi band site" by name (Marko, word for word)
+
+"If not already built in, you need to build it in. Every time I open settings, they should be in a portrait mode, never in the landscape mode."
+
+"Please don't write anything general when we relate to the bench site. In the setting, it should be Santoshi Bench Site." ("bench site" = band site, his dictation)
+
+**Plan:** SettingsActivity, PairActivity and every settings-like screen portrait always (the camera keeps its own rotation); every "BAND SITE" / "band site" in the app says "SANTOSHI BAND SITE" / "the Santoshi band site". Status: in progress (v220).
