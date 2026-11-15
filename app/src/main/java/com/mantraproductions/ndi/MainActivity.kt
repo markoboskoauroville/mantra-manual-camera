@@ -1576,7 +1576,7 @@ class MainActivity : AppCompatActivity() {
         // Every ten seconds while streaming, one line the field test reads: the wire, and the sound that went out.
         if (++wireTicks % 5 == 0 && pipeline.mode != CameraPipeline.Mode.OFF) {
             Trace.state("NDI LIVE ${pipeline.mode} on ${pipeline.boundAdapter?.let { "${it.name} ${it.ip}" }} " +
-                "· video queued ${NdiVideo.queued} sent ${NdiVideo.sent} dropped ${NdiVideo.dropped} flushes ${NdiVideo.flushes} slowest ${NdiVideo.takeSlowest()} ms " +
+                "· video queued ${NdiVideo.queued} sent ${NdiVideo.sent} dropped ${NdiVideo.dropped} flushes ${NdiVideo.flushes} keyAsks ${NdiVideo.keyRequests} slowest ${NdiVideo.takeSlowest()} ms " +
                 "· turned ${pipeline.streamTurns * 90}° " +
                 "· sound ${if (NdiAudio.wanted) "on" else "off"} sent ${NdiAudio.sent} dropped ${NdiAudio.dropped}" +
                 " · from ${meter?.routed ?: "no meter"} ${meter?.channels ?: 0}ch · watching $lastWatching")

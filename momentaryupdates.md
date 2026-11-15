@@ -1685,3 +1685,10 @@ service on top of it next, as the next free numbers; Mac session: please pull be
 "also, one piece of advice: if I'm streaming through my SoundLink, I'm sending a picture from my phone to my computer, and then New Sound is attached. Then my device, my phone, does not need to send audio. It only needs to send a picture. In that way, we can use more bandwidth for the picture. Understand"
 
 **Plan:** NDI "SOUND IN THE STREAM" off by default, note "Off when the Mac adds the sound (Sound Link)"; with sound off, NDI HX gives the audio's share of the bit rate to the picture; existing users switched off once in v218. Status: done in v218 (15.11.2026); migration seen on the Pixel (ndiAudio=false).
+
+## 15.11.2026, NDI review findings (coordinator, from MANTRA_MANIFEST modules/ndi-best-practice.md)
+
+Names without parentheses (the NDI Video Monitor listed "Meditation Room (Mantra)" and never showed it); a keyframe sent when
+a receiver asks (NDIlib_send_is_keyframe_required); the HX preview stream (~640 px, *_lowest_bandwidth); the Advanced SDK trial
+limit soak (40 min) and a sender refresh if it drops. Status: v219 has the names and the keyframe on request; the preview
+stream and the soak wait for a network where the Mac receives the phone's picture (TAKEOVER 15.11.2026).

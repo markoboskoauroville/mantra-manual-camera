@@ -24,7 +24,8 @@ class MechanismTest {
     @Test fun charactersThatBreakMdnsAreStripped() {
         assertEquals("CAM A", Mechanism.sanitizeSourceName("CAM/A"))
         assertEquals("Stage Left", Mechanism.sanitizeSourceName("Stage<>Left"))
-        assertEquals("cam.1_(wide)", Mechanism.sanitizeSourceName("cam.1_(wide)"))
+        assertEquals("cam.1_ wide", Mechanism.sanitizeSourceName("cam.1_(wide)"))
+        assertEquals("Meditation Room Mantra", Mechanism.sanitizeSourceName("Meditation Room (Mantra)"))
     }
 
     @Test fun runsOfWhitespaceCollapse() {

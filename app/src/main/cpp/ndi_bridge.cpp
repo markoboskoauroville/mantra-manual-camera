@@ -429,6 +429,17 @@ Java_com_mantraproductions_ndi_NdiSender_nativeSendYuv420(
  * means "sending" tells nobody anything; this number means a machine has
  * opened the stream.
  */
+/**
+ * v219 (NDI review, MANTRA_MANIFEST ndi-best-practice §6): a compliant HX source sends an I-frame as soon as a
+ * receiver asks for one (a new receiver, a lost packet). True when any receiver is waiting for a keyframe.
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_mantraproductions_ndi_NdiSender_nativeKeyframeRequired(JNIEnv*, jobject) {
+    std::lock_guard<std::mutex> lock(g_send_mutex);
+    if (!g_send_instance) return JNI_FALSE;
+    return NDIlib_send_is_keyframe_required(g_send_instance, nullptr) ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_mantraproductions_ndi_NdiSender_nativeConnections(
         JNIEnv*, jobject, jint timeoutMs) {

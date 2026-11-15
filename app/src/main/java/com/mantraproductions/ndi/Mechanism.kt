@@ -25,8 +25,10 @@ object Mechanism {
     fun sanitizeSourceName(raw: String): String {
         // Disallowed characters become a space rather than vanishing: deleting a
         // separator welds two words together, so "CAM/A" would read "CAMA".
+        // v219: no parentheses either: NDI publishes "MACHINE (name)", and a name with its own "(...)" was listed by
+        // the NDI Video Monitor but never shown (MANTRA_MANIFEST ndi-best-practice §1, measured 15.11.2026).
         val cleaned = raw.trim()
-            .replace(Regex("[^A-Za-z0-9 ._()-]"), " ")
+            .replace(Regex("[^A-Za-z0-9 ._-]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
         return when {

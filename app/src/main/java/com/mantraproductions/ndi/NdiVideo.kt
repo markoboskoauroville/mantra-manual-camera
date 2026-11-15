@@ -22,6 +22,11 @@ import kotlin.concurrent.thread
 object NdiVideo {
 
     private const val DEPTH = 12
+    /** v219: a keyframe asked for by a receiver at most this often (an encoder answers within a frame or two). */
+    private const val KEY_ASK_EVERY_MS = 300L
+
+    /** v219: how many times a receiver asked for a keyframe. */
+    @Volatile var keyRequests = 0L; private set
 
     private class Au(val data: ByteArray, val key: Boolean, val ptsUs: Long, val hevc: Boolean)
 
@@ -77,8 +82,16 @@ object NdiVideo {
         if (worker?.isAlive == true) return
         worker = thread(name = "ndi-video", isDaemon = true) {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DISPLAY)
+            var askedAt = 0L
             while (true) {
-                val u = try { queue.poll(500, TimeUnit.MILLISECONDS) } catch (t: Throwable) { null } ?: continue
+                // v219: a receiver that asks for a keyframe (it joined, or lost one) gets it now, not at the next 2 s GOP
+                val now0 = SystemClock.elapsedRealtime()
+                if (now0 - askedAt > KEY_ASK_EVERY_MS && NdiSender.keyframeRequired()) {
+                    askedAt = now0
+                    keyRequests++
+                    requestKeyframe?.invoke()
+                }
+                val u = try { queue.poll(100, TimeUnit.MILLISECONDS) } catch (t: Throwable) { null } ?: continue
                 val t0 = SystemClock.elapsedRealtime()
                 NdiSender.sendCompressed(u.data, u.key, u.ptsUs, u.hevc)
                 val now = SystemClock.elapsedRealtime()

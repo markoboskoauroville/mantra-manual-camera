@@ -124,6 +124,10 @@ object NdiSender {
     )
     private external fun nativeConnections(timeoutMs: Int): Int
 
+    /** v219: a receiver is waiting for a keyframe (NDIlib_send_is_keyframe_required). HX only. */
+    fun keyframeRequired(): Boolean = available && runCatching { nativeKeyframeRequired() }.getOrDefault(false)
+    private external fun nativeKeyframeRequired(): Boolean
+
     /** v117, REMOTE CONTROL: the next command a monitor sent up this source, or null. Never blocks. */
     fun pollCommand(): String? = if (available) runCatching { nativePollMetadata() }.getOrNull() else null
 
