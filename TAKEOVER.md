@@ -1,3 +1,14 @@
+**15.11.2026, 09:25 — v220 released (Latest), NOT yet installed on the Pixel (waiting for Marko to watch):** Settings and the
+Sony Remote screen are always portrait (manifest; PairActivity and UsbAttachActivity are translucent trampolines and stay as
+they are, since a fixed orientation on a translucent activity crashes Android 8.0). Every user-facing "band site" says "the
+Santoshi band site" (OUTPUTS switch "SANTOSHI BAND SITE", STREAMING texts, messages, help; top line "SANTOSHI n"). LIVE colours:
+red while NDI or the site really sends, amber while connecting or waiting, grey when off; a waiting NDI says why ("LIVE · NDI
+waiting (USB CABLE)"). Build (green): https://github.com/markoboskoauroville/mantra-manual-camera/actions/runs/43693680664.
+At 09:14 Marko's LIVE hung on "NDI…" because NDI NETWORK was USB CABLE (put back by my 08:40 test, LESSONS); the Mac
+(192.168.1.100) and the Pixel (192.168.1.101) are now both on the TP-Link "mantra" Wi-Fi and ping each other. Next: install
+v220, set NDI NETWORK to WI-FI in front of Marko, prove the picture in NDI Video Monitor (ndimon), then the HX preview stream
+and the 40-min trial soak.
+
 **15.11.2026, 08:50 — v219 installed (Latest):** from the NDI review (MANTRA_MANIFEST modules/ndi-best-practice.md): NDI source
 names lose "(" ")" (sanitizeSourceName; a saved name with them is cleaned when sent), and the ndi-video thread asks the encoder
 for a keyframe as soon as NDIlib_send_is_keyframe_required says a receiver waits (at most every 300 ms; "keyAsks" in the NDI LIVE
