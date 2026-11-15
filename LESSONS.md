@@ -330,3 +330,8 @@ real client off: probe with the app's own status, not with a second connection.
   seconds, and the stream went silent without the Mac. v215 starts the real recorder again right after the wrap, and
   paces silence on the clock while it restarts.
 - **One MainActivity:** launchMode singleTask plus onNewIntent. Two activities published over each other on the relay.
+
+## 15.11.2026: the Studio route uses the camera's NDI HX as Picture Link
+The Mac takes the camera's NDI (already in the app, proven since v136) as its picture and encodes the master itself (SOUND_LINK/studio).
+No phone change was needed for it. For the concert: NDI on, the phone on the same Wi-Fi as the Mac (or `--extra-ips <phone>` over
+Tailscale), GO LIVE on the phone OFF (two publishers otherwise: the phone's relay and the Mac's studio).
