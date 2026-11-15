@@ -1071,7 +1071,7 @@ class MainActivity : AppCompatActivity() {
         focus.rampMs = settings.focusRackMs
         focus.speedMmS = settings.focusSpeedMmS
         focus.trackSpeedMmS = settings.trackSpeedMmS
-        pipeline.streamBitRate = settings.streamMbps * 1_000_000
+        pipeline.streamBitRate = ndiVideoBps()
         pipeline.start(
             cameraId = lens.id,
             physicalId = lens.physicalId,
@@ -1307,6 +1307,9 @@ class MainActivity : AppCompatActivity() {
         if (was.isEmpty() || now == was) return
         val camera = (0..6).any { now[it] != was[it] }
         val sound = (10..12).any { now[it] != was[it] }
+        // v218: the sound in or out of NDI moves its share of the bit rate to or from the picture, live
+        if (now[12] != was[12] && pipeline.usesGpuStage && pipeline.mode != CameraPipeline.Mode.OFF)
+            pipeline.setStreamBitRateLive(ndiVideoBps())
         Trace.state("back in front: settings changed (camera=$camera, sound=$sound)")
         if (camera) {
             // v159 (27.10.2026, measured: his 720p/24 fps/8-bit change froze NDI Virtual Input, which does not follow a
@@ -5495,7 +5498,7 @@ class MainActivity : AppCompatActivity() {
         bufferSize = Size(cam.width, cam.height)
         holdBufferSize()
         applyPreviewTransform()
-        pipeline.streamBitRate = settings.streamMbps * 1_000_000
+        pipeline.streamBitRate = ndiVideoBps()
         val ok = pipeline.start(
             cameraId = "usb",
             physicalId = null,
@@ -5534,7 +5537,7 @@ class MainActivity : AppCompatActivity() {
         bufferSize = Size(t.width, t.height)
         holdBufferSize()
         applyPreviewTransform()
-        pipeline.streamBitRate = settings.streamMbps * 1_000_000
+        pipeline.streamBitRate = ndiVideoBps()
         val ok = pipeline.start(
             cameraId = "test", physicalId = null, previewSurface = Surface(texture),
             sourceName = Mechanism.sanitizeSourceName(settings.sourceName),
@@ -5639,6 +5642,12 @@ class MainActivity : AppCompatActivity() {
         stopLiveAll("stopped")
         return true
     }
+
+    /**
+     * v218 (Marko, 15.11.2026: "It only needs to send a picture. In that way, we can use more bandwidth for the
+     * picture"): with no sound in NDI the picture gets the sound's share (48 kHz stereo 16-bit PCM, 1.5 Mbit/s).
+     */
+    private fun ndiVideoBps(): Int = settings.streamMbps * 1_000_000 + if (settings.ndiAudio) 0 else NDI_SOUND_SHARE_BPS
 
     /** v218: LIVE off: NDI and the site stop together. The take, if one is rolling, goes on. */
     private fun stopLiveAll(why: String) {
@@ -5854,6 +5863,8 @@ class MainActivity : AppCompatActivity() {
 // CLIPPED a channel has hit the top and no longer says how bright it is. MIN_PIXELS: enough lit legend to
 // average (read at half the view's size since v102). SETTLE: gains sent now reach the texture some frames later (8 at 30 fps ~ 270 ms).
 private const val SPOT_DARK = 25
+/** v218: what the NDI sound takes on the wire (48 kHz, 2 ch, 16 bit), given to the picture when the sound is off. */
+private const val NDI_SOUND_SHARE_BPS = 1_536_000
 private const val SPOT_CLIPPED = 245
 private const val SPOT_MIN_PIXELS = 12
 private const val SPOT_SETTLE_MS = 450L

@@ -573,6 +573,8 @@
                 android:fontFamily="monospace"
                 android:textColor="@color/sand"
                 android:text="SOUND IN THE STREAM" />
+            <TextView android:tag="hint" style="@style/MantraHint"
+                android:text="Off when the Mac adds the sound (Sound Link): the phone sends the picture only, with more bit rate." />
             <!-- The source name -->
             <TextView style="@style/MantraLabel" android:text="@string/source_name" />
             <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/source_name_hint" />

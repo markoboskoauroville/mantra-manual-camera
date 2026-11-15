@@ -19,6 +19,12 @@ class Settings(context: Context) {
 
     private val prefs = context.getSharedPreferences("mantra-manual-camera", Context.MODE_PRIVATE)
 
+    init {
+        // v218: NDI sound off once for everybody (the Mac adds the sound through Sound Link); his later choice is kept
+        if (!prefs.getBoolean(V218_SOUND_OFF, false))
+            prefs.edit().putBoolean(NDI_AUDIO, false).putBoolean(V218_SOUND_OFF, true).apply()
+    }
+
     /**
      * What a receiver sees in its source list.
      *
@@ -314,9 +320,13 @@ class Settings(context: Context) {
             .getOrDefault(Routing.Transport.WIFI)
         set(value) = prefs.edit().putString(NDI_TRANSPORT, value.name).apply()
 
-    /** v135: the sound travels inside the NDI stream (on unless he turns it off). */
+    /**
+     * v135: the sound travels inside the NDI stream. v218 (Marko, 15.11.2026: "if I'm streaming through my SoundLink
+     * ... my phone does not need to send audio. It only needs to send a picture"): off by default, and switched off
+     * once for everybody in v218 ([init]); the picture gets the sound's share of the bit rate.
+     */
     var ndiAudio: Boolean
-        get() = prefs.getBoolean(NDI_AUDIO, true)
+        get() = prefs.getBoolean(NDI_AUDIO, false)
         set(value) = prefs.edit().putBoolean(NDI_AUDIO, value).apply()
 
     /** v135: which microphone: [Routing.AUDIO_AUTO], [Routing.AUDIO_PHONE] or a device's [Routing.Input.key]. */
@@ -518,6 +528,7 @@ class Settings(context: Context) {
         const val STREAM_MBPS = "streamMbps"
         const val NDI_TRANSPORT = "ndiTransport"
         const val NDI_AUDIO = "ndiAudio"
+        const val V218_SOUND_OFF = "v218NdiSoundOff"
         const val AUDIO_SOURCE = "audioSource"
         const val AUDIO_STEREO = "audioStereo"
     }
