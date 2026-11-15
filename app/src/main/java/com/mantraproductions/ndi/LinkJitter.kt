@@ -172,11 +172,13 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 3) {
         private var lastL = 0.0
         private var lastR = 0.0
         private var fadeIn = 0
+        /** v216: set by a dropout; the first start reads from the beginning as before. */
+        private var resumeAfterHole = false
 
         val driftPpm: Int get() = (drift * 1e6).toInt()
         val fillMs: Int get() = (fill * 1000 / rate).toInt()
 
-        internal fun clear() { started = false; waiting = true; pos = 0.0; ratio = 1.0; smooth = 0.0; fill = 0.0; lastL = 0.0; lastR = 0.0 }
+        internal fun clear() { started = false; waiting = true; resumeAfterHole = false; pos = 0.0; ratio = 1.0; smooth = 0.0; fill = 0.0; lastL = 0.0; lastR = 0.0 }
         internal fun restartAt(stamp: Long) { started = false; waiting = true; pos = stamp.toDouble(); ratio = 1.0 }
 
         /** The last sample faded to nothing over the buffer: a dropout is a short fade, never a click. */
@@ -204,7 +206,8 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 3) {
                     // v216: after a stall the late packets come all at once: what is beyond the target is dropped here,
                     // inside the fade-in that follows the hole, instead of being played 0.4 % fast for a minute or two
                     // (heard as the pitch going up: 1004 Hz for a 1000 Hz tone, measured 15.11.2026)
-                    if (have > target + rate / 20) { pos = (head - target).toDouble(); skips++; have = head - pos }
+                    if (resumeAfterHole && have > target + rate / 20) { pos = (head - target).toDouble(); skips++; have = head - pos }
+                    resumeAfterHole = false
                     smooth = have
                 }
                 else { fadeOut(out, frames, channels); fill = have; return@synchronized true }
@@ -219,6 +222,7 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 3) {
             val inc = step * ratio
             if (have < frames * inc + 2) {                                            // dry: fade out, buffer more
                 underruns++
+                resumeAfterHole = true
                 bumpMs = minOf(400.0, bumpMs + 40.0)
                 waiting = true
                 fadeOut(out, frames, channels)
