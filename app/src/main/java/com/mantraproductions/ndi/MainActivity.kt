@@ -566,7 +566,7 @@ class MainActivity : AppCompatActivity() {
                     restoreMode = CameraPipeline.Mode.OFF
                     // v136: the stream stands the way the phone is held
                     updateStreamTurns()
-                    // v130: NDI runs whenever it is armed, from the moment the camera is up (item 47)
+                    // v218: NDI runs while LIVE is on and NDI is switched on (it comes back after a lens change)
                     followNdiSwitch()
                     // A new session starts from the template, which is all
                     // automatic: his A / M switches are put back on it.
@@ -1201,7 +1201,7 @@ class MainActivity : AppCompatActivity() {
             com.mantraproductions.ndi.live.LiveLink.toggleRequested = false
             ui.postDelayed({
                 if (isDestroyed) return@postDelayed
-                if (liveOn) stopLive("streaming tab") else liveTap()
+                if (liveSession) stopLiveAll("streaming tab") else liveTap()
             }, 600)
         }
         if (keptRunning) resumeKept()
@@ -1257,7 +1257,7 @@ class MainActivity : AppCompatActivity() {
         // service; only the preview window is let go. The ticks that watch the stream and the wire keep running.
         // v201: LIVE (VDO.Ninja) goes on behind other apps the same way (Marko: "I can minimize this app")
         // v208: the Sony on USB stays open too (settings, SANTOSHI ADMIN's Custom Tab): a USB restart is what dropped it
-        if (pipeline.isRunning && (pipeline.mode != CameraPipeline.Mode.OFF || liveOn || onSony) && pipeline.usesGpuStage) {
+        if (pipeline.isRunning && (pipeline.mode != CameraPipeline.Mode.OFF || liveOn || liveSession || onSony) && pipeline.usesGpuStage) {
             keptRunning = true
             keptWith = snapshot()
             if (!StreamService.running) StreamService.start(this, serviceLine())
@@ -1485,7 +1485,7 @@ class MainActivity : AppCompatActivity() {
         refreshKeys()
     }
 
-    /** The take stops; NDI goes on as long as it is armed. */
+    /** The take stops; LIVE (NDI, the site) is not touched: it has its own key (v218). */
     private fun stopAll() {
         rolling = false
         if (pipeline.isRecording) stopRecording()
@@ -1497,15 +1497,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * v130: the NDI stream follows its switch, not the record key. Armed: it runs as soon as the camera is open, the
-     * kind chosen in settings (HX or FULL). Not armed: it stops. Called whenever the camera comes up.
+     * v130: the NDI stream follows its switch, not the record key. v218 (Marko, 15.11.2026: "record records, and to
+     * start streaming we go live, and that's it"): it runs only while LIVE is on ([liveSession]) AND NDI is switched
+     * on in OUTPUTS, the kind chosen there (HX or FULL). Otherwise it stops. Called whenever the camera comes up.
      */
     private fun followNdiSwitch() {
         if (!pipeline.isRunning) return
         pipeline.transport = settings.ndiTransport
         NdiAudio.wanted = settings.ndiAudio
-        if (!settings.armNdi) {
-            if (pipeline.mode != CameraPipeline.Mode.OFF) pipeline.setMode(CameraPipeline.Mode.OFF)
+        if (!settings.armNdi || !liveSession) {
+            if (pipeline.mode != CameraPipeline.Mode.OFF) { pipeline.setMode(CameraPipeline.Mode.OFF); refreshLive() }
             return
         }
         var want = if (settings.ndiKind == 2) CameraPipeline.Mode.FULL else CameraPipeline.Mode.HX
@@ -1534,8 +1535,8 @@ class MainActivity : AppCompatActivity() {
         if (pipeline.setMode(want)) {
             pipeline.boundAdapter?.let { say("NDI ${if (want == CameraPipeline.Mode.FULL) "FULL" else "HX"} on " + Routing.wireLabel(settings.ndiTransport, it)) }
         }
-        Trace.control("ndi", want.name, "armed in settings")
-        refreshTelemetry()
+        Trace.control("ndi", want.name, "LIVE on, NDI switched on")
+        refreshLive()
     }
 
     /**
@@ -1568,7 +1569,7 @@ class MainActivity : AppCompatActivity() {
     private var wireTicks = 0
 
     private fun watchWire() {
-        if (!pipeline.isRunning || !settings.armNdi) return
+        if (!pipeline.isRunning || !settings.armNdi || !liveSession) return
         // Every ten seconds while streaming, one line the field test reads: the wire, and the sound that went out.
         if (++wireTicks % 5 == 0 && pipeline.mode != CameraPipeline.Mode.OFF) {
             Trace.state("NDI LIVE ${pipeline.mode} on ${pipeline.boundAdapter?.let { "${it.name} ${it.ip}" }} " +
@@ -2508,12 +2509,12 @@ class MainActivity : AppCompatActivity() {
                     startPublishing(a[1], a[2], a.getOrNull(3)?.toIntOrNull()?.coerceIn(180, 2160) ?: 1080)
                     "publishing test stream ${a[1].take(4)}…"
                 }
-                "go" -> { liveTap(); "go asked" }
+                "go" -> { liveTap(); "go asked (every LIVE output switched on: ndi=${settings.armNdi} site=${settings.armSite})" }
                 "via" -> when (a.getOrNull(1)?.lowercase()) {
                     "relay", "vdo" -> { com.mantraproductions.ndi.live.LiveLink.setVia(this, a[1].lowercase()); "via ${a[1].lowercase()}" }
                     else -> "via " + com.mantraproductions.ndi.live.LiveLink.via(this) + " (live via relay|vdo)"
                 }
-                "stop" -> { if (liveState.phase == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) "already off" else { stopLive("adb"); "stopped" } }
+                "stop" -> { if (!liveSession && liveState.phase == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) "already off" else { stopLiveAll("adb"); "stopped" } }
                 "pair" -> if (a.size > 1 && pairWith(v.trim().substringAfter(' ').trim())) "paired" else "not paired"
                 "unpair" -> { com.mantraproductions.ndi.live.LiveLink.unpair(this); refreshTelemetry(); "unpaired" }
                 "probe" -> {
@@ -2527,7 +2528,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     "probing $site"
                 }
-                else -> "live " + livePhaseWord() + " via=" + com.mantraproductions.ndi.live.LiveLink.liveVia.ifEmpty { com.mantraproductions.ndi.live.LiveLink.via(this) + "(next)" } +
+                else -> "live " + (if (liveSession) "ON " + liveParts().joinToString(" ") else "OFF") + " site=" + livePhaseWord() + " via=" + com.mantraproductions.ndi.live.LiveLink.liveVia.ifEmpty { com.mantraproductions.ndi.live.LiveLink.via(this) + "(next)" } +
                     " peers=" + (live?.peerCount ?: 0) + " frames=" + (live?.framesOut ?: 0) +
                     " paired=" + com.mantraproductions.ndi.live.LiveLink.paired(this)
             }
@@ -5556,16 +5557,52 @@ class MainActivity : AppCompatActivity() {
         com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> "${liveState.viewers} viewer" + if (liveState.viewers == 1) "" else "s"
     }
 
-    /** The LIVE key's tap: GO LIVE on the paired site. While live a tap only says how to stop. */
-    private fun liveTap() {
-        if (liveState.phase != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) {
-            say("LIVE ${livePhaseWord()}: hold LIVE two seconds to stop"); return
+    /**
+     * v218: LIVE is on: every output switched on under LIVE in OUTPUTS runs (NDI, the band site). The record key
+     * never touches it, and it never touches the take.
+     */
+    private var liveSession = false
+
+    /** What is live right now, for the top line and the adb state: NDI, SITE n. */
+    private fun liveParts(): List<String> = listOfNotNull(
+        if (::pipeline.isInitialized && pipeline.mode != CameraPipeline.Mode.OFF) "NDI"
+        else if (settings.armNdi) "NDI…" else null,
+        when (liveState.phase) {
+            com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> "SITE ${liveState.viewers}"
+            com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING -> "SITE…"
+            else -> null
         }
+    )
+
+    /**
+     * The LIVE key's tap (v218): GO LIVE starts every output switched on under LIVE in OUTPUTS: NDI and the paired
+     * band site. While live a tap only says how to stop.
+     */
+    private fun liveTap() {
+        if (liveSession) { say("LIVE ${liveParts().joinToString(" · ")}: hold LIVE two seconds to stop"); return }
+        if (!pipeline.isRunning) { say("The camera is not open"); return }
         val l = com.mantraproductions.ndi.live.LiveLink
-        val site = l.site(this)
-        val token = l.token(this)
-        if (site == null || token == null) { say("LIVE: pair the band site first (Settings, LIVE, PAIR)"); return }
-        if (!pipeline.usesGpuStage) { say("LIVE needs the GPU picture path (Settings)"); return }
+        val paired = l.site(this) != null && l.token(this) != null
+        val site = settings.armSite && paired
+        if (!settings.armNdi && !site) {
+            say(if (settings.armSite) "LIVE: switch NDI on, or pair the band site (Settings, OUTPUTS, LIVE)"
+                else "LIVE: nothing switched on (Settings, OUTPUTS, LIVE)")
+            return
+        }
+        liveSession = true
+        Trace.control("live", "go", "ndi=${settings.armNdi} site=$site")
+        if (settings.armNdi) followNdiSwitch()
+        if (settings.armSite && !paired) say("LIVE: NDI only, the band site is not paired")
+        if (site) goSite()
+        refreshLive()
+    }
+
+    /** v218: the band site part of GO LIVE (was the whole of the LIVE key, v197). */
+    private fun goSite() {
+        val l = com.mantraproductions.ndi.live.LiveLink
+        val site = l.site(this) ?: return
+        val token = l.token(this) ?: return
+        if (!pipeline.usesGpuStage) { say("LIVE on the site needs the GPU picture path (Settings)"); return }
         say("LIVE: asking ${l.siteName(this)}")
         liveState = com.mantraproductions.ndi.live.VdoPublisher.State(com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING, 0, "site")
         refreshLive()
@@ -5596,11 +5633,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Held two seconds: STOP. @return true when taken (the help does not open). */
+    /** Held two seconds: STOP, everything LIVE started. @return true when taken (the help does not open). */
     private fun liveHold(): Boolean {
-        if (liveState.phase == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) return false
-        stopLive("stopped")
+        if (!liveSession && liveState.phase == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) return false
+        stopLiveAll("stopped")
         return true
+    }
+
+    /** v218: LIVE off: NDI and the site stop together. The take, if one is rolling, goes on. */
+    private fun stopLiveAll(why: String) {
+        liveSession = false
+        if (liveState.phase != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) stopLive(why)
+        else { say("LIVE OFF"); Trace.control("live", "stop", why) }
+        followNdiSwitch()
+        refreshLive()
     }
 
     /** Publishes [id] / [pw] (from the site, or made up for an adb test). The token never reaches this point. */
@@ -5664,17 +5710,23 @@ class MainActivity : AppCompatActivity() {
     private fun refreshLive() {
         if (!::liveKey.isInitialized) return
         val ph = liveState.phase
-        liveKey.sub = when (ph) {
-            com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF -> "OFF"
-            com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING -> "…"
-            com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> "${liveState.viewers}"
+        // v218: a LIVE with nothing left to carry (the site ended or refused, NDI not switched on) is over
+        if (liveSession && ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF && !settings.armNdi) liveSession = false
+        // v218: the key is ON while anything LIVE started is going out (NDI or the site), ARMED while it is getting there
+        val ndiOut = ::pipeline.isInitialized && pipeline.mode != CameraPipeline.Mode.OFF
+        val on = (liveSession || ph != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) && (ndiOut || ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE)
+        liveKey.sub = when {
+            !liveSession && ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF -> "OFF"
+            ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> "${liveState.viewers}"
+            ndiOut -> "NDI"
+            else -> "…"
         }
-        liveKey.state = when (ph) {
-            com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF -> RailButton.State.OFF
-            com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING -> RailButton.State.ARMED
-            com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> RailButton.State.ON
+        liveKey.state = when {
+            on -> RailButton.State.ON
+            liveSession || ph != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF -> RailButton.State.ARMED
+            else -> RailButton.State.OFF
         }
-        liveKey.tint = if (ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE) android.graphics.Color.rgb(255, 59, 48) else null
+        liveKey.tint = if (on) android.graphics.Color.rgb(255, 59, 48) else null
         liveKey.invalidate()
         com.mantraproductions.ndi.live.LiveLink.livePhase = livePhaseWord()
         if (::pipeline.isInitialized) syncService()      // v201: LIVE keeps the foreground service (LESSONS 7: pipeline first)
@@ -5684,19 +5736,23 @@ class MainActivity : AppCompatActivity() {
     /** After the outputs: LIVE OFF grey (only once paired or used), LIVE CONNECTING white, ● LIVE n viewers red dot. */
     private fun liveStatus(text: android.text.SpannableStringBuilder) {
         val ph = liveState.phase
-        if (ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF && live == null &&
+        val going = liveSession || ph != com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF
+        if (!going && live == null && !settings.armNdi &&
             !com.mantraproductions.ndi.live.LiveLink.paired(this)) return
         text.append(".")
         val start = text.length
-        if (ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE) {
+        val parts = liveParts()
+        val out = going && parts.any { !it.endsWith("…") }
+        if (out) {
             text.append("● ")
             text.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.rgb(255, 59, 48)),
                 start, text.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         val w = text.length
-        text.append("LIVE ").append(livePhaseWord())
+        // v218: what is live, by name: LIVE · NDI · SITE 3 (LIVE OFF grey when nothing is)
+        text.append(if (going) "LIVE · " + parts.joinToString(" · ").ifEmpty { "…" } else "LIVE OFF")
         text.setSpan(android.text.style.ForegroundColorSpan(
-            if (ph == com.mantraproductions.ndi.live.VdoPublisher.Phase.OFF) android.graphics.Color.argb(120, 200, 204, 208)
+            if (!going) android.graphics.Color.argb(120, 200, 204, 208)
             else android.graphics.Color.WHITE), w, text.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
 

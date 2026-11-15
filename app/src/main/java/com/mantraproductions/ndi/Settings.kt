@@ -285,16 +285,23 @@ class Settings(context: Context) {
         get() = prefs.getBoolean(TEN_BIT, true)
         set(value) = prefs.edit().putBoolean(TEN_BIT, value).apply()
 
-    // --- v91, the switchboard: which destinations the record key starts ----------
+    // --- v91, the switchboard. v218 (Marko, 15.11.2026: "record records, and to start streaming we go live"):
+    // FILE belongs to the RECORD key; NDI, the band site and YouTube belong to the LIVE key. Same saved toggles.
 
     /** FILE is armed unless he disarms it, so the record key still records after the upgrade. */
     var armFile: Boolean
         get() = prefs.getBoolean(ARM_FILE, true)
         set(value) = prefs.edit().putBoolean(ARM_FILE, value).apply()
 
+    /** v218: NDI starts with the LIVE key, no longer when the camera opens. */
     var armNdi: Boolean
         get() = prefs.getBoolean(ARM_NDI, false)
         set(value) = prefs.edit().putBoolean(ARM_NDI, value).apply()
+
+    /** v218: the paired band site starts with the LIVE key (on by default, as LIVE always went to the site). */
+    var armSite: Boolean
+        get() = prefs.getBoolean(ARM_SITE, true)
+        set(value) = prefs.edit().putBoolean(ARM_SITE, value).apply()
 
     /** 1 = NDI HX, 2 = full NDI. */
     var ndiKind: Int
@@ -505,6 +512,7 @@ class Settings(context: Context) {
         const val ZEBRA = "zebraLevel"
         const val ARM_FILE = "armFile"
         const val ARM_NDI = "armNdi"
+        const val ARM_SITE = "armSite"
         const val NDI_KIND = "ndiKind"
         const val GPU_STAGE = "gpuStage"
         const val STREAM_MBPS = "streamMbps"

@@ -46,7 +46,11 @@
     <string name="tracking">Tracking focus</string>
     <string name="tracking_hint">The AF key cycles AF, TRK, MF. In TRK the focus box is the pattern (pinch it to size) and a tap sets it on a subject; the mark follows inside the outer square, the search zone, and focus is asked again once it has moved past the tolerance. Below the confidence it says LOST and waits where it was. Runs on the GPU stage.</string>
     <string name="outputs">Outputs</string>
-    <string name="outputs_hint">Arm a destination here; nothing leaves the phone until the record key on the camera, and then every armed one starts together and stops together. Mix any of them.</string>
+    <string name="outputs_record">RECORD (record key)</string>
+    <string name="outputs_record_hint">The record key records the file. Nothing else.</string>
+    <string name="outputs_live">LIVE (live key)</string>
+    <string name="outputs_live_hint">A tap on LIVE starts every stream switched on here. Hold LIVE two seconds and they stop.</string>
+    <string name="site_hint">The way it goes (SANTOSHI RELAY or VDO NINJA) and the pairing are on the STREAMING tab.</string>
     <string name="ndi_kind">Kind of NDI</string>
     <string name="usb_obs_soon">OBS over the USB cable arrives in v92. Until then NDI can already travel down the cable: USB tethering, below.</string>
     <string name="youtube_soon">Streaming to YouTube arrives in v93: the stream key, or Google sign-in from the app.</string>

@@ -138,16 +138,18 @@ class SettingsActivity : AppCompatActivity() {
         }
         // v201: VDO NINJA goes live (or stops) on the camera screen, which holds the picture; settings close for it.
         // v211: SANTOSHI RELAY the same way, ONE stream to the band's relay in Frankfurt; the key pressed is the way the next GO LIVE takes.
+        // v218 (Marko, 15.11.2026: "to start streaming we go live, and that's it"): these keys only CHOOSE the way;
+        // the LIVE key on the camera is the one that starts and stops.
         fun streamKey(id: Int, via: String, label: String) = findViewById<View>(id).setOnClickListener {
             val l = com.mantraproductions.ndi.live.LiveLink
-            if (!l.paired(this) && l.livePhase == "OFF") {
-                android.widget.Toast.makeText(this, "Pair the band site first (below)", android.widget.Toast.LENGTH_LONG).show()
+            if (l.livePhase != "OFF") {
+                android.widget.Toast.makeText(this, "Live now: hold LIVE two seconds to stop, then choose", android.widget.Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
-            if (l.livePhase == "OFF") l.setVia(this, via)
-            l.toggleRequested = true
-            Trace.control("streaming", label, if (l.livePhase == "OFF") "go asked" else "stop asked")
-            finish()
+            l.setVia(this, via)
+            Trace.control("streaming", label, "chosen for LIVE")
+            showLive()
+            showSiteState()
         }
         streamKey(R.id.streamRelay, "relay", "SANTOSHI RELAY")
         streamKey(R.id.streamVdo, "vdo", "VDO NINJA")
@@ -160,6 +162,13 @@ class SettingsActivity : AppCompatActivity() {
         showLive()
     }
 
+    private fun showSiteState() {
+        val l = com.mantraproductions.ndi.live.LiveLink
+        findViewById<TextView>(R.id.siteState).text =
+            if (l.paired(this)) "Paired: ${l.siteName(this)} · " + (if (l.via(this) == "vdo") "VDO NINJA" else "SANTOSHI RELAY")
+            else "Not paired: pair it on the STREAMING tab"
+    }
+
     private fun showLive() {
         val l = com.mantraproductions.ndi.live.LiveLink
         val running = l.livePhase != "OFF"
@@ -168,9 +177,10 @@ class SettingsActivity : AppCompatActivity() {
                 val on = running && l.liveVia == via
                 b.text = when {
                     !l.paired(this) -> "$label · pair the band site first"
-                    on -> "$label · ${l.livePhase} · press to stop"
-                    running -> "$label · press to stop the running stream"
-                    else -> "$label · ${l.siteName(this)}" + if (l.via(this) == via) " · default" else ""
+                    on -> "$label · ${l.livePhase} · hold LIVE to stop"
+                    running -> "$label"
+                    l.via(this) == via -> "● $label · used by LIVE"
+                    else -> "$label · press to use it"
                 }
                 b.isSelected = on
                 b.setTextColor(if (on) android.graphics.Color.rgb(255, 59, 48) else getColor(R.color.sand))
@@ -219,6 +229,9 @@ class SettingsActivity : AppCompatActivity() {
         bind(R.id.armUsb, R.id.panelUsb, false, null)
         bind(R.id.armNdi, R.id.panelNdi, settings.armNdi) { settings.armNdi = it }
         bind(R.id.armYoutube, R.id.panelYoutube, false, null)
+        // v218: the band site is a LIVE output like NDI; the way and the pairing stay on the STREAMING tab
+        bind(R.id.armSite, R.id.panelSite, settings.armSite) { settings.armSite = it; showSiteState() }
+        showSiteState()
 
         val kind = findViewById<RadioGroup>(R.id.ndiKind)
         listOf(1 to "HX", 2 to "FULL").forEach { (k, name) ->

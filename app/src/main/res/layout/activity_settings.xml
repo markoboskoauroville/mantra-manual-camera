@@ -467,8 +467,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:max="48" />
-        <TextView style="@style/MantraLabel" android:text="@string/outputs" />
-        <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/outputs_hint" />
+        <!-- v218 (Marko, 15.11.2026: "record records, and to start streaming we go live, and that's it") -->
+        <TextView style="@style/MantraLabel" android:text="@string/outputs_record" />
+        <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/outputs_record_hint" />
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -517,49 +518,8 @@
                     android:text="@string/default_folder" />
             </LinearLayout>
         </LinearLayout>
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingTop="10dp">
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:fontFamily="monospace"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:textColor="@color/sand"
-                android:text="USB" />
-            <Switch
-                android:id="@+id/armUsb"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/panelUsb"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingStart="12dp"
-            android:visibility="gone">
-            <TextView style="@style/MantraHint" android:text="@string/usb_obs_soon" />
-            <!-- The cable -->
-            <TextView style="@style/MantraLabel" android:text="@string/usb" />
-            <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/usb_hint" />
-            <TextView
-                android:id="@+id/usbState"
-                style="@style/MantraValue"
-                android:lineSpacingMultiplier="1.35"
-                android:paddingBottom="8dp" />
-            <Button
-                android:id="@+id/usbSettings"
-                style="@style/MantraKey"
-                android:layout_width="match_parent"
-                android:text="@string/usb_open" />
-            <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/usb_webcam" />
-        </LinearLayout>
+        <TextView style="@style/MantraLabel" android:paddingTop="18dp" android:text="@string/outputs_live" />
+        <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/outputs_live_hint" />
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -630,7 +590,36 @@
                 android:background="@color/surface"
                 android:padding="10dp" />
         </LinearLayout>
-
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="10dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="monospace"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="@color/sand"
+                android:text="BAND SITE" />
+            <Switch
+                android:id="@+id/armSite"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/panelSite"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="12dp"
+            android:visibility="gone">
+            <TextView android:id="@+id/siteState" style="@style/MantraValue" />
+            <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/site_hint" />
+        </LinearLayout>
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -659,6 +648,49 @@
             android:paddingStart="12dp"
             android:visibility="gone">
             <TextView style="@style/MantraHint" android:text="@string/youtube_soon" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="10dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="monospace"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="@color/sand"
+                android:text="USB" />
+            <Switch
+                android:id="@+id/armUsb"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/panelUsb"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="12dp"
+            android:visibility="gone">
+            <TextView style="@style/MantraHint" android:text="@string/usb_obs_soon" />
+            <!-- The cable -->
+            <TextView style="@style/MantraLabel" android:text="@string/usb" />
+            <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/usb_hint" />
+            <TextView
+                android:id="@+id/usbState"
+                style="@style/MantraValue"
+                android:lineSpacingMultiplier="1.35"
+                android:paddingBottom="8dp" />
+            <Button
+                android:id="@+id/usbSettings"
+                style="@style/MantraKey"
+                android:layout_width="match_parent"
+                android:text="@string/usb_open" />
+            <TextView android:tag="hint" style="@style/MantraHint" android:text="@string/usb_webcam" />
         </LinearLayout>
         <View
             android:layout_width="match_parent"
@@ -790,7 +822,7 @@
             android:layout_width="match_parent"
             android:text="SANTOSHI RELAY" />
         <TextView android:tag="hint" style="@style/MantraHint"
-            android:text="SANTOSHI RELAY sends ONE stream (WHIP) to the band's relay in Frankfurt; every viewer of the band site watches it there, about a second behind, and the relay records it to Drive. The phone's upload stays the same however many watch. The default once the band site is paired. Press again to stop." />
+            android:text="SANTOSHI RELAY sends ONE stream (WHIP) to the band's relay in Frankfurt; every viewer of the band site watches it there, about a second behind, and the relay records it to Drive. The phone's upload stays the same however many watch. The default once the band site is paired." />
         <!-- v201 (Marko, 14.11.2026 ~22:20): STREAMING, the first tab: what can stream right now, one key each -->
         <Button
             android:id="@+id/streamVdo"
@@ -798,7 +830,7 @@
             android:layout_width="match_parent"
             android:text="VDO NINJA" />
         <TextView android:tag="hint" style="@style/MantraHint"
-            android:text="VDO NINJA, the second choice: the phone sends a copy to every viewer itself (peer to peer), fine for two or three. It streams the lens in use and its sound to the paired band site. It keeps streaming when you leave the app (home button), so on this same phone you can open the band site, sign in and watch it. Press again to stop." />
+            android:text="VDO NINJA, the second choice: the phone sends a copy to every viewer itself (peer to peer), fine for two or three. It streams the lens in use and its sound to the paired band site. It keeps streaming when you leave the app (home button), so on this same phone you can open the band site, sign in and watch it." />
         <!-- v208 (Marko, 14.11.2026 ~23:45): the band site's admin in Chrome's Custom Tab, signed in as in Chrome -->
         <Button
             android:id="@+id/santoshiAdmin"
@@ -813,7 +845,7 @@
             android:layout_width="match_parent"
             android:text="NDI" />
         <TextView android:tag="hint" style="@style/MantraHint"
-            android:text="NDI to a computer on the same network or the USB cable: the OUTPUTS tab." />
+            android:text="NDI to a computer on the same network or the USB cable: switch it on under LIVE on the OUTPUTS tab; the LIVE key starts it." />
         <TextView
             android:id="@+id/liveNow"
             android:layout_width="match_parent"
@@ -851,7 +883,7 @@
             android:layout_width="match_parent"
             android:text="UNPAIR" />
         <TextView android:tag="hint" style="@style/MantraHint"
-            android:text="LIVE on the right rail: a tap goes live on the paired site, through VDO.Ninja, with the lens in use and its sound. Hold LIVE two seconds to stop. The top line says LIVE and how many watch." />
+            android:text="LIVE on the right rail starts the stream; the key here only chooses the way the band site gets it. Hold LIVE two seconds to stop." />
             </LinearLayout>
             <LinearLayout
                 android:id="@+id/pageMore"
