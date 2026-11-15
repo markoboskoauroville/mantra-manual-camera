@@ -206,7 +206,9 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 3) {
                     // v216: after a stall the late packets come all at once: what is beyond the target is dropped here,
                     // inside the fade-in that follows the hole, instead of being played 0.4 % fast for a minute or two
                     // (heard as the pitch going up: 1004 Hz for a 1000 Hz tone, measured 15.11.2026)
-                    if (resumeAfterHole && have > target + rate / 20) { pos = (head - target).toDouble(); skips++; have = head - pos }
+                    // v217: the very first start too, when it finds far more than the target (the camera opened while the Mac
+                    // was already sending: 394 ms against 155, then a minute at +0.4 %)
+                    if (have > target + if (resumeAfterHole) rate / 20 else rate / 5) { pos = (head - target).toDouble(); skips++; have = head - pos }
                     resumeAfterHole = false
                     smooth = have
                 }
