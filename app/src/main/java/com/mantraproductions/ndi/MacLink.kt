@@ -60,6 +60,7 @@ object MacLink {
     @Volatile private var running = false
     private var mac: SocketAddress? = null
     private var lastPacketAt = 0L
+    private var lastAudioNs = 0L
     private var lastTraceAt = 0L
     private var startedAt = 0L
 
@@ -154,7 +155,12 @@ object MacLink {
                 if (20 + main > n) return
                 lastPacketAt = SystemClock.elapsedRealtime()
                 if (!active) begin(from)
-                jitter.write(stamp, seq, b, 20, frames, ch, System.nanoTime())
+                val nowNs = System.nanoTime()
+                // v216: a stop on the way is written down (the Mac's pump says its own in its log), so the next hole has a place
+                if (active && lastAudioNs != 0L && nowNs - lastAudioNs > 150_000_000L)
+                    Trace.state("sound link: nothing came for ${(nowNs - lastAudioNs) / 1_000_000} ms, then the rest at once")
+                lastAudioNs = nowNs
+                jitter.write(stamp, seq, b, 20, frames, ch, nowNs)
                 // v210: version 2 carries the block from two packets back in μ-law after the main block
                 if (b[4].toInt() >= 2 && 20 + main + 8 + frames * ch <= n) {
                     val red = bb.getLong(20 + main)
@@ -222,7 +228,7 @@ object MacLink {
     fun numbers(): String {
         val t = meterTap
         return (if (overTailscale) "[Tailscale] " else "[Wi-Fi] ") +
-            "fill ${t.fillMs} ms (target ${jitter.targetMs()}), underruns ${t.underruns}, lost ${jitter.lost}, " +
+            "fill ${t.fillMs} ms (target ${jitter.targetMs()}, stall ${jitter.stallMs.toInt()}), underruns ${t.underruns}, lost ${jitter.lost}, " +
             "recovered ${jitter.recovered}, concealed ${jitter.concealed}, " +
             "late ${jitter.late}, skips ${t.skips}, drift ${t.driftPpm} ppm, packets ${jitter.packets}, " +
             "live tap fill ${liveTap.fillMs} ms underruns ${liveTap.underruns}"

@@ -52,6 +52,16 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 3) {
     private var lastStamp = -1L
     private var bumpMs = 0.0
 
+    /**
+     * v216, STALLS (Marko, 15.11.2026: "fix our audio streaming ... see if there are drops"). Measured that night: the
+     * Wi-Fi to the phone (2.4 GHz) stops for 0.4 to 0.9 s every two or three minutes and then delivers everything at
+     * once (no packet lost, only late). A 150 ms buffer turned each stop into a hole of 240 to 740 ms. The longest gap
+     * between two arrivals is remembered ([stallMs], it shrinks 1 ms every 5 s), and the target covers it, so the next
+     * stop of the same size is bridged. The stream's capture times move with the fill (MacLink.delayUs), so lip-sync holds.
+     */
+    @Volatile var stallMs = 0.0; private set
+    private var lastAnyArrivalNs = 0L
+
     val taps = ArrayList<Tap>()
 
     fun tap(name: String): Tap = synchronized(lock) { Tap(name).also { taps.add(it) } }
@@ -59,12 +69,12 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 3) {
     fun reset() = synchronized(lock) {
         java.util.Arrays.fill(ring, 0.toShort()); java.util.Arrays.fill(valid, 0.toByte())
         head = -1L; first = -1L; packets = 0; lost = 0; late = 0; recovered = 0; concealed = 0; lastSeq = -1
-        jitterFrames = 0.0; lastArrivalNs = 0; lastStamp = -1; bumpMs = 0.0
+        jitterFrames = 0.0; lastArrivalNs = 0; lastStamp = -1; bumpMs = 0.0; stallMs = 0.0; lastAnyArrivalNs = 0
         for (t in taps) t.clear()
     }
 
     fun targetFrames(): Int {
-        val ms = (baseMs + 3.0 * jitterFrames * 1000.0 / rate + bumpMs).coerceIn(baseMs, 900.0)
+        val ms = maxOf(baseMs + 3.0 * jitterFrames * 1000.0 / rate + bumpMs, stallMs + STALL_MARGIN_MS).coerceIn(baseMs, MAX_TARGET_MS)
         return (ms * rate / 1000.0).toInt()
     }
 
@@ -75,6 +85,11 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 3) {
     /** The main block of a packet: 16-bit little-endian PCM. */
     fun write(stamp: Long, seq: Long, pcm: ByteArray, off: Int, frames: Int, channels: Int, arrivalNs: Long) = synchronized(lock) {
         packets++
+        if (lastAnyArrivalNs != 0L) {
+            val gapMs = (arrivalNs - lastAnyArrivalNs) / 1e6
+            if (gapMs > stallMs && gapMs < MAX_TARGET_MS) stallMs = gapMs
+        }
+        lastAnyArrivalNs = arrivalNs
         if (lastSeq >= 0) {
             val gap = seq - lastSeq - 1
             if (gap in 1..10_000) lost += gap
@@ -180,10 +195,18 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 3) {
             val target = targetFrames()
             val step = rate.toDouble() / outRate
             bumpMs = maxOf(0.0, bumpMs - frames.toDouble() / outRate * 0.2)        // 1 ms less every 5 s
+            stallMs = maxOf(0.0, stallMs - frames.toDouble() / outRate * 0.2 / taps.size.coerceAtLeast(1))
             if (!started && waiting && pos < first) pos = first.toDouble()
             var have = head - pos
             if (waiting) {
-                if (have >= target) { waiting = false; started = true; smooth = have; fadeIn = 240 }
+                if (have >= target) {
+                    waiting = false; started = true; fadeIn = 240
+                    // v216: after a stall the late packets come all at once: what is beyond the target is dropped here,
+                    // inside the fade-in that follows the hole, instead of being played 0.4 % fast for a minute or two
+                    // (heard as the pitch going up: 1004 Hz for a 1000 Hz tone, measured 15.11.2026)
+                    if (have > target + rate / 20) { pos = (head - target).toDouble(); skips++; have = head - pos }
+                    smooth = have
+                }
                 else { fadeOut(out, frames, channels); fill = have; return@synchronized true }
             }
             if (have > target + rate / 2 || have > ringFrames - rate / 10) {        // far too full: back to the target
@@ -236,6 +259,11 @@ class LinkJitter(val rate: Int = 48_000, ringSeconds: Int = 3) {
     }
 
     companion object {
+        /** v216: the target is at least the longest recent gap between two arrivals plus this. */
+        const val STALL_MARGIN_MS = 60.0
+        /** v216: up to here (was 900 ms); the ring holds three seconds. */
+        const val MAX_TARGET_MS = 1200.0
+
         /** G.711 μ-law, as the Mac encodes it (SOUND_LINK app/Link.swift ulaw). */
         fun ulawDecode(b: Byte): Int {
             val u = b.toInt().inv() and 0xff
