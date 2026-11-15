@@ -12,8 +12,15 @@ Every second it prints (or with --json, writes one JSON line) what arrived:
   video  frames, the longest gap between two frames (ms), the frame size (so portrait / landscape is checked)
   audio  samples per second against the sample rate, gaps (audio arriving more than 80 ms later than the frame before
          it lasts: what a receiver hears as a drop), level in dBFS
-  and a verdict: OK, PICTURE STALL (no frame for 1 s while sound goes on: the bug), SOUND GAP, SILENT, NOTHING.
-At the end, a summary; the exit code is 1 when there was any stall or the sound was less than 98 % complete.
+  and a verdict: OK, PICTURE STALL, STATIC, SOUND GAP, SILENT, NOTHING (no connection).
+  PICTURE STALL = a steady source (it was sending at >= 60 % of its declared rate) gives no frame for longer than the
+  stall threshold (max(1 s, 10 frame times), or --stall-ms) while its sound goes on: the bug.
+  STATIC = the connection is up (NDIlib_recv_get_no_connections) but no new frame came, and the source sends only on
+  change: it has no sound, or it was not steady before the gap, or it was already seen static, or --static says so.
+  NDI sources may send a frame only when the picture changes (screen captures, Meditation Room's still scenes); a
+  receiver repeats the last frame and that is not a fault (mac23's NDI review #9, 15.11.2026).
+At the end, a summary; the exit code is 1 when there was any stall or, when the source sends sound at all, the sound
+was less than 98 % complete.
 """
 import argparse, ctypes, ctypes.util, json, math, os, sys, time
 
@@ -86,6 +93,8 @@ def bind(lib):
     lib.NDIlib_recv_free_audio_v2.argtypes = [ctypes.c_void_p, ctypes.POINTER(Audio)]
     lib.NDIlib_recv_free_metadata.argtypes = [ctypes.c_void_p, ctypes.POINTER(Meta)]
     lib.NDIlib_recv_destroy.argtypes = [ctypes.c_void_p]
+    lib.NDIlib_recv_get_no_connections.restype = ctypes.c_int
+    lib.NDIlib_recv_get_no_connections.argtypes = [ctypes.c_void_p]
     lib.NDIlib_find_destroy.argtypes = [ctypes.c_void_p]
 
 
@@ -121,6 +130,7 @@ class Second:
         self.sumsq = 0.0
         self.count = 0
         self.meta = 0
+        self.static_gap = False
 
 
 def level_db(sumsq, count):
@@ -134,6 +144,8 @@ def main():
     ap.add_argument("--source", default="", help="part of the NDI source name (default: the first found)")
     ap.add_argument("--seconds", type=float, default=300)
     ap.add_argument("--extra-ips", default="", help="the phone's address, when discovery cannot reach it (USB tether)")
+    ap.add_argument("--stall-ms", type=float, default=0, help="no frame for this long = stall (default: max(1000, 10 frame times))")
+    ap.add_argument("--static", action="store_true", help="the source sends only on change: a gap is never a stall")
     ap.add_argument("--csv", default="")
     ap.add_argument("--json", action="store_true", help="one JSON line per second on stdout (for ndi_soak.py)")
     a = ap.parse_args()
@@ -143,7 +155,8 @@ def main():
     if not lib.NDIlib_initialize():
         sys.exit("NDIlib_initialize failed (CPU not supported?)")
     f, src, name = find(lib, a.source, a.extra_ips, 20)
-    rc = RecvCreate(src, COLOR_FASTEST, BANDWIDTH_HIGHEST, False, b"mantra-ndi-probe")
+    # by name only (the cached p_url_address goes stale when a phone's USB tether changes subnet; review #6)
+    rc = RecvCreate(Source(src.p_ndi_name, None), COLOR_FASTEST, BANDWIDTH_HIGHEST, False, b"mantra-ndi-probe")
     recv = lib.NDIlib_recv_create_v3(ctypes.byref(rc))
     if not recv:
         sys.exit("NDIlib_recv_create_v3 failed")
@@ -152,7 +165,7 @@ def main():
 
     csv = open(a.csv, "w") if a.csv else None
     if csv:
-        csv.write("t,frames,max_gap_ms,size,samples,rate,channels,audio_gaps,audio_gap_ms,level_db,verdict\n")
+        csv.write("t,frames,max_gap_ms,size,samples,rate,channels,audio_gaps,audio_gap_ms,level_db,connections,verdict\n")
 
     v, au, m = Video(), Audio(), Meta()
     start = time.monotonic()
@@ -161,19 +174,50 @@ def main():
     last_video = None
     last_audio_at = None
     last_audio_len_ms = 0.0
-    totals = dict(seconds=0, stalls=0, sound_gaps=0, samples=0, expected=0, longest_video_gap_ms=0.0,
+    totals = dict(seconds=0, stalls=0, static=0, sound_gaps=0, samples=0, expected=0, longest_video_gap_ms=0.0,
                   sizes=set(), verdicts={})
+    arrivals = []          # frame arrival times of the last 5 s (is the source steady?)
+    declared_fps = 0.0
+    on_change = a.static   # learned: a gap seen as STATIC makes later gaps STATIC too
+    in_gap_static = False
+    any_sound = False
+
+    def stall_threshold():
+        return a.stall_ms or max(1000.0, 10000.0 / declared_fps if declared_fps else 1000.0)
+
+    def judge_static():
+        """A gap is judged once, by how the source sent BEFORE it: static when the connection is up and the source
+        sends on change (seen before or --static), has no sound going on, or was not steady."""
+        nonlocal on_change
+        before = [x for x in arrivals if last_video - 3 <= x <= last_video]
+        steady = declared_fps > 0 and len(before) >= 0.6 * declared_fps * 3
+        sound_alive = last_audio_at is not None and time.monotonic() - last_audio_at < 1.0
+        if lib.NDIlib_recv_get_no_connections(recv) > 0 and (on_change or not sound_alive or not steady):
+            on_change = True
+            return True
+        return False
     while time.monotonic() - start < a.seconds:
         t = lib.NDIlib_recv_capture_v2(recv, ctypes.byref(v), ctypes.byref(au), ctypes.byref(m), 50)
         now = time.monotonic()
         if t == FRAME_VIDEO:
             if last_video is not None:
-                sec.max_gap_ms = max(sec.max_gap_ms, (now - last_video) * 1000)
+                gap = (now - last_video) * 1000
+                sec.max_gap_ms = max(sec.max_gap_ms, gap)
+                if gap > stall_threshold() and not in_gap_static:   # a gap that ended between two ticks
+                    in_gap_static = judge_static()
+                sec.static_gap |= in_gap_static
             last_video = now
+            arrivals.append(now)
+            while arrivals and arrivals[0] < now - 5:
+                arrivals.pop(0)
+            if v.frame_rate_D > 0:
+                declared_fps = v.frame_rate_N / v.frame_rate_D
+            in_gap_static = False
             sec.frames += 1
             sec.size = f"{v.xres}x{v.yres}"
             lib.NDIlib_recv_free_video_v2(recv, ctypes.byref(v))
         elif t == FRAME_AUDIO:
+            any_sound = True
             sec.samples += au.no_samples
             sec.rate, sec.channels = au.sample_rate, au.no_channels
             # A sound gap is what a receiver hears as a drop: no audio for longer than its buffer covers. Counted on
@@ -201,9 +245,16 @@ def main():
             gap_now = (now - last_video) * 1000 if last_video else 1e9
             sec.max_gap_ms = max(sec.max_gap_ms, min(gap_now, 1e6))
             sound_alive = last_audio_at is not None and now - last_audio_at < 1.0
-            if sec.frames == 0 and not sound_alive:
+            conns = lib.NDIlib_recv_get_no_connections(recv)
+            stall_ms = a.stall_ms or max(1000.0, 10000.0 / declared_fps if declared_fps else 1000.0)
+            if gap_now > stall_ms and last_video is not None and not in_gap_static:
+                in_gap_static = judge_static()
+            sec.static_gap |= in_gap_static
+            if sec.frames == 0 and not sound_alive and conns == 0:
                 verdict = "NOTHING"
-            elif sec.max_gap_ms > 1000 and sound_alive:
+            elif sec.max_gap_ms > stall_ms and sec.static_gap:
+                verdict = "STATIC"
+            elif sec.max_gap_ms > stall_ms and (sound_alive or conns > 0):
                 verdict = "PICTURE STALL"
             elif sec.audio_gaps:
                 verdict = "SOUND GAP"
@@ -214,9 +265,10 @@ def main():
             row = dict(t=round(now - start, 1), frames=sec.frames, max_gap_ms=round(sec.max_gap_ms),
                        size=sec.size, samples=sec.samples, rate=sec.rate, channels=sec.channels,
                        audio_gaps=sec.audio_gaps, audio_gap_ms=round(sec.audio_gap_ms),
-                       level_db=round(level_db(sec.sumsq, sec.count), 1), verdict=verdict)
+                       level_db=round(level_db(sec.sumsq, sec.count), 1), connections=conns, verdict=verdict)
             totals["seconds"] += 1
             totals["stalls"] += verdict == "PICTURE STALL"
+            totals["static"] += verdict == "STATIC"
             totals["sound_gaps"] += sec.audio_gaps
             totals["samples"] += sec.samples
             totals["expected"] += sec.rate or 48000
@@ -229,11 +281,11 @@ def main():
             else:
                 print(f"{row['t']:7.1f}s  video {sec.frames:3d} fps  gap {row['max_gap_ms']:5d} ms  {sec.size:>10}  "
                       f"audio {sec.samples:6d}/{sec.rate or 0} {sec.channels}ch  gaps {sec.audio_gaps}  "
-                      f"{row['level_db']:6.1f} dBFS  {verdict}", flush=True)
+                      f"{row['level_db']:6.1f} dBFS  conn {conns}  {verdict}", flush=True)
             if csv:
                 csv.write(",".join(str(row[k]) for k in ["t", "frames", "max_gap_ms", "size", "samples", "rate",
                                                          "channels", "audio_gaps", "audio_gap_ms", "level_db",
-                                                         "verdict"]) + "\n")
+                                                         "connections", "verdict"]) + "\n")
                 csv.flush()
             sec = Second()
             tick += 1
@@ -242,11 +294,12 @@ def main():
     lib.NDIlib_find_destroy(f)
     completeness = totals["samples"] / totals["expected"] if totals["expected"] else 0
     summary = dict(source=name, seconds=totals["seconds"], picture_stalls=totals["stalls"],
+                   static_seconds=totals["static"], sends_on_change=on_change, sound=any_sound,
                    sound_gaps=totals["sound_gaps"], sound_complete=round(completeness, 4),
                    longest_video_gap_ms=totals["longest_video_gap_ms"], sizes=sorted(totals["sizes"]),
                    verdicts=totals["verdicts"])
     print(json.dumps({"summary": summary}) if a.json else "\nsummary: " + json.dumps(summary, indent=1), flush=True)
-    sys.exit(1 if totals["stalls"] or completeness < 0.98 else 0)
+    sys.exit(1 if totals["stalls"] or (any_sound and completeness < 0.98) else 0)
 
 
 if __name__ == "__main__":
