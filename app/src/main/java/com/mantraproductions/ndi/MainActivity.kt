@@ -800,6 +800,7 @@ class MainActivity : AppCompatActivity() {
         liveKey = RailButton(this).also { k ->
             k.label = "LIVE"
             k.sub = "OFF"
+            k.onGreen = false      // v220: LIVE wears red while it streams, amber while it connects, grey when off
             k.setOnClickListener { liveTap() }
             withHelp(k, hold = ::liveHold) { "LIVE" }
             railRight.addView(k)
@@ -5569,7 +5570,7 @@ class MainActivity : AppCompatActivity() {
     /** What is live right now, for the top line and the adb state: NDI, SANTOSHI n. */
     private fun liveParts(): List<String> = listOfNotNull(
         if (::pipeline.isInitialized && pipeline.mode != CameraPipeline.Mode.OFF) "NDI"
-        else if (settings.armNdi) "NDI…" else null,
+        else if (settings.armNdi) "NDI waiting (${settings.ndiTransport.label})" else null,
         when (liveState.phase) {
             com.mantraproductions.ndi.live.VdoPublisher.Phase.LIVE -> "SANTOSHI ${liveState.viewers}"
             com.mantraproductions.ndi.live.VdoPublisher.Phase.CONNECTING -> "SANTOSHI…"
@@ -5751,7 +5752,7 @@ class MainActivity : AppCompatActivity() {
         text.append(".")
         val start = text.length
         val parts = liveParts()
-        val out = going && parts.any { !it.endsWith("…") }
+        val out = going && parts.any { !it.endsWith("…") && !it.startsWith("NDI waiting") }
         if (out) {
             text.append("● ")
             text.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.rgb(255, 59, 48)),
@@ -5760,9 +5761,12 @@ class MainActivity : AppCompatActivity() {
         val w = text.length
         // v218: what is live, by name: LIVE · NDI · SITE 3 (LIVE OFF grey when nothing is)
         text.append(if (going) "LIVE · " + parts.joinToString(" · ").ifEmpty { "…" } else "LIVE OFF")
+        // v220 (Marko, 15.11.2026: "when it's live, it should be red. Yellow is just to establish connection"):
+        // red while something really goes out, amber while connecting or waiting, grey when off
         text.setSpan(android.text.style.ForegroundColorSpan(
             if (!going) android.graphics.Color.argb(120, 200, 204, 208)
-            else android.graphics.Color.WHITE), w, text.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            else if (out) android.graphics.Color.rgb(255, 59, 48)
+            else android.graphics.Color.rgb(232, 163, 61)), w, text.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
 
     // --- v197: pairing by the QR on the admin page: the preview is read twice a second until a mantracam:// link shows

@@ -367,3 +367,6 @@ Tailscale), GO LIVE on the phone OFF (two publishers otherwise: the phone's rela
   port (adb 5555 too) and ping fails, so Bonjour and --extra-ips 10.121.232.96 see nothing, which looks like "NDI is off".
   A negative test there proves nothing: check discovery over Tailscale (extra-ips 100.70.23.53) first. Over Tailscale the source
   is listed but the picture did not arrive (0 frames in 25 s): the sender is pinned to the wlan0 address.
+- A test leaves the settings as the user last set them in this session, not an older saved value. After the 08:40 test
+  NDI NETWORK went back to USB CABLE (his morning value) while he had moved to Wi-Fi; his LIVE then hung on "NDI…" with no
+  cable. v220 says why on the top line ("LIVE · NDI waiting (USB CABLE)", amber) and turns red only when frames go out.

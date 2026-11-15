@@ -1700,3 +1700,9 @@ stream and the soak wait for a network where the Mac receives the phone's pictur
 "Please don't write anything general when we relate to the bench site. In the setting, it should be Santoshi Bench Site." ("bench site" = band site, his dictation)
 
 **Plan:** SettingsActivity, PairActivity and every settings-like screen portrait always (the camera keeps its own rotation); every "BAND SITE" / "band site" in the app says "SANTOSHI BAND SITE" / "the Santoshi band site". Status: in progress (v220).
+
+## 15.11.2026, LIVE red when it streams (Marko, word for word)
+
+"I pressed the live, and when live is actually doing the thing, when it's live, it should be red. Yellow is just to establish connection. When it's streaming, it should be red."
+
+**Plan:** the LIVE key and the top-line LIVE: amber while connecting or waiting, red once NDI or the Santoshi band site really sends, grey when off; a waiting NDI says why ("NDI waiting (USB CABLE)"). Status: in progress (v220).
