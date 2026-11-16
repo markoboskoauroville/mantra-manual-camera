@@ -1706,3 +1706,10 @@ stream and the soak wait for a network where the Mac receives the phone's pictur
 "I pressed the live, and when live is actually doing the thing, when it's live, it should be red. Yellow is just to establish connection. When it's streaming, it should be red."
 
 **Plan:** the LIVE key and the top-line LIVE: amber while connecting or waiting, red once NDI or the Santoshi band site really sends, grey when off; a waiting NDI says why ("NDI waiting (USB CABLE)"). Status: done in v220 (15.11.2026), released; install waits for Marko.
+
+
+## 16.11.2026, Manual Camera as the Skeleton camera over USB (Marko, word for word)
+
+"I have much better protocol than IRIUN, it has much better picture quality. And this we need to use our Mantra manual camera for this and it needs to be also compatible with the software for poses. So if I connect via USB my Pixel phone, this app needs to understand how to adjust the phone and the camera to get the best possible picture available on this USB connection. and since my camera is on ADB, my application is to understand ADB and start the camera itself, adjust the settings of this phone and being able to use it for posing."
+
+**Plan:** Manual Camera gets an adb-started SKELETON mode (intent extras: lens, size, fps, bitrate; 50 Hz anti-flicker, stabilisation off, lens intrinsics in a JSON status) that serves H.264 on a TCP port the Mac reaches by adb forward; Skeleton (Mantra) gets the source "Manual Camera (Pixel, USB)" which starts it, decodes with VideoToolbox and feeds the pose pipeline.
