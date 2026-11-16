@@ -63,4 +63,39 @@ object Updater {
             say(said)
         }
     }
+
+    /**
+     * v221, ASKED AT THE START (MANTRA_MANIFEST modules/update-at-start.md, Marko 14.11.2026: "When the application starts,
+     * it checks for it, downloads it, and asks you, 'Do you want to update?'"). Nothing newer, no network: silent. Never
+     * while SKELETON mode runs (the Mac drives the camera then). Yes = the same download as the update key.
+     */
+    fun askAtStart(activity: android.app.Activity) {
+        if (SkeletonMode.active) return
+        val main = Handler(Looper.getMainLooper())
+        thread(name = "update-at-start", isDaemon = true) {
+            val newest = runCatching {
+                val c = (URL(API).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 8_000; readTimeout = 8_000
+                    setRequestProperty("Accept", "application/vnd.github+json")
+                }
+                try {
+                    if (c.responseCode != 200) null
+                    else JSONObject(c.inputStream.bufferedReader().use { it.readText() }).optString("tag_name").removePrefix("v").toIntOrNull()
+                } finally { c.disconnect() }
+            }.getOrNull() ?: return@thread
+            if (newest <= BuildConfig.VERSION_CODE) return@thread
+            main.post {
+                if (activity.isFinishing || activity.isDestroyed || SkeletonMode.active) return@post
+                runCatching {
+                    android.app.AlertDialog.Builder(activity)
+                        .setTitle("Mantra Manual Camera v$newest")
+                        .setMessage("A new version is available (this is v${BuildConfig.VERSION_CODE}). Do you want to update?")
+                        .setPositiveButton("UPDATE") { _, _ -> check(activity) { said -> android.widget.Toast.makeText(activity, said, android.widget.Toast.LENGTH_LONG).show() } }
+                        .setNegativeButton("LATER", null)
+                        .show()
+                }
+                Trace.control("update", "asked at the start", "v${BuildConfig.VERSION_CODE} → v$newest")
+            }
+        }
+    }
 }

@@ -75,6 +75,16 @@ object LinkServer {
         b[0] = if (keyframe) 1 else 0
         for (i in 0 until 8) b[1 + i] = (ptsUs ushr (56 - 8 * i)).toByte()
         System.arraycopy(data, 0, b, 9, data.size)
+        // v221: in SKELETON mode the picture is for a pose in real time: a backlog of more than a quarter second is
+        // dropped at once and a keyframe asked for, rather than played late
+        if (SkeletonMode.active && streamQueue.size >= SKELETON_BACKLOG) {
+            streamQueue.clear(); waitForKey = true
+            lastConfig?.let { streamQueue.offer(Link.SCONFIG to it) }
+            SkeletonMode.onDrop()
+            keyframeWanted?.invoke()
+            Trace.refused("link stream", "skeleton: the cable fell $SKELETON_BACKLOG frames behind, a keyframe asked for")
+            return
+        }
         if (!streamQueue.offer(Link.SFRAME to b)) {
             streamQueue.clear(); waitForKey = true                  // the cable fell behind: start again on a keyframe
             lastConfig?.let { streamQueue.offer(Link.SCONFIG to it) }
@@ -82,9 +92,14 @@ object LinkServer {
         }
     }
 
+    /** v221: the stream encoder's keyframe, asked for when a backlog was dropped (set by the pipeline). */
+    @Volatile var keyframeWanted: (() -> Unit)? = null
+    private const val SKELETON_BACKLOG = 8
+
     private fun switchStream(on: Boolean) {
         if (streamMode == on) return
         streamMode = on
+        SkeletonMode.linkClient = on
         streamQueue.clear(); waitForKey = true
         if (on) lastConfig?.let { streamQueue.offer(Link.SCONFIG to it) }
         Trace.control("link", "stream", if (on) "on (the Mac takes the camera's stream)" else "off")

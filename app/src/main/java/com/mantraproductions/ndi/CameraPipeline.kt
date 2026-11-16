@@ -403,7 +403,11 @@ class CameraPipeline(private val context: Context) {
             bitRate = bitRate,
             tenBit = streamTenBit,
             onFormat = ::onStreamFormat,
-            onFrame = ::onStreamFrame
+            onFrame = ::onStreamFrame,
+            // v221: SKELETON mode's stream: its keyframe interval, codec and low latency
+            iFrameSec = if (SkeletonMode.active) SkeletonMode.gopSec else 2,
+            forceAvc = SkeletonMode.active && !SkeletonMode.hevc,
+            lowLatency = SkeletonMode.active
         )
         // The muxer needs the encoder's own format, and the encoder announces
         // it exactly once, long before anybody presses record. So it is kept.
@@ -588,6 +592,7 @@ class CameraPipeline(private val context: Context) {
 
     fun setLinkStream(on: Boolean) {
         linkWanted = on
+        LinkServer.keyframeWanted = { encoder?.requestKeyframe() }   // v221: a dropped backlog restarts at once
         gpu?.setEnabled(GpuStage.Output.STREAM, on || mode == Mode.HX)
         if (on) { linkConfig(); encoder?.requestKeyframe() }
         Trace.control("stream", if (on) "to the Mac over the cable" else "not to the Mac", if (gpu != null) "GPU stage" else "direct path: not offered")
@@ -595,6 +600,8 @@ class CameraPipeline(private val context: Context) {
 
     private fun linkConfig() {
         val (sps, pps, vps) = parameterSets ?: return
+        SkeletonMode.streamW = encoderSize.width; SkeletonMode.streamH = encoderSize.height
+        SkeletonMode.streamTurns = streamTurns; SkeletonMode.codecName = if (encoder?.isHevc != false) "HEVC" else "H.264"
         LinkServer.streamConfig(encoder?.isHevc ?: true, encoderSize.width, encoderSize.height, vps, sps, pps)
     }
 
@@ -620,7 +627,10 @@ class CameraPipeline(private val context: Context) {
                 onStreamFormat(sps, pps, vps)
             }
         }
-        if (linkWanted) LinkServer.streamFrame(data, keyframe, ptsUs)
+        if (linkWanted) {
+            LinkServer.streamFrame(data, keyframe, ptsUs)
+            if (SkeletonMode.active) SkeletonMode.onFrame(data.size, ptsUs)   // v221: measured fps and bit rate
+        }
         if (mode == Mode.HX) {
             NdiVideo.offer(data, keyframe, ptsUs, hevc)
             frames++
@@ -704,7 +714,10 @@ class CameraPipeline(private val context: Context) {
         c = HdrVideoEncoder(
             width = dims.width, height = dims.height, fps = fps, bitRate = streamBitRate, tenBit = streamTenBit,
             onFormat = { sps, pps, vps -> if (newestEncoder === c) onStreamFormat(sps, pps, vps) },
-            onFrame = { data, key, pts, hevc -> if (newestEncoder === c) onStreamFrame(data, key, pts, hevc) }
+            onFrame = { data, key, pts, hevc -> if (newestEncoder === c) onStreamFrame(data, key, pts, hevc) },
+            iFrameSec = if (SkeletonMode.active) SkeletonMode.gopSec else 2,
+            forceAvc = SkeletonMode.active && !SkeletonMode.hevc,
+            lowLatency = SkeletonMode.active
         )
         newestEncoder = c
         val surface = c.start()

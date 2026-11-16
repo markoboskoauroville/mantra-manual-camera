@@ -464,13 +464,50 @@ class CaptureEngine(private val context: Context) {
                 CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO
             )
             applyDistortionCorrection(request)
+            if (SkeletonMode.active) applySkeleton(request)
 
             builder = request
             applyToneCurve(request)
             apply()
+            if (SkeletonMode.active) scheduleSkeletonLock()
         } catch (e: Exception) {
             listener?.onError("Could not start the preview: ${e.message}")
         }
+    }
+
+    /**
+     * v221, SKELETON mode: anti-banding at the mains (no flicker under 50 Hz lights), stabilisation off (video and
+     * optical: both shift the picture under a calibration), continuous video focus (already set).
+     */
+    private fun applySkeleton(request: CaptureRequest.Builder) {
+        val c = characteristics
+        val ab = c?.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_ANTIBANDING_MODES) ?: IntArray(0)
+        val want = SkeletonMode.antibanding
+        val mode = if (want in ab) want else if (CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO in ab) CaptureRequest.CONTROL_AE_ANTIBANDING_MODE_AUTO else null
+        mode?.let { request.set(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, it) }
+        if (!SkeletonMode.stabilisation) {
+            request.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
+            val ois = c?.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION) ?: IntArray(0)
+            if (CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF in ois)
+                request.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF)
+        }
+        SkeletonMode.locked = "settling"
+        Trace.control("skeleton", "capture keys", "antibanding $mode (asked $want, offered ${ab.joinToString()}), stabilisation ${if (SkeletonMode.stabilisation) "on" else "off"}")
+    }
+
+    /** v221: exposure and white balance locked once they have settled (3 s after the lens opened). */
+    private fun scheduleSkeletonLock() {
+        val h = handler ?: return
+        h.postDelayed({
+            val b = builder ?: return@postDelayed
+            if (!SkeletonMode.active) return@postDelayed
+            if (SkeletonMode.lockAe) b.set(CaptureRequest.CONTROL_AE_LOCK, true)
+            if (SkeletonMode.lockAwb) setWb(b, CaptureRequest.CONTROL_AWB_LOCK, true)
+            val ok = apply()
+            SkeletonMode.locked = listOfNotNull("ae".takeIf { SkeletonMode.lockAe }, "awb".takeIf { SkeletonMode.lockAwb })
+                .joinToString(",").ifEmpty { "none" } + if (ok) "" else " (refused)"
+            Trace.control("skeleton", "locked", SkeletonMode.locked)
+        }, 3000)
     }
 
     fun close() {
@@ -589,6 +626,7 @@ class CaptureEngine(private val context: Context) {
             }
             checkGainsFollowed(lensResult)
             listener?.onCaptureValues(lastIso, lastExposureNs, lastFocusDistance)
+            if (SkeletonMode.active) { SkeletonMode.iso = lastIso; SkeletonMode.exposureNs = lastExposureNs; SkeletonMode.focusDiopters = lastFocusDistance }
 
             // v103: the exposure circle's metering, answered when auto exposure has settled on it
             pendingExposure?.let { waiting ->

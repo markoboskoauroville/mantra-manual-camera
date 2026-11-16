@@ -362,6 +362,11 @@ class MainActivity : AppCompatActivity() {
         lenses = CameraCatalogue.lenses(this)
         // v148: the lens it was left on (it always opened on L1, the ultra wide with fixed focus; Marko: "lens two is the best")
         activeLens = (settings.lens - 1).coerceIn(0, (lenses.size - 1).coerceAtLeast(0))
+        // v221: SKELETON mode from the launch (Skeleton (Mantra) on the Mac, over adb): its lens, never saved
+        SkeletonMode.appVersion = BuildConfig.VERSION_CODE
+        SkeletonMode.startServer(this)
+        if (SkeletonMode.fromIntent(intent) && SkeletonMode.active) enterSkeleton(reopen = false)
+        if (savedInstanceState == null) Updater.askAtStart(this)   // v221: asks to update at the start
         Trace.state(
             "lenses: " + lenses.joinToString {
                 it.label + " [" + it.id + (it.physicalId?.let { p -> ":$p" } ?: "") + "]"
@@ -1073,15 +1078,23 @@ class MainActivity : AppCompatActivity() {
         focus.speedMmS = settings.focusSpeedMmS
         focus.trackSpeedMmS = settings.trackSpeedMmS
         pipeline.streamBitRate = ndiVideoBps()
+        // v221: SKELETON mode decides the size, the rate, the stream's bit rate; GPU stage and 8-bit SDR (Vision on the Mac)
+        val skel = SkeletonMode.active
+        if (skel) {
+            pipeline.maxWidth = SkeletonMode.width
+            pipeline.fps = SkeletonMode.fps
+            pipeline.streamBitRate = SkeletonMode.mbps * 1_000_000
+            SkeletonMode.lensLabel = lens.label; SkeletonMode.cameraId = lens.id; SkeletonMode.physicalId = lens.physicalId
+        }
         pipeline.start(
             cameraId = lens.id,
             physicalId = lens.physicalId,
             previewSurface = Surface(texture),
             sourceName = Mechanism.sanitizeSourceName(settings.sourceName),
-            curve = curve,
-            wantTenBit = settings.wantTenBit,
+            curve = if (skel) LogCurves.Curve.entries[0] else curve,
+            wantTenBit = settings.wantTenBit && !skel,
             bitRate = settings.recordMbps * 1_000_000,   // v173: AUTO by the format, or the number by hand
-            useGpuStage = settings.gpuStage
+            useGpuStage = settings.gpuStage || skel
         )
         applyLook()
         refreshKeys()
@@ -1166,6 +1179,43 @@ class MainActivity : AppCompatActivity() {
         zones.turn = keyTurn      // v183: the faders' words turn too; the faders do not
     }
 
+    /** v221: the screen's brightness before SKELETON mode dimmed it. */
+    private var skeletonBrightness: Float? = null
+
+    /**
+     * v221, SKELETON mode on: the lens the Mac asked for (not saved: his own lens stays his), the Sony and the test
+     * picture let go, the screen dimmed and kept awake, and the camera made again with the Mac's size and rate.
+     */
+    private fun enterSkeleton(reopen: Boolean) {
+        activeLens = SkeletonMode.lensIndex(lenses)
+        sonyActive = false
+        testSource = null
+        showTest = false
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (SkeletonMode.dim) {
+            if (skeletonBrightness == null) skeletonBrightness = window.attributes.screenBrightness
+            window.attributes = window.attributes.also { it.screenBrightness = 0.02f }
+        }
+        val line = "SKELETON: " + (lenses.getOrNull(activeLens)?.label ?: "lens") + ", ${SkeletonMode.width} px, ${SkeletonMode.fps} fps, ${SkeletonMode.mbps} Mbit/s to the Mac"
+        ui.postDelayed({ if (!isDestroyed) say(line) }, if (reopen) 0L else 1500L)
+        if (reopen) {
+            restoreMode = pipeline.mode
+            pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
+            if (preview.isAvailable) openCamera()
+        }
+    }
+
+    /** v221, SKELETON mode off: his own lens and settings again, the screen as it was. */
+    private fun leaveSkeleton() {
+        activeLens = (settings.lens - 1).coerceIn(0, (lenses.size - 1).coerceAtLeast(0))
+        skeletonBrightness?.let { b -> window.attributes = window.attributes.also { it.screenBrightness = b } }
+        skeletonBrightness = null
+        say("SKELETON off: the camera's own settings again")
+        restoreMode = pipeline.mode
+        pipeline.stop(keepSource = restoreMode != CameraPipeline.Mode.OFF)
+        if (preview.isAvailable) openCamera()
+    }
+
     /**
      * v215: ONE MainActivity, always (launchMode singleTask). A second `am start`, the pairing link or a notification
      * made a second one, and the two published over each other (seen 15.11.2026 on the relay). Now the running one gets
@@ -1175,6 +1225,8 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         Trace.state("launch: the running camera took the new intent (one MainActivity)")
+        // v221: SKELETON mode on (or off) for the running camera: made again with the Mac's choices (or his own)
+        if (SkeletonMode.fromIntent(intent)) { if (SkeletonMode.active) enterSkeleton(reopen = true) else leaveSkeleton() }
         intent.getStringExtra("live")?.let { v -> ui.postDelayed({ if (!isDestroyed) say("ADB: " + adbCommand("live", v)) }, 500) }
     }
 
@@ -1258,7 +1310,7 @@ class MainActivity : AppCompatActivity() {
         // service; only the preview window is let go. The ticks that watch the stream and the wire keep running.
         // v201: LIVE (VDO.Ninja) goes on behind other apps the same way (Marko: "I can minimize this app")
         // v208: the Sony on USB stays open too (settings, SANTOSHI ADMIN's Custom Tab): a USB restart is what dropped it
-        if (pipeline.isRunning && (pipeline.mode != CameraPipeline.Mode.OFF || liveOn || liveSession || onSony) && pipeline.usesGpuStage) {
+        if (pipeline.isRunning && (pipeline.mode != CameraPipeline.Mode.OFF || liveOn || liveSession || onSony || SkeletonMode.active) && pipeline.usesGpuStage) {
             keptRunning = true
             keptWith = snapshot()
             if (!StreamService.running) StreamService.start(this, serviceLine())

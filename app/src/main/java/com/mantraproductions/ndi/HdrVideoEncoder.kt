@@ -34,7 +34,11 @@ class HdrVideoEncoder(
     private var bitRate: Int,
     private val tenBit: Boolean,
     private val onFormat: (sps: ByteArray, pps: ByteArray?, vps: ByteArray?) -> Unit,
-    private val onFrame: (data: ByteArray, isKeyframe: Boolean, ptsUs: Long, isHevc: Boolean) -> Unit
+    private val onFrame: (data: ByteArray, isKeyframe: Boolean, ptsUs: Long, isHevc: Boolean) -> Unit,
+    /** v221 (SKELETON mode): seconds between keyframes, H.264 instead of HEVC, and the encoder's low-latency keys. */
+    private val iFrameSec: Int = 2,
+    private val forceAvc: Boolean = false,
+    private var lowLatency: Boolean = false
 ) {
     private var codec: MediaCodec? = null
     private val running = AtomicBoolean(false)
@@ -61,7 +65,7 @@ class HdrVideoEncoder(
      */
     val isHevc: Boolean get() = tenBit || preferHevc
 
-    private var preferHevc = supportsHevc()
+    private var preferHevc = supportsHevc() && !forceAvc
 
     /**
      * @return the surface the camera session should target, or null if this
@@ -88,7 +92,12 @@ class HdrVideoEncoder(
             )
             setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
             setInteger(MediaFormat.KEY_FRAME_RATE, fps)
-            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
+            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, iFrameSec)
+            if (lowLatency) {
+                // v221: realtime priority, and no frames held back in the encoder (no B-frames on a phone's encoder anyway)
+                setInteger(MediaFormat.KEY_PRIORITY, 0)
+                setInteger(MediaFormat.KEY_LATENCY, 1)
+            }
             setInteger(
                 MediaFormat.KEY_BITRATE_MODE,
                 MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
@@ -120,6 +129,12 @@ class HdrVideoEncoder(
             surface
         } catch (e: Exception) {
             Log.e(TAG, "Could not start a ${if (tenBit) "10-bit HEVC" else "8-bit"} encoder", e)
+            if (lowLatency) {
+                // v221: an encoder that refuses the low-latency keys gets the ordinary format
+                Trace.refused("encoder low latency", "refused (${e.javaClass.simpleName}), the ordinary format instead")
+                lowLatency = false
+                return start()
+            }
             if (preferHevc && !tenBit) {
                 // Eight bit HEVC refused at this size: H.264, said in the trace.
                 Trace.refused("HEVC encoder", "refused ${width}x$height, falling back to H.264")
