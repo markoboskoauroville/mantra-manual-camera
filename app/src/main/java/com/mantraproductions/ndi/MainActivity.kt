@@ -1186,7 +1186,33 @@ class MainActivity : AppCompatActivity() {
      * v221, SKELETON mode on: the lens the Mac asked for (not saved: his own lens stays his), the Sony and the test
      * picture let go, the screen dimmed and kept awake, and the camera made again with the Mac's size and rate.
      */
+    /** v222: the accelerometer's orientation while SKELETON mode runs (see [SkeletonMode.deviceDeg]). */
+    private var skeletonOrientation: android.view.OrientationEventListener? = null
+
+    private fun startSkeletonOrientation() {
+        if (skeletonOrientation != null) return
+        val l = object : android.view.OrientationEventListener(this) {
+            override fun onOrientationChanged(o: Int) {
+                if (o == ORIENTATION_UNKNOWN) return          // flat on a table: the last one stays
+                val cur = SkeletonMode.deviceDeg
+                if (cur != null) { var d = kotlin.math.abs(o - cur) % 360; if (d > 180) d = 360 - d; if (d < 60) return }
+                val q = (((o + 45) / 90) % 4) * 90
+                if (q == cur) return
+                SkeletonMode.deviceDeg = q
+                Trace.control("skeleton", "phone orientation", "$q° (accelerometer)")
+                ui.post { if (!isDestroyed) updateStreamTurns() }
+            }
+        }
+        if (l.canDetectOrientation()) l.enable() else Trace.refused("skeleton", "no accelerometer orientation: the display's rotation is used")
+        skeletonOrientation = l
+    }
+
+    private fun stopSkeletonOrientation() {
+        skeletonOrientation?.disable(); skeletonOrientation = null; SkeletonMode.deviceDeg = null
+    }
+
     private fun enterSkeleton(reopen: Boolean) {
+        startSkeletonOrientation()
         activeLens = SkeletonMode.lensIndex(lenses)
         sonyActive = false
         testSource = null
@@ -1207,6 +1233,7 @@ class MainActivity : AppCompatActivity() {
 
     /** v221, SKELETON mode off: his own lens and settings again, the screen as it was. */
     private fun leaveSkeleton() {
+        stopSkeletonOrientation()
         activeLens = (settings.lens - 1).coerceIn(0, (lenses.size - 1).coerceAtLeast(0))
         skeletonBrightness?.let { b -> window.attributes = window.attributes.also { it.screenBrightness = b } }
         skeletonBrightness = null
@@ -2430,7 +2457,10 @@ class MainActivity : AppCompatActivity() {
         // TEST) arrives upright and landscape; the closed phone camera's sensor angle turned it to 1080x1920 (measured)
         if (pipeline.isUsb) return 0
         val e = pipeline.engine
-        return Mechanism.sensorToViewDegrees(e.sensorOrientation, displayDegrees(), e.isFrontFacing, manualQuarterTurns)
+        // v222: in SKELETON mode the phone's physical orientation (or the Mac's forced one), not the display's
+        val dev = if (SkeletonMode.active) (SkeletonMode.forceDeg ?: SkeletonMode.deviceDeg) else null
+        val disp = dev?.let { (360 - it) % 360 } ?: displayDegrees()
+        return Mechanism.sensorToViewDegrees(e.sensorOrientation, disp, e.isFrontFacing, manualQuarterTurns)
     }
 
     /**

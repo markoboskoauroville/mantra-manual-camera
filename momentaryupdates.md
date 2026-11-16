@@ -1713,3 +1713,9 @@ stream and the soak wait for a network where the Mac receives the phone's pictur
 "I have much better protocol than IRIUN, it has much better picture quality. And this we need to use our Mantra manual camera for this and it needs to be also compatible with the software for poses. So if I connect via USB my Pixel phone, this app needs to understand how to adjust the phone and the camera to get the best possible picture available on this USB connection. and since my camera is on ADB, my application is to understand ADB and start the camera itself, adjust the settings of this phone and being able to use it for posing."
 
 **Plan:** Manual Camera gets an adb-started SKELETON mode (intent extras: lens, size, fps, bitrate; 50 Hz anti-flicker, stabilisation off, lens intrinsics in a JSON status) that serves H.264 on a TCP port the Mac reaches by adb forward; Skeleton (Mantra) gets the source "Manual Camera (Pixel, USB)" which starts it, decodes with VideoToolbox and feeds the pose pipeline.
+
+## 16.11.2026, upside down over USB (Marko, word for word)
+
+"For some reason I am upside down in manual camera nothing over USB. So you need to detect upside down picture and simply rotate them."
+
+**Plan:** in SKELETON mode the stream follows the phone's physical orientation (accelerometer), not the display's rotation (often locked on a tripod); `--es orient 0|90|180|270` forces it; Skeleton adds a per-camera rotation and an automatic 180° at the start when the body is seen upside down. Status: v222.

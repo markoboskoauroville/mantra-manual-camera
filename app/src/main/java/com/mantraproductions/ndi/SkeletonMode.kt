@@ -52,6 +52,15 @@ object SkeletonMode {
     var antibanding = 1; private set
     var stabilisation = false; private set
     var dim = true; private set
+    /** v222: the phone's orientation forced by the Mac (0, 90, 180, 270 degrees clockwise from upright portrait), or null. */
+    var forceDeg: Int? = null; private set
+    /**
+     * v222 (Marko, 16.11.2026: "I am upside down in manual camera nothing over USB"): the phone's PHYSICAL orientation from
+     * the accelerometer (OrientationEventListener, quantised with 60° hysteresis), which the stream follows in SKELETON mode
+     * instead of the display's rotation: on a tripod the display is often locked (auto-rotate off) or turned otherwise, and
+     * the stream came out sideways or upside down.
+     */
+    @Volatile var deviceDeg: Int? = null
     var since = 0L; private set
 
     /** What the running camera is (filled by MainActivity / CameraPipeline). */
@@ -103,6 +112,7 @@ object SkeletonMode {
         }
         stabilisation = (i.getStringExtra("stab")?.lowercase() ?: "off") == "on"
         dim = i.getBooleanExtra("dim", true)
+        forceDeg = i.getStringExtra("orient")?.toIntOrNull()?.takeIf { it in listOf(0, 90, 180, 270) }
         active = true
         since = SystemClock.elapsedRealtime()
         synchronized(meterLock) { winStart = 0; winFrames = 0; winBytes = 0 }
@@ -162,9 +172,11 @@ object SkeletonMode {
             put("lock", listOfNotNull("ae".takeIf { lockAe }, "awb".takeIf { lockAwb }).joinToString(",").ifEmpty { "none" })
             put("flicker", when (antibanding) { 1 -> "50"; 2 -> "60"; 3 -> "auto"; else -> "off" })
             put("stab", if (stabilisation) "on" else "off")
+            put("orient", forceDeg?.toString() ?: "auto")
         })
         o.put("stream", JSONObject().apply {
             put("width", streamW); put("height", streamH); put("turns", streamTurns); put("codec", codecName)
+            put("device_deg", (forceDeg ?: deviceDeg) ?: JSONObject.NULL); put("orient_source", if (forceDeg != null) "forced" else if (deviceDeg != null) "accelerometer" else "display")
             put("fps", round(fpsMeasured)); put("mbps", round(mbpsMeasured)); put("dropped", dropped)
             put("to_mac", linkClient)
         })
@@ -226,6 +238,9 @@ object SkeletonMode {
         c.get(CameraCharacteristics.LENS_POSE_TRANSLATION)?.let { o.put("pose_translation", JSONArray(it.map { v -> v.toDouble() })) }
         c.get(CameraCharacteristics.LENS_POSE_ROTATION)?.let { o.put("pose_rotation", JSONArray(it.map { v -> v.toDouble() })) }
         o.put("distortion_correction", "high_quality (the stream is undistorted by the ISP)")
+        o.put("timestamp_source", when (c.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE)) {
+            CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME -> "realtime (clock_us)"; else -> "unknown"
+        })
 
         // the intrinsics in the stream's own pixels
         val arr = active ?: return o

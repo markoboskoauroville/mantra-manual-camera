@@ -579,6 +579,8 @@ class CameraPipeline(private val context: Context) {
      */
     private fun onStreamFormat(sps: ByteArray, pps: ByteArray?, vps: ByteArray?) {
         parameterSets = Triple(sps, pps, vps)
+        SkeletonMode.streamW = encoderSize.width; SkeletonMode.streamH = encoderSize.height; SkeletonMode.streamTurns = streamTurns
+        SkeletonMode.codecName = if (encoder?.isHevc != false) "HEVC" else "H.264"
         NdiSender.setVideoInfo(sps, pps, vps)
         if (linkWanted) linkConfig()
     }
