@@ -370,3 +370,9 @@ Tailscale), GO LIVE on the phone OFF (two publishers otherwise: the phone's rela
 - A test leaves the settings as the user last set them in this session, not an older saved value. After the 08:40 test
   NDI NETWORK went back to USB CABLE (his morning value) while he had moved to Wi-Fi; his LIVE then hung on "NDI…" with no
   cable. v220 says why on the top line ("LIVE · NDI waiting (USB CABLE)", amber) and turns red only when frames go out.
+- A stream turned by the DISPLAY's rotation is wrong on a tripod: auto-rotate off (or the activity's own orientation) leaves
+  the display upright while the phone lies on its side, and the picture goes out sideways or upside down (the Nothing,
+  16.11.2026). For a camera that feeds a machine, follow the accelerometer (OrientationEventListener), quantised with hysteresis.
+- The Pixel's Wi-Fi on the "mantra" router is 2.4 GHz 802.11n at ~52 Mbit/s: 40 Mbit/s of video falls to 18-22 fps with half a
+  second of delay; 12 Mbit/s holds 30 fps at ~120 ms. A USB 2.0 cable (the Nothing, 480 Mb/s) carries 40 Mbit/s easily.
+- The workflow refuses a second push at the same appVersion ("The number must rise"): a fix after a release is the next number.

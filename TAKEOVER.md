@@ -1,3 +1,21 @@
+**16.11.2026, 09:45 — v222 installed on the Pixel and the Nothing (Latest), v221 before it: SKELETON mode for Skeleton (Mantra).**
+Marko: "if I connect via USB my Pixel phone, this app needs to understand how to adjust the phone and the camera to get the best
+possible picture ... start the camera itself". `am start -n com.mantraproductions.manualcamera/com.mantraproductions.ndi.MainActivity
+--es mode skeleton [--es lens back_main|back_wide|front|L2] [--ei width 1920] [--ei fps 30] [--ei mbps 40] [--es codec hevc|h264]
+[--ei gop 1] [--es lock ae,awb] [--es flicker 50] [--es stab off] [--es orient 0|90|180|270] [--ez dim true]`; `--es mode off` ends it.
+Nothing is saved into the settings (SkeletonMode.kt). GPU stage, 8-bit SDR, the stream encoder at the asked size/rate/bit rate,
+keyframe every gop s, realtime priority; 50 Hz anti-banding, video and optical stabilisation off, AE/AWB locked 3 s after the lens
+opens; screen dimmed and kept on; runs on in the background. The stream follows the phone's PHYSICAL orientation (accelerometer,
+60° hysteresis; v222, Marko: "I am upside down in manual camera nothing over USB"), not the display. Transport: Mantra Link MODE 2
+(port 48100) as before; a backlog over 8 frames is dropped and a keyframe asked. Status JSON: http://<phone or forward>:48102/status
+(asked, stream size/fps/Mbit/s/dropped/device_deg, lens, ISO/exposure/focus, LENS_INTRINSIC_CALIBRATION, LENS_DISTORTION,
+stream_intrinsics, clock_us for the Mac's clock mapping, battery). v221 also asks to update at the start (Updater.askAtStart,
+never in SKELETON mode). Builds (green): https://github.com/markoboskoauroville/mantra-manual-camera/actions/runs/43827830430 (v221),
+https://github.com/markoboskoauroville/mantra-manual-camera/actions/runs/43831173263 (v222). Measured: Nothing over USB 2.0
+30 fps 40 Mbit/s ~95-130 ms; Pixel over its 2.4 GHz Wi-Fi 30 fps at 12 Mbit/s ~123 ms (40 Mbit/s fell to 18-22 fps, 0.5-0.9 s).
+Pixel 7 main: fx=fy=2797.7 px on 4080x3072, distortion k1 .126 k2 -.174 k3 .098 (ISP corrects it). The Mac side: SKELETON
+app/PhoneSource.swift.
+
 **15.11.2026, 09:25 — v220 released (Latest), NOT yet installed on the Pixel (waiting for Marko to watch):** Settings and the
 Sony Remote screen are always portrait (manifest; PairActivity and UsbAttachActivity are translucent trampolines and stay as
 they are, since a fixed orientation on a translucent activity crashes Android 8.0). Every user-facing "band site" says "the
