@@ -1,4 +1,4 @@
-# mantramanualcamera.pages.dev
+# manualcamera.markobosko.org
 
 The camera's web page, kept here from 29.10.2026 (it had been published straight from a session before). Every file
 of the live site is in this folder; publish the whole folder, never one file (a Pages upload replaces the site):

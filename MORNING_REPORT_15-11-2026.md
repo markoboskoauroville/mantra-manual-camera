@@ -115,7 +115,7 @@ own path, https://relay.ples-duse.org:8889/santoshi/whep):
 Marko, 14.11.2026 ~23:58: "I just want to send one stream, and then it is relayed somewhere ... Frankfurt delay, without YouTube branding".
 
 **What exists now.** The phone sends ONE stream (WHIP) to MediaMTX on chromium-vm in Frankfurt (https://relay.ples-duse.org).
-Every viewer of https://santoshi-band.pages.dev watches it there in the site's own player (WebRTC/WHEP, LL-HLS fallback).
+Every viewer of https://santoshi.markobosko.org watches it there in the site's own player (WebRTC/WHEP, LL-HLS fallback).
 The VM records each stream in 1-minute pieces and uploads them to Drive "Santoshi Band live (relay)/Santoshi live <date time>/Video",
 with the two Google Docs "Chat" and "Stream statistics". VDO NINJA stays as the second choice. There is no YouTube.
 
@@ -142,5 +142,5 @@ The public live was stopped at 00:39:48. Nothing is on the site overnight.
 **Marko in the morning, with the Sony.**
 1. Sony on USB, Manual Camera open (v212 or newer), the Sony picture on screen.
 2. Settings → STREAMING → **SANTOSHI RELAY** (it says "· default"). Settings close and LIVE starts. The LIVE key turns red and counts the viewers.
-3. On another device open https://santoshi-band.pages.dev: the banner plays the Sony. Tap the speaker for sound.
+3. On another device open https://santoshi.markobosko.org: the banner plays the Sony. Tap the speaker for sound.
 4. To stop: hold LIVE for two seconds (or press SANTOSHI RELAY again). The recording is in Drive "Santoshi Band live (relay)".
